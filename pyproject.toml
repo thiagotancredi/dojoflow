@@ -1,0 +1,53 @@
+[project]
+name = "dojoflow"
+version = "0.1.0"
+description = "Gerenciador de Mensalidades do seu Dojo"
+authors = [
+    {name = "Thiago Tancredi Trajano",email = "thiagotancredii@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13,<4.0"
+dependencies = [
+    "fastapi[standard] (>=0.136.1,<0.137.0)",
+    "sqlalchemy (>=2.0.49,<3.0.0)",
+    "alembic (>=1.18.4,<2.0.0)",
+    "pydantic-settings (>=2.14.1,<3.0.0)",
+    "psycopg[binary] (>=3.3.4,<4.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.3"
+pytest-cov = "^7.1.0"
+taskipy = "^1.14.1"
+ruff = "^0.15.13"
+typos = "^1.46.2"
+
+[tool.ruff]
+line-length = 79
+extend-exclude = ['migrations']
+
+[tool.ruff.lint]
+preview = true
+select = ['I', 'F', 'E', 'W', 'PL', 'PT']
+
+[tool.ruff.format]
+preview = true
+quote-style = 'single'
+
+[tool.pytest.ini_options]
+pythonpath = ['src']
+addopts = ['-p', 'no:warnings']
+
+[tool.taskipy.tasks]
+lint = 'ruff check .'
+format = 'ruff format .'
+fix = 'ruff check . --fix && ruff format .'
+test = 'pytest'
+cov = 'pytest --cov=src/dojoflow --cov-report=term-missing'
+typos = 'typos .'
+run = 'PYTHONPATH=src uvicorn dojoflow.main:app --reload'
