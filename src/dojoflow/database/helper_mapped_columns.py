@@ -149,9 +149,7 @@ def enum_column(
     return mapped_column(
         SQLEnum(
             enum_class,
-            values_callable=lambda enum_cls: [
-                item.value for item in enum_cls
-            ],
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
             native_enum=False,
         ),
         default=default,

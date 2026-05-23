@@ -11,7 +11,7 @@ from dojoflow.database.helper_mapped_columns import (
     money_column,
 )
 from dojoflow.models.base_model import BaseModel
-from dojoflow.models.enums import EnrollmentStatus
+from dojoflow.shared.enums import EnrollmentStatus
 
 
 class Enrollment(BaseModel):

@@ -9,7 +9,7 @@ from dojoflow.database.helper_mapped_columns import (
     str_column,
 )
 from dojoflow.models.base_model import BaseModel
-from dojoflow.models.enums import StudentSex
+from dojoflow.shared.enums import StudentSex
 
 
 class Student(BaseModel):

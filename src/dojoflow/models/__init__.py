@@ -10,7 +10,9 @@ from dojoflow.models.payment import Payment
 from dojoflow.models.payment_allocation import PaymentAllocation
 from dojoflow.models.payment_transaction import PaymentTransaction
 from dojoflow.models.student import Student
-from dojoflow.models.telegram_conversation_state import TelegramConversationState
+from dojoflow.models.telegram_conversation_state import (
+    TelegramConversationState,
+)
 from dojoflow.models.telegram_message_log import TelegramMessageLog
 
 __all__ = [
