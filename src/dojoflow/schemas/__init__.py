@@ -3,7 +3,12 @@ from dojoflow.schemas.audit_log import AuditLogCreate, AuditLogRead
 from dojoflow.schemas.enrollment import EnrollmentCreate, EnrollmentRead
 from dojoflow.schemas.import_batch import ImportBatchCreate, ImportBatchRead
 from dojoflow.schemas.import_row import ImportRowCreate, ImportRowRead
-from dojoflow.schemas.master import MasterCreate, MasterRead
+from dojoflow.schemas.master import (
+    MasterCreate,
+    MasterRead,
+    MasterRegistrationCreate,
+    MasterRegistrationRead,
+)
 from dojoflow.schemas.modality import ModalityCreate, ModalityRead
 from dojoflow.schemas.notification import NotificationCreate, NotificationRead
 from dojoflow.schemas.payment import PaymentCreate, PaymentRead
@@ -38,6 +43,8 @@ __all__ = [
     'ImportRowRead',
     'MasterCreate',
     'MasterRead',
+    'MasterRegistrationCreate',
+    'MasterRegistrationRead',
     'ModalityCreate',
     'ModalityRead',
     'NotificationCreate',
