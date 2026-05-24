@@ -1,20 +1,17 @@
 from fastapi import APIRouter, status
 
 from dojoflow.api.dependencies.onboarding import OnboardingServiceDep
-from dojoflow.schemas.master import (
-    MasterRegistrationCreate,
-    MasterRegistrationRead,
-)
+from dojoflow.schemas.onboarding import OnboardingCreate, OnboardingRead
 
 router = APIRouter(prefix='/onboarding', tags=['Onboarding'])
 
 
 @router.post(
-    path='/master',
+    path='',
     status_code=status.HTTP_201_CREATED,
 )
-async def register_master(
-    data: MasterRegistrationCreate,
+async def register_onboarding(
+    data: OnboardingCreate,
     onboarding_service_dep: OnboardingServiceDep,
-) -> MasterRegistrationRead:
-    return await onboarding_service_dep.register_master(data)
+) -> OnboardingRead:
+    return await onboarding_service_dep.register_onboarding(data)

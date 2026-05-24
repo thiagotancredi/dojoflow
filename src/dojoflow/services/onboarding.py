@@ -2,11 +2,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.database.transaction import transactional
 from dojoflow.schemas.academy import AcademyCreate
-from dojoflow.schemas.master import (
-    MasterCreate,
-    MasterRegistrationCreate,
-    MasterRegistrationRead,
-)
+from dojoflow.schemas.master import MasterCreate
+from dojoflow.schemas.onboarding import OnboardingCreate, OnboardingRead
 from dojoflow.services.academy import AcademyService
 from dojoflow.services.master import MasterService
 from dojoflow.shared.exceptions import ConflictError
@@ -24,10 +21,10 @@ class OnboardingService:
         self.db_session = db_session
 
     @transactional
-    async def register_master(
+    async def register_onboarding(
         self,
-        data: MasterRegistrationCreate,
-    ) -> MasterRegistrationRead:
+        data: OnboardingCreate,
+    ) -> OnboardingRead:
         existing_master = await self.master_service.get_by_telegram_user_id(
             data.telegram_user_id
         )
@@ -50,7 +47,7 @@ class OnboardingService:
             )
         )
 
-        return MasterRegistrationRead(
+        return OnboardingRead(
             academy_id=academy_id,
             master_id=master_id,
         )
