@@ -4,6 +4,7 @@ from dojoflow.api.exception_handlers import register_exception_handlers
 from dojoflow.api.routes.health import router as health_router
 from dojoflow.api.routes.master import router as master_router
 from dojoflow.api.routes.onboarding import router as onboarding_router
+from dojoflow.api.routes.telegram import router as telegram_router
 
 app = FastAPI(
     title='Dojoflow API',
@@ -16,3 +17,4 @@ register_exception_handlers(app)
 app.include_router(health_router, prefix='')
 app.include_router(onboarding_router, prefix='/api/v1')
 app.include_router(master_router, prefix='/api/v1')
+app.include_router(telegram_router, prefix='/api/v1')

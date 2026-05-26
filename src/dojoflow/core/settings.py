@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     )
 
     PROJECT_NAME: str = 'DojoFlow'
+    TELEGRAM_BOT_TOKEN: str = ''
     API_V1_PREFIX: str = '/api/v1'
     DATABASE_URL: str = (
         'postgresql+asyncpg://postgres:password@localhost:5432/dojoflow'
