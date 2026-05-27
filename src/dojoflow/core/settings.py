@@ -7,8 +7,12 @@ class Settings(BaseSettings):
     )
 
     PROJECT_NAME: str = 'DojoFlow'
-    TELEGRAM_BOT_TOKEN: str = ''
     API_V1_PREFIX: str = '/api/v1'
+
+    TELEGRAM_BOT_TOKEN: str = ''
+    TELEGRAM_WEBHOOK_BASE_URL: str = ''
+    TELEGRAM_WEBHOOK_SECRET: str = ''
+
     DATABASE_URL: str = (
         'postgresql+asyncpg://postgres:password@localhost:5432/dojoflow'
     )

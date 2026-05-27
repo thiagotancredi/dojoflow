@@ -22,6 +22,35 @@ class TelegramService:
 
             return response.json()
 
+    async def set_webhook(self) -> dict[str, Any]:
+        if not self.bot_token:
+            raise ValueError('TELEGRAM_BOT_TOKEN is not configured.')
+
+        if not settings.TELEGRAM_WEBHOOK_BASE_URL:
+            raise ValueError('TELEGRAM_WEBHOOK_BASE_URL is not configured.')
+
+        if not settings.TELEGRAM_WEBHOOK_SECRET:
+            raise ValueError('TELEGRAM_WEBHOOK_SECRET is not configured.')
+
+        webhook_base_url = settings.TELEGRAM_WEBHOOK_BASE_URL.rstrip('/')
+        webhook_url = (
+            f'{webhook_base_url}{settings.API_V1_PREFIX}/telegram/webhook'
+        )
+
+        url = f'{self.base_url}/setWebhook'
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                json={
+                    'url': webhook_url,
+                    'secret_token': settings.TELEGRAM_WEBHOOK_SECRET,
+                },
+            )
+            response.raise_for_status()
+
+            return response.json()
+
     async def send_message(
         self,
         chat_id: int,

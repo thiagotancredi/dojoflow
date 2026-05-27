@@ -58,3 +58,4 @@ cov = 'pytest --cov=src/dojoflow --cov-report=term-missing'
 typos = 'typos .'
 run = 'PYTHONPATH=src uvicorn dojoflow.main:app --reload'
 seed-onboarding = 'PYTHONPATH=src python -m devtools.seeds.onboarding'
+telegram-set-webhook = "PYTHONPATH=src python -m dojoflow.commands.telegram_set_webhook"

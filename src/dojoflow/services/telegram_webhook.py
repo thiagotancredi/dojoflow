@@ -79,7 +79,11 @@ class TelegramWebhookService:
         telegram_user_id: int,
         text: str,
     ) -> dict[str, str]:
-        state = await self.telegram_conversation_state_service.get_by_telegram_user_id(
+        conversation_state_service = (
+            self.telegram_conversation_state_service
+        )
+
+        state = await conversation_state_service.get_by_telegram_user_id(
             telegram_user_id
         )
 
@@ -90,17 +94,9 @@ class TelegramWebhookService:
                 state=state,
             )
 
-        await self.telegram_conversation_state_service.start_onboarding(
-            telegram_user_id
-        )
-
-        await self.telegram_service.send_message(
+        await self._start_onboarding(
             chat_id=chat_id,
-            text=(
-                'Bem-vindo ao DojoFlow! 🥋\n\n'
-                'Vamos iniciar seu cadastro.\n'
-                'Qual é o nome da sua academia?'
-            ),
+            telegram_user_id=telegram_user_id,
         )
 
         return {'status': 'onboarding_started'}
@@ -127,7 +123,38 @@ class TelegramWebhookService:
                 state=state,
             )
 
-        return {'status': 'ignored'}
+        await self._start_onboarding(
+            chat_id=chat_id,
+            telegram_user_id=state['telegram_user_id'],
+            message=(
+                'Não consegui identificar em qual etapa do cadastro você '
+                'estava.\n\n'
+                'Vamos reiniciar seu cadastro.\n'
+                'Qual é o nome da sua academia?'
+            ),
+        )
+
+        return {'status': 'onboarding_restarted'}
+
+    async def _start_onboarding(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        message: str | None = None,
+    ) -> None:
+        await self.telegram_conversation_state_service.start_onboarding(
+            telegram_user_id
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=message
+            or (
+                'Bem-vindo ao DojoFlow! 🥋\n\n'
+                'Vamos iniciar seu cadastro.\n'
+                'Qual é o nome da sua academia?'
+            ),
+        )
 
     async def _process_waiting_academy_name(
         self,
