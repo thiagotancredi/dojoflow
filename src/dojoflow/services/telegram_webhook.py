@@ -1,15 +1,22 @@
-from typing import Any
-
-from dojoflow.integrations.telegram.schemas import TelegramUpdate
+from dojoflow.integrations.telegram.schemas import (
+    TelegramCallbackQuery,
+    TelegramUpdate,
+)
 from dojoflow.integrations.telegram.service import TelegramService
-from dojoflow.schemas.onboarding import OnboardingCreate
+from dojoflow.schemas.master_context import MasterContextRead
 from dojoflow.services.master import MasterService
 from dojoflow.services.onboarding import OnboardingService
+from dojoflow.services.telegram_bot.handlers.main_menu import MainMenuHandler
+from dojoflow.services.telegram_bot.handlers.onboarding import (
+    TelegramOnboardingHandler,
+)
+from dojoflow.services.telegram_bot.handlers.students import (
+    StudentsMenuHandler,
+)
 from dojoflow.services.telegram_conversation_state import (
     TelegramConversationStateService,
 )
 from dojoflow.shared.enums import AcademyStatus
-from dojoflow.shared.telegram_enums import TelegramStep
 
 
 class TelegramWebhookService:
@@ -24,15 +31,24 @@ class TelegramWebhookService:
     ) -> None:
         self.telegram_service = telegram_service
         self.master_service = master_service
-        self.onboarding_service = onboarding_service
-        self.telegram_conversation_state_service = (
-            telegram_conversation_state_service
+
+        self.main_menu_handler = MainMenuHandler(telegram_service)
+        self.students_menu_handler = StudentsMenuHandler(telegram_service)
+        self.onboarding_handler = TelegramOnboardingHandler(
+            telegram_service=telegram_service,
+            onboarding_service=onboarding_service,
+            telegram_conversation_state_service=(
+                telegram_conversation_state_service
+            ),
         )
 
     async def process_update(
         self,
         payload: TelegramUpdate,
     ) -> dict[str, str]:
+        if payload.callback_query is not None:
+            return await self._process_callback_query(payload.callback_query)
+
         if payload.message is None:
             return {'status': 'ignored'}
 
@@ -45,191 +61,110 @@ class TelegramWebhookService:
         )
 
         if context is None:
-            return await self._process_without_context(
+            return await self.onboarding_handler.process_message(
                 chat_id=chat_id,
                 telegram_user_id=telegram_user_id,
                 text=text,
             )
 
+        return await self._process_registered_master_message(
+            chat_id=chat_id,
+            text=text,
+            context=context,
+        )
+
+    async def _process_registered_master_message(
+        self,
+        chat_id: int,
+        text: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
         if context.academy_status == AcademyStatus.BLOCKED:
-            await self.telegram_service.send_message(
-                chat_id=chat_id,
-                text=(
-                    'Sua academia está bloqueada no DojoFlow.\n'
-                    'Entre em contato com o suporte para regularizar o acesso.'
-                ),
-            )
+            await self._send_blocked_message(chat_id)
 
             return {'status': 'blocked'}
 
-        await self.telegram_service.send_message(
+        normalized_text = text.strip().lower()
+
+        if normalized_text in {'0', 'ajuda', 'help'}:
+            await self.main_menu_handler.send_help(chat_id)
+
+            return {'status': 'help_sent'}
+
+        await self.main_menu_handler.send_menu(
             chat_id=chat_id,
-            text=(
-                f'Olá, {context.master_name}! 🥋\n\n'
-                f'Academia: {context.academy_name}\n'
-                'Você já está cadastrado no DojoFlow.'
-            ),
+            context=context,
         )
 
         return {'status': 'message_processed'}
 
-    async def _process_without_context(
+    async def _process_callback_query(
         self,
-        chat_id: int,
-        telegram_user_id: int,
-        text: str,
+        callback_query: TelegramCallbackQuery,
     ) -> dict[str, str]:
-        conversation_state_service = (
-            self.telegram_conversation_state_service
-        )
+        await self.telegram_service.answer_callback_query(callback_query.id)
 
-        state = await conversation_state_service.get_by_telegram_user_id(
+        if callback_query.message is None:
+            return {'status': 'ignored'}
+
+        chat_id = callback_query.message.chat.id
+        telegram_user_id = callback_query.from_user.id
+        callback_data = callback_query.data or ''
+
+        context = await self.master_service.get_context_by_telegram_user_id(
             telegram_user_id
         )
 
-        if state is not None:
-            return await self._process_existing_state(
+        if context is None:
+            await self.onboarding_handler.start_onboarding(
                 chat_id=chat_id,
-                text=text,
-                state=state,
+                telegram_user_id=telegram_user_id,
             )
 
-        await self._start_onboarding(
+            return {'status': 'onboarding_started'}
+
+        return await self._process_callback_with_context(
             chat_id=chat_id,
-            telegram_user_id=telegram_user_id,
+            callback_data=callback_data,
+            context=context,
         )
 
-        return {'status': 'onboarding_started'}
-
-    async def _process_existing_state(
+    async def _process_callback_with_context(
         self,
         chat_id: int,
-        text: str,
-        state: dict[str, Any],
+        callback_data: str,
+        context: MasterContextRead,
     ) -> dict[str, str]:
-        current_step = state['current_step']
+        if context.academy_status == AcademyStatus.BLOCKED:
+            await self._send_blocked_message(chat_id)
 
-        if current_step == TelegramStep.WAITING_ACADEMY_NAME:
-            return await self._process_waiting_academy_name(
+            return {'status': 'blocked'}
+
+        if callback_data == 'menu:students':
+            await self.students_menu_handler.send_menu(chat_id)
+
+            return {'status': 'students_menu_sent'}
+
+        if callback_data.startswith('students:'):
+            return await self.students_menu_handler.process_callback(
                 chat_id=chat_id,
-                text=text,
-                state=state,
+                callback_data=callback_data,
             )
 
-        if current_step == TelegramStep.WAITING_MASTER_NAME:
-            return await self._process_waiting_master_name(
-                chat_id=chat_id,
-                text=text,
-                state=state,
-            )
-
-        await self._start_onboarding(
+        return await self.main_menu_handler.process_callback(
             chat_id=chat_id,
-            telegram_user_id=state['telegram_user_id'],
-            message=(
-                'Não consegui identificar em qual etapa do cadastro você '
-                'estava.\n\n'
-                'Vamos reiniciar seu cadastro.\n'
-                'Qual é o nome da sua academia?'
-            ),
+            callback_data=callback_data,
+            context=context,
         )
 
-        return {'status': 'onboarding_restarted'}
-
-    async def _start_onboarding(
+    async def _send_blocked_message(
         self,
         chat_id: int,
-        telegram_user_id: int,
-        message: str | None = None,
     ) -> None:
-        await self.telegram_conversation_state_service.start_onboarding(
-            telegram_user_id
-        )
-
-        await self.telegram_service.send_message(
-            chat_id=chat_id,
-            text=message
-            or (
-                'Bem-vindo ao DojoFlow! 🥋\n\n'
-                'Vamos iniciar seu cadastro.\n'
-                'Qual é o nome da sua academia?'
-            ),
-        )
-
-    async def _process_waiting_academy_name(
-        self,
-        chat_id: int,
-        text: str,
-        state: dict[str, Any],
-    ) -> dict[str, str]:
-        academy_name = text.strip()
-
-        if not academy_name or academy_name == '/start':
-            await self.telegram_service.send_message(
-                chat_id=chat_id,
-                text='Qual é o nome da sua academia?',
-            )
-
-            return {'status': 'waiting_academy_name'}
-
-        conversation_state_service = self.telegram_conversation_state_service
-
-        await conversation_state_service.set_waiting_master_name(
-            state_id=state['id'],
-            academy_name=academy_name,
-        )
-
         await self.telegram_service.send_message(
             chat_id=chat_id,
             text=(
-                f'Academia "{academy_name}" anotada. 🥋\n\n'
-                'Agora me informe seu nome.'
+                '🔒 Sua academia está bloqueada no DojoFlow.\n\n'
+                'Entre em contato com o suporte para regularizar o acesso.'
             ),
         )
-
-        return {'status': 'academy_name_received'}
-
-    async def _process_waiting_master_name(
-        self,
-        chat_id: int,
-        text: str,
-        state: dict[str, Any],
-    ) -> dict[str, str]:
-        master_name = text.strip()
-
-        if not master_name or master_name == '/start':
-            await self.telegram_service.send_message(
-                chat_id=chat_id,
-                text='Agora me informe seu nome.',
-            )
-
-            return {'status': 'waiting_master_name'}
-
-        context_data = state['context_data']
-        academy_name = context_data['academy_name']
-
-        onboarding = await self.onboarding_service.register_onboarding(
-            OnboardingCreate(
-                academy_name=academy_name,
-                master_name=master_name,
-                telegram_user_id=state['telegram_user_id'],
-                phone=None,
-            )
-        )
-
-        await self.telegram_conversation_state_service.complete_onboarding(
-            state_id=state['id'],
-            academy_id=onboarding.academy_id,
-            master_id=onboarding.master_id,
-        )
-
-        await self.telegram_service.send_message(
-            chat_id=chat_id,
-            text=(
-                'Cadastro concluído com sucesso! 🥋\n\n'
-                f'Academia: {academy_name}\n'
-                f'Mestre: {master_name}'
-            ),
-        )
-
-        return {'status': 'onboarding_completed'}

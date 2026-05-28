@@ -17,6 +17,18 @@ class TelegramMessage(BaseModel):
     text: str | None = None
 
 
+class TelegramCallbackMessage(BaseModel):
+    chat: TelegramChat
+
+
+class TelegramCallbackQuery(BaseModel):
+    id: str
+    from_user: TelegramUser = Field(alias='from')
+    message: TelegramCallbackMessage | None = None
+    data: str | None = None
+
+
 class TelegramUpdate(BaseModel):
     update_id: int | None = None
     message: TelegramMessage | None = None
+    callback_query: TelegramCallbackQuery | None = None

@@ -55,19 +55,48 @@ class TelegramService:
         self,
         chat_id: int,
         text: str,
+        reply_markup: dict[str, Any] | None = None,
     ) -> None:
         if not self.bot_token:
             raise ValueError('TELEGRAM_BOT_TOKEN is not configured.')
 
         url = f'{self.base_url}/sendMessage'
+        payload: dict[str, Any] = {
+            'chat_id': chat_id,
+            'text': text,
+        }
+
+        if reply_markup is not None:
+            payload['reply_markup'] = reply_markup
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 url,
-                json={
-                    'chat_id': chat_id,
-                    'text': text,
-                },
+                json=payload,
+            )
+
+            response.raise_for_status()
+
+    async def answer_callback_query(
+        self,
+        callback_query_id: str,
+        text: str | None = None,
+    ) -> None:
+        if not self.bot_token:
+            raise ValueError('TELEGRAM_BOT_TOKEN is not configured.')
+
+        url = f'{self.base_url}/answerCallbackQuery'
+        payload: dict[str, Any] = {
+            'callback_query_id': callback_query_id,
+        }
+
+        if text is not None:
+            payload['text'] = text
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                json=payload,
             )
 
             response.raise_for_status()
