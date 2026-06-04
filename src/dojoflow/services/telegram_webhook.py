@@ -115,6 +115,21 @@ class TelegramWebhookService:
 
         if (
             state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_SEARCH
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_SEARCH_NAME
+        ):
+            students_handler = self.students_menu_handler
+
+            return await students_handler.process_student_search_message(
+                chat_id=chat_id,
+                search_text=text,
+                state_id=state['id'],
+                context=context,
+            )
+
+        if (
+            state is not None
             and state['current_flow'] == TelegramFlow.STUDENT_CREATION
             and state['current_step'] == TelegramStep.WAITING_STUDENT_NAME
         ):
@@ -130,6 +145,40 @@ class TelegramWebhookService:
         if (
             state is not None
             and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_RESPONSIBLE_NAME
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_responsible_name_message(
+                    chat_id=chat_id,
+                    responsible_name=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_RESPONSIBLE_PHONE
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_responsible_phone_message(
+                    chat_id=chat_id,
+                    phone=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
             and state['current_step'] == TelegramStep.WAITING_STUDENT_PHONE
         ):
             students_handler = self.students_menu_handler
@@ -137,6 +186,37 @@ class TelegramWebhookService:
             return await students_handler.process_student_phone_message(
                 chat_id=chat_id,
                 phone=text,
+                state_id=state['id'],
+                context_data=state['context_data'],
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_RESPONSIBLE_EMAIL
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_responsible_email_message(
+                    chat_id=chat_id,
+                    email=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step'] == TelegramStep.WAITING_STUDENT_EMAIL
+        ):
+            students_handler = self.students_menu_handler
+
+            return await students_handler.process_student_email_message(
+                chat_id=chat_id,
+                email=text,
                 state_id=state['id'],
                 context_data=state['context_data'],
             )
@@ -231,7 +311,12 @@ class TelegramWebhookService:
         self,
         callback_query: TelegramCallbackQuery,
     ) -> dict[str, str]:
-        await self.telegram_service.answer_callback_query(callback_query.id)
+        try:
+            await self.telegram_service.answer_callback_query(
+                callback_query.id
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
         if callback_query.message is None:
             return {'status': 'ignored'}

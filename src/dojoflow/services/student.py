@@ -2,16 +2,25 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.database.transaction import transactional
 from dojoflow.models.academy_modality import AcademyModality
+from dojoflow.models.enrollment import Enrollment
+from dojoflow.models.modality import Modality
+from dojoflow.models.student import Student
+from dojoflow.models.student_responsible import StudentResponsible
 from dojoflow.repositories.academy_modality import AcademyModalityRepository
 from dojoflow.repositories.enrollment import EnrollmentRepository
 from dojoflow.repositories.student import StudentRepository
+from dojoflow.repositories.student_responsible import (
+    StudentResponsibleRepository,
+)
 from dojoflow.schemas.enrollment import EnrollmentCreate
 from dojoflow.schemas.student import StudentCreate, StudentRead
-from dojoflow.shared.enums import StudentSex
+from dojoflow.schemas.student_responsible import StudentResponsibleCreate
+from dojoflow.shared.enums import StudentResponsibleRelationship, StudentSex
 from dojoflow.shared.exceptions import NotFoundError
 
 
@@ -20,11 +29,13 @@ class StudentService:
         self,
         student_repository: StudentRepository,
         enrollment_repository: EnrollmentRepository,
+        student_responsible_repository: StudentResponsibleRepository,
         academy_modality_repository: AcademyModalityRepository,
         db_session: AsyncSession,
     ) -> None:
         self.student_repository = student_repository
         self.enrollment_repository = enrollment_repository
+        self.student_responsible_repository = student_responsible_repository
         self.academy_modality_repository = academy_modality_repository
         self.db_session = db_session
 
@@ -49,8 +60,9 @@ class StudentService:
                 phone_is_whatsapp=context_data.get('is_whatsapp'),
                 cpf=context_data.get('cpf'),
                 instagram=context_data.get('instagram'),
+                email=context_data.get('email'),
                 birth_date=self._parse_birth_date(context_data),
-                sex=StudentSex(context_data['sex']),
+                sex=self._parse_student_sex(context_data),
             )
         )
 
@@ -65,9 +77,145 @@ class StudentService:
             )
         )
 
+        await self._create_responsibles(
+            academy_id=academy_id,
+            student_id=student_id,
+            context_data=context_data,
+        )
+
         student = await self.student_repository.get_by_id_or_fail(student_id)
 
         return StudentRead(**student)
+
+    async def list_by_academy(
+        self,
+        academy_id: int,
+        limit: int = 20,
+    ) -> list[StudentRead]:
+        students = await self.student_repository.list(
+            filters=[Student.academy_id == academy_id],
+            order_by=[Student.name],
+            limit=limit,
+        )
+
+        return [StudentRead(**student) for student in students]
+
+    async def search_by_name(
+        self,
+        academy_id: int,
+        search_text: str,
+        limit: int = 10,
+    ) -> list[StudentRead]:
+        normalized_search_text = ' '.join(search_text.strip().split())
+
+        students = await self.student_repository.list(
+            filters=[
+                Student.academy_id == academy_id,
+                Student.name.ilike(f'%{normalized_search_text}%'),
+            ],
+            order_by=[Student.name],
+            limit=limit,
+        )
+
+        return [StudentRead(**student) for student in students]
+
+    async def get_details(
+        self,
+        academy_id: int,
+        student_id: int,
+    ) -> dict[str, Any]:
+        student = await self.student_repository.get_one(
+            filters=[
+                Student.id == student_id,
+                Student.academy_id == academy_id,
+            ],
+        )
+
+        if student is None:
+            raise NotFoundError(
+                f'Could not find Student with id {student_id}.'
+            )
+
+        enrollments = await self._get_student_enrollments(
+            academy_id=academy_id,
+            student_id=student_id,
+        )
+        responsibles = await self._get_student_responsibles(
+            academy_id=academy_id,
+            student_id=student_id,
+        )
+
+        return {
+            'student': student,
+            'enrollments': enrollments,
+            'responsibles': responsibles,
+        }
+
+    async def _get_student_enrollments(
+        self,
+        academy_id: int,
+        student_id: int,
+    ) -> list[dict[str, Any]]:
+        smt = (
+            select(
+                Enrollment.id.label('enrollment_id'),
+                Enrollment.status,
+                Enrollment.monthly_fee,
+                Enrollment.due_day,
+                Enrollment.is_exempt,
+                Modality.name.label('modality_name'),
+            )
+            .join(Modality, Modality.id == Enrollment.modality_id)
+            .where(
+                Enrollment.academy_id == academy_id,
+                Enrollment.student_id == student_id,
+            )
+            .order_by(Modality.name)
+        )
+
+        result = await self.db_session.execute(smt)
+
+        return [dict(row) for row in result.mappings().all()]
+
+    async def _get_student_responsibles(
+        self,
+        academy_id: int,
+        student_id: int,
+    ) -> list[dict[str, Any]]:
+        responsibles = await self.student_responsible_repository.list(
+            filters=[
+                StudentResponsible.academy_id == academy_id,
+                StudentResponsible.student_id == student_id,
+            ],
+            order_by=[StudentResponsible.name],
+        )
+
+        return responsibles
+
+    async def _create_responsibles(
+        self,
+        academy_id: int,
+        student_id: int,
+        context_data: dict[str, Any],
+    ) -> None:
+        responsibles = context_data.get('responsibles', [])
+
+        for responsible in responsibles:
+            await self.student_responsible_repository.create(
+                StudentResponsibleCreate(
+                    academy_id=academy_id,
+                    student_id=student_id,
+                    relationship=StudentResponsibleRelationship(
+                        responsible['relationship'],
+                    ),
+                    name=responsible['name'],
+                    phone=responsible['phone'],
+                    phone_is_whatsapp=bool(
+                        responsible['phone_is_whatsapp'],
+                    ),
+                    email=responsible.get('email'),
+                )
+            )
 
     async def _ensure_modality_belongs_to_academy(
         self,
@@ -85,6 +233,24 @@ class StudentService:
             raise NotFoundError(
                 'This modality is not configured for this academy.'
             )
+
+    @staticmethod
+    def _parse_student_sex(
+        context_data: dict[str, Any],
+    ) -> StudentSex:
+        sex_mapping = {
+            'male': StudentSex.MALE,
+            'masculino': StudentSex.MALE,
+            'female': StudentSex.FEMALE,
+            'feminino': StudentSex.FEMALE,
+            'other': StudentSex.OTHER,
+            'outros': StudentSex.OTHER,
+            'outro': StudentSex.OTHER,
+        }
+
+        sex = str(context_data['sex']).strip().lower()
+
+        return sex_mapping[sex]
 
     @staticmethod
     def _parse_birth_date(

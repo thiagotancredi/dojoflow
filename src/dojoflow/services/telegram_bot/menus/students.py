@@ -90,6 +90,127 @@ def student_sex_reply_markup() -> dict[str, Any]:
     }
 
 
+def student_responsible_type_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '🙋 Sim, é o próprio responsável',
+                    'callback_data': 'students:create:responsible:self',
+                },
+            ],
+            [
+                {
+                    'text': '👨‍👩‍👧 Não, possui responsável',
+                    'callback_data': 'students:create:responsible:external',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar cadastro',
+                    'callback_data': 'students:create:cancel',
+                },
+            ],
+        ]
+    }
+
+
+def student_responsible_relationship_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': 'Pai',
+                    'callback_data': (
+                        'students:create:responsible:relationship:father'
+                    ),
+                },
+                {
+                    'text': 'Mãe',
+                    'callback_data': (
+                        'students:create:responsible:relationship:mother'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': 'Avó',
+                    'callback_data': (
+                        'students:create:responsible:relationship:'
+                        'grandmother'
+                    ),
+                },
+                {
+                    'text': 'Avô',
+                    'callback_data': (
+                        'students:create:responsible:relationship:'
+                        'grandfather'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': 'Tio',
+                    'callback_data': (
+                        'students:create:responsible:relationship:uncle'
+                    ),
+                },
+                {
+                    'text': 'Tia',
+                    'callback_data': (
+                        'students:create:responsible:relationship:aunt'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': 'Irmão',
+                    'callback_data': (
+                        'students:create:responsible:relationship:brother'
+                    ),
+                },
+                {
+                    'text': 'Irmã',
+                    'callback_data': (
+                        'students:create:responsible:relationship:sister'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar cadastro',
+                    'callback_data': 'students:create:cancel',
+                },
+            ],
+        ]
+    }
+
+
+def student_responsible_next_action_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '➕ Cadastrar mais um responsável',
+                    'callback_data': 'students:create:responsible:add',
+                },
+            ],
+            [
+                {
+                    'text': '✅ Continuar cadastro',
+                    'callback_data': 'students:create:responsible:continue',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar cadastro',
+                    'callback_data': 'students:create:cancel',
+                },
+            ],
+        ]
+    }
+
+
 def optional_field_reply_markup() -> dict[str, Any]:
     return {
         'inline_keyboard': [
@@ -172,12 +293,6 @@ def student_confirmation_reply_markup() -> dict[str, Any]:
                 {
                     'text': '✅ Confirmar cadastro',
                     'callback_data': 'students:create:confirm',
-                },
-            ],
-            [
-                {
-                    'text': '✏️ Corrigir dados',
-                    'callback_data': 'students:create:edit',
                 },
             ],
             [

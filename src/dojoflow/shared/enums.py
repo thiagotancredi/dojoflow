@@ -12,6 +12,18 @@ class StudentSex(str, enum.Enum):
     OTHER = 'other'
 
 
+class StudentResponsibleRelationship(str, enum.Enum):
+    SELF = 'self'
+    FATHER = 'father'
+    MOTHER = 'mother'
+    GRANDMOTHER = 'grandmother'
+    GRANDFATHER = 'grandfather'
+    UNCLE = 'uncle'
+    AUNT = 'aunt'
+    BROTHER = 'brother'
+    SISTER = 'sister'
+
+
 class EnrollmentStatus(str, enum.Enum):
     ACTIVE = 'active'
     INACTIVE = 'inactive'

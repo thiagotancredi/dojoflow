@@ -13,6 +13,7 @@ class StudentCreate(BaseModel):
     phone_is_whatsapp: bool | None = None
     cpf: str | None = Field(default=None, min_length=11, max_length=11)
     instagram: str | None = Field(default=None, max_length=80)
+    email: str | None = Field(default=None, max_length=255)
     birth_date: date | None = None
     sex: StudentSex | None = None
 
@@ -24,5 +25,6 @@ class StudentRead(ReadBase):
     phone_is_whatsapp: bool | None
     cpf: str | None
     instagram: str | None
+    email: str | None
     birth_date: date | None
     sex: StudentSex | None

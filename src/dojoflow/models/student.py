@@ -26,6 +26,7 @@ class Student(BaseModel):
     )
     cpf: Mapped[str | None] = str_column(length=11, nullable=True)
     instagram: Mapped[str | None] = str_column(length=80, nullable=True)
+    email: Mapped[str | None] = str_column(length=255, nullable=True)
 
     birth_date: Mapped[date | None] = date_column(nullable=True)
 
