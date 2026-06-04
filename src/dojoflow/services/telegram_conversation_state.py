@@ -89,3 +89,62 @@ class TelegramConversationStateService:
                 'current_step': TelegramStep.COMPLETED,
             },
         )
+
+    @transactional
+    async def start_student_creation(
+        self,
+        telegram_user_id: int,
+        academy_id: int,
+        master_id: int,
+    ) -> int:
+        state = await self.get_by_telegram_user_id(telegram_user_id)
+
+        data = {
+            'telegram_user_id': telegram_user_id,
+            'academy_id': academy_id,
+            'master_id': master_id,
+            'current_flow': TelegramFlow.STUDENT_CREATION,
+            'current_step': TelegramStep.WAITING_STUDENT_NAME,
+            'context_data': {},
+        }
+
+        if state is None:
+            return await self.telegram_conversation_state_repository.create(
+                data
+            )
+
+        await self.telegram_conversation_state_repository.update_by_id(
+            record_id=state['id'],
+            data=data,
+        )
+
+        return state['id']
+
+    @transactional
+    async def update_student_creation_context(
+        self,
+        state_id: int,
+        next_step: TelegramStep,
+        context_data: dict[str, Any],
+    ) -> None:
+        await self.telegram_conversation_state_repository.update_by_id(
+            record_id=state_id,
+            data={
+                'current_flow': TelegramFlow.STUDENT_CREATION,
+                'current_step': next_step,
+                'context_data': context_data,
+            },
+        )
+
+    @transactional
+    async def complete_current_flow(
+        self,
+        state_id: int,
+    ) -> None:
+        await self.telegram_conversation_state_repository.update_by_id(
+            record_id=state_id,
+            data={
+                'current_step': TelegramStep.COMPLETED,
+                'context_data': {},
+            },
+        )

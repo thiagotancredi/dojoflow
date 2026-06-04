@@ -3,6 +3,7 @@ from datetime import date
 from sqlalchemy.orm import Mapped
 
 from dojoflow.database.helper_mapped_columns import (
+    bool_column,
     date_column,
     enum_column,
     int_fk,
@@ -20,6 +21,9 @@ class Student(BaseModel):
     name: Mapped[str] = str_column(length=120)
 
     phone: Mapped[str | None] = str_column(length=20, nullable=True)
+    phone_is_whatsapp: Mapped[bool | None] = bool_column(
+        nullable=True,
+    )
     cpf: Mapped[str | None] = str_column(length=11, nullable=True)
     instagram: Mapped[str | None] = str_column(length=80, nullable=True)
 

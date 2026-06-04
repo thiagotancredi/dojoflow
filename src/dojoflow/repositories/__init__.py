@@ -1,4 +1,5 @@
 from dojoflow.repositories.academy import AcademyRepository
+from dojoflow.repositories.academy_modality import AcademyModalityRepository
 from dojoflow.repositories.audit_log import AuditLogRepository
 from dojoflow.repositories.base import BaseRepository
 from dojoflow.repositories.enrollment import EnrollmentRepository
@@ -23,6 +24,7 @@ from dojoflow.repositories.telegram_message_log import (
 )
 
 __all__ = [
+    'AcademyModalityRepository',
     'AcademyRepository',
     'AuditLogRepository',
     'BaseRepository',

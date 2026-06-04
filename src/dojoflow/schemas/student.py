@@ -10,6 +10,7 @@ class StudentCreate(BaseModel):
     academy_id: int = Field(gt=0)
     name: str = Field(min_length=2, max_length=120)
     phone: str | None = Field(default=None, max_length=20)
+    phone_is_whatsapp: bool | None = None
     cpf: str | None = Field(default=None, min_length=11, max_length=11)
     instagram: str | None = Field(default=None, max_length=80)
     birth_date: date | None = None
@@ -20,6 +21,7 @@ class StudentRead(ReadBase):
     academy_id: int
     name: str
     phone: str | None
+    phone_is_whatsapp: bool | None
     cpf: str | None
     instagram: str | None
     birth_date: date | None

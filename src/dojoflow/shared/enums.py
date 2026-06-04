@@ -9,6 +9,7 @@ class AcademyStatus(str, enum.Enum):
 class StudentSex(str, enum.Enum):
     MALE = 'male'
     FEMALE = 'female'
+    OTHER = 'other'
 
 
 class EnrollmentStatus(str, enum.Enum):

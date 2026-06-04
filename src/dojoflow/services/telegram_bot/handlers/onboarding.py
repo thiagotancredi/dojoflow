@@ -30,10 +30,8 @@ class TelegramOnboardingHandler:
         telegram_user_id: int,
         text: str,
     ) -> dict[str, str]:
-        state = (
-            await self.telegram_conversation_state_service
-            .get_by_telegram_user_id(telegram_user_id)
-        )
+        state_service = self.telegram_conversation_state_service
+        state = await state_service.get_by_telegram_user_id(telegram_user_id)
 
         if state is not None:
             return await self._process_existing_state(
