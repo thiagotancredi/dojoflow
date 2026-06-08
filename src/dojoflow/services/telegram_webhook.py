@@ -98,7 +98,7 @@ class TelegramWebhookService:
             context=context,
         )
 
-    async def _process_registered_master_message(  # noqa: PLR0911
+    async def _process_registered_master_message(  # noqa: PLR0911, PLR0912
         self,
         chat_id: int,
         telegram_user_id: int,

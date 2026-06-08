@@ -121,7 +121,6 @@ class TelegramConversationStateService:
         return state['id']
 
     @transactional
-    @transactional
     async def update_student_creation_context(
         self,
         state_id: int,
