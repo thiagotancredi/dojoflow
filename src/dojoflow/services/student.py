@@ -62,7 +62,7 @@ class StudentService:
             modality_id=modality_id,
         )
 
-        address_id = await self._create_address_from_context(
+        address_id = await self._get_address_id_from_context(
             academy_id=academy_id,
             context_data=context_data,
         )
@@ -249,6 +249,52 @@ class StudentService:
 
         return [dict(row) for row in result.mappings().all()]
 
+    async def _get_address_id_from_context(
+        self,
+        academy_id: int,
+        context_data: dict[str, Any],
+    ) -> int | None:
+        address_reference_student_id = context_data.get(
+            'address_reference_student_id',
+        )
+
+        if address_reference_student_id is not None:
+            return await self._get_reference_student_address_id(
+                academy_id=academy_id,
+                student_id=int(address_reference_student_id),
+            )
+
+        return await self._create_address_from_context(
+            academy_id=academy_id,
+            context_data=context_data,
+        )
+
+    async def _get_reference_student_address_id(
+        self,
+        academy_id: int,
+        student_id: int,
+    ) -> int:
+        student = await self.student_repository.get_one(
+            filters=[
+                Student.id == student_id,
+                Student.academy_id == academy_id,
+            ],
+        )
+
+        if student is None:
+            raise NotFoundError(
+                f'Could not find Student with id {student_id}.'
+            )
+
+        address_id = student.get('address_id')
+
+        if address_id is None:
+            raise NotFoundError(
+                f'Student with id {student_id} does not have address.'
+            )
+
+        return int(address_id)
+
     async def _create_address_from_context(
         self,
         academy_id: int,
@@ -316,6 +362,49 @@ class StudentService:
                     responsible_id=responsible_id,
                     relationship=StudentResponsibleRelationship(
                         responsible['relationship'],
+                    ),
+                )
+            )
+
+        await self._create_responsible_references(
+            academy_id=academy_id,
+            student_id=student_id,
+            context_data=context_data,
+        )
+
+    async def _create_responsible_references(
+        self,
+        academy_id: int,
+        student_id: int,
+        context_data: dict[str, Any],
+    ) -> None:
+        responsible_references = context_data.get(
+            'responsible_references',
+            [],
+        )
+
+        for responsible_reference in responsible_references:
+            responsible_id = int(responsible_reference['responsible_id'])
+
+            exists = await self.responsible_repository.exists(
+                filters=[
+                    Responsible.id == responsible_id,
+                    Responsible.academy_id == academy_id,
+                ],
+            )
+
+            if not exists:
+                raise NotFoundError(
+                    f'Could not find Responsible with id {responsible_id}.'
+                )
+
+            await self.student_responsible_repository.create(
+                StudentResponsibleCreate(
+                    academy_id=academy_id,
+                    student_id=student_id,
+                    responsible_id=responsible_id,
+                    relationship=StudentResponsibleRelationship(
+                        responsible_reference['relationship'],
                     ),
                 )
             )
