@@ -254,6 +254,13 @@ async def test_e2e_create_student_self_responsible(
         7,
         telegram_user_id,
         'students:create:whatsapp:yes',
+    ) == {'status': 'waiting_student_address_choice'}
+    assert await post_callback(
+        client,
+        secret,
+        70,
+        telegram_user_id,
+        'students:create:address:new',
     ) == {'status': 'waiting_student_address_zip_code'}
     assert await post_text(
         client,
@@ -462,6 +469,13 @@ async def test_e2e_create_student_external_responsible(
         111,
         telegram_user_id,
         'students:create:responsible:continue',
+    ) == {'status': 'waiting_student_address_choice'}
+    assert await post_callback(
+        client,
+        secret,
+        1110,
+        telegram_user_id,
+        'students:create:address:new',
     ) == {'status': 'waiting_student_address_zip_code'}
     assert await post_text(
         client,

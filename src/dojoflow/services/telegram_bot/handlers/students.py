@@ -9,6 +9,7 @@ from dojoflow.services.modality import ModalityService
 from dojoflow.services.student import StudentService
 from dojoflow.services.telegram_bot.menus.students import (
     optional_field_reply_markup,
+    student_address_choice_reply_markup,
     student_confirmation_reply_markup,
     student_modalities_reply_markup,
     student_responsible_next_action_reply_markup,
@@ -37,7 +38,7 @@ MIN_DUE_DAY = 1
 MAX_DUE_DAY = 28
 
 
-class StudentsMenuHandler:
+class StudentsMenuHandler:  # noqa: PLR0904
     def __init__(
         self,
         telegram_service: TelegramService,
@@ -153,6 +154,25 @@ class StudentsMenuHandler:
             return await self._process_responsible_next_action_choice(
                 chat_id=chat_id,
                 telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+            )
+
+        if callback_data in {
+            'students:create:address:new',
+            'students:create:address:reuse',
+            'students:create:address:skip',
+        }:
+            return await self._process_address_choice(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+            )
+
+        if callback_data.startswith('students:create:address:reference:'):
+            return await self._process_address_reference_selected(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                context=context,
                 callback_data=callback_data,
             )
 
@@ -474,6 +494,76 @@ class StudentsMenuHandler:
         )
 
         return {'status': 'waiting_student_modality'}
+
+    async def process_student_address_reference_search_message(
+        self,
+        chat_id: int,
+        search_text: str,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        normalized_search_text = ' '.join(search_text.strip().split())
+
+        if len(normalized_search_text) < MIN_STUDENT_NAME_LENGTH:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Digite pelo menos 2 caracteres para pesquisar.\n\n'
+                    'Exemplo:\n'
+                    'João'
+                ),
+            )
+
+            return {'status': 'invalid_student_address_reference_search_text'}
+
+        students = await self.student_service.search_by_name(
+            academy_id=context.academy_id,
+            search_text=normalized_search_text,
+        )
+
+        if not students:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei nenhum aluno com o nome '
+                    f'"{normalized_search_text}".\n\n'
+                    'Digite outro nome para pesquisar novamente.'
+                ),
+            )
+
+            return {'status': 'student_address_reference_search_empty'}
+
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_ADDRESS_REFERENCE_SEARCH,
+            context_data=context_data,
+        )
+
+        inline_keyboard: list[list[dict[str, str]]] = []
+
+        for student in students:
+            inline_keyboard.append([
+                {
+                    'text': f'🏠 {student.name}',
+                    'callback_data': (
+                        f'students:create:address:reference:{student.id}'
+                    ),
+                },
+            ])
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Encontrei estes alunos.\n\n'
+                'Toque no aluno que possui o endereço que deseja reutilizar.'
+            ),
+            reply_markup={'inline_keyboard': inline_keyboard},
+        )
+
+        return {'status': 'student_address_reference_search_sent'}
 
     async def _start_student_creation(
         self,
@@ -979,7 +1069,144 @@ class StudentsMenuHandler:
 
             return {'status': 'waiting_student_responsible_relationship'}
 
-        return await self._ask_student_address_zip_code(
+        return await self._ask_student_address_choice(
+            chat_id=chat_id,
+            state_id=state['id'],
+            context_data=context_data,
+        )
+
+    async def _process_address_choice(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        callback_data: str,
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+        state = await state_service.get_by_telegram_user_id(telegram_user_id)
+
+        if (
+            state is None
+            or state['current_step']
+            != TelegramStep.WAITING_STUDENT_ADDRESS_CHOICE
+        ):
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei um cadastro aguardando escolha '
+                    'de endereço.\n\n'
+                    'Clique em "Cadastrar novo aluno" para começar '
+                    'novamente.'
+                ),
+                reply_markup=students_menu_reply_markup(),
+            )
+
+            return {'status': 'student_address_choice_state_not_found'}
+
+        context_data = dict(state['context_data'])
+
+        if callback_data == 'students:create:address:new':
+            return await self._ask_student_address_zip_code(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+            )
+
+        if callback_data == 'students:create:address:skip':
+            return await self._skip_to_cpf(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+            )
+
+        await state_service.update_student_creation_context(
+            state_id=state['id'],
+            next_step=TelegramStep.WAITING_STUDENT_ADDRESS_REFERENCE_SEARCH,
+            context_data=context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Digite o nome do aluno que já possui o endereço '
+                'que deseja reutilizar.'
+            ),
+        )
+
+        return {'status': 'waiting_student_address_reference_search'}
+
+    async def _process_address_reference_selected(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        context: MasterContextRead,
+        callback_data: str,
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+        state = await state_service.get_by_telegram_user_id(telegram_user_id)
+
+        if (
+            state is None
+            or state['current_step']
+            != TelegramStep.WAITING_STUDENT_ADDRESS_REFERENCE_SEARCH
+        ):
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei um cadastro aguardando escolha '
+                    'de endereço.\n\n'
+                    'Digite novamente o nome do aluno que possui '
+                    'o endereço.'
+                ),
+            )
+
+            return {'status': 'student_address_reference_state_not_found'}
+
+        reference_student_id_text = callback_data.rsplit(':', maxsplit=1)[-1]
+
+        if not reference_student_id_text.isdigit():
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text='Aluno inválido. Digite novamente o nome do aluno.',
+            )
+
+            return {'status': 'student_address_reference_invalid_id'}
+
+        reference_student_id = int(reference_student_id_text)
+
+        reference_student = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=reference_student_id,
+        )
+
+        if reference_student is None:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei esse aluno. '
+                    'Digite outro nome para buscar.'
+                ),
+            )
+
+            return {'status': 'student_address_reference_not_found'}
+
+        context_data = dict(state['context_data'])
+        context_data['address_reference_student_id'] = reference_student_id
+
+        await state_service.update_student_creation_context(
+            state_id=state['id'],
+            next_step=TelegramStep.WAITING_STUDENT_CPF,
+            context_data=context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                f'✅ Endereço reaproveitado de {reference_student.name}.\n\n'
+                'Agora vamos continuar o cadastro.'
+            ),
+        )
+
+        return await self._skip_to_cpf(
             chat_id=chat_id,
             state_id=state['id'],
             context_data=context_data,
@@ -1662,14 +1889,14 @@ class StudentsMenuHandler:
             )
 
         if current_step == TelegramStep.WAITING_STUDENT_PHONE:
-            return await self._ask_student_address_zip_code(
+            return await self._ask_student_address_choice(
                 chat_id=chat_id,
                 state_id=state['id'],
                 context_data=context_data,
             )
 
         if current_step == TelegramStep.WAITING_STUDENT_IS_WHATSAPP:
-            return await self._ask_student_address_zip_code(
+            return await self._ask_student_address_choice(
                 chat_id=chat_id,
                 state_id=state['id'],
                 context_data=context_data,
@@ -1782,6 +2009,28 @@ class StudentsMenuHandler:
         await self.send_menu(chat_id)
 
         return {'status': 'invalid_skip_step'}
+
+    async def _ask_student_address_choice(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_ADDRESS_CHOICE,
+            context_data=context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text='Como deseja informar o endereço do aluno?',
+            reply_markup=student_address_choice_reply_markup(),
+        )
+
+        return {'status': 'waiting_student_address_choice'}
 
     async def _ask_student_address_zip_code(
         self,
@@ -2405,7 +2654,7 @@ class StudentsMenuHandler:
         context_data = dict(state['context_data'])
         context_data['is_whatsapp'] = is_whatsapp
 
-        return await self._ask_student_address_zip_code(
+        return await self._ask_student_address_choice(
             chat_id=chat_id,
             state_id=state['id'],
             context_data=context_data,
