@@ -11,6 +11,7 @@ from dojoflow.models.notification import Notification
 from dojoflow.models.payment import Payment
 from dojoflow.models.payment_allocation import PaymentAllocation
 from dojoflow.models.payment_transaction import PaymentTransaction
+from dojoflow.models.responsible import Responsible
 from dojoflow.models.student import Student
 from dojoflow.models.student_responsible import StudentResponsible
 from dojoflow.models.telegram_conversation_state import (
@@ -32,6 +33,7 @@ __all__ = [
     'Payment',
     'PaymentAllocation',
     'PaymentTransaction',
+    'Responsible',
     'Student',
     'StudentResponsible',
     'TelegramConversationState',

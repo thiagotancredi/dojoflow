@@ -16,6 +16,7 @@ from dojoflow.repositories.payment_allocation import (
 from dojoflow.repositories.payment_transaction import (
     PaymentTransactionRepository,
 )
+from dojoflow.repositories.responsible import ResponsibleRepository
 from dojoflow.repositories.student import StudentRepository
 from dojoflow.repositories.telegram_conversation_state import (
     TelegramConversationStateRepository,
@@ -39,6 +40,7 @@ __all__ = [
     'PaymentAllocationRepository',
     'PaymentRepository',
     'PaymentTransactionRepository',
+    'ResponsibleRepository',
     'StudentRepository',
     'TelegramConversationStateRepository',
     'TelegramMessageLogRepository',

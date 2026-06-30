@@ -3,6 +3,7 @@ from dojoflow.schemas.address import AddressCreate, AddressRead
 from dojoflow.schemas.master import MasterCreate, MasterRead
 from dojoflow.schemas.master_context import MasterContextRead
 from dojoflow.schemas.onboarding import OnboardingCreate, OnboardingRead
+from dojoflow.schemas.responsible import ResponsibleCreate, ResponsibleRead
 
 __all__ = [
     'AcademyCreate',
@@ -14,4 +15,6 @@ __all__ = [
     'MasterRead',
     'OnboardingCreate',
     'OnboardingRead',
+    'ResponsibleCreate',
+    'ResponsibleRead',
 ]

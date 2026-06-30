@@ -10,17 +10,20 @@ from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.address import Address
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.modality import Modality
+from dojoflow.models.responsible import Responsible
 from dojoflow.models.student import Student
 from dojoflow.models.student_responsible import StudentResponsible
 from dojoflow.repositories.academy_modality import AcademyModalityRepository
 from dojoflow.repositories.address import AddressRepository
 from dojoflow.repositories.enrollment import EnrollmentRepository
+from dojoflow.repositories.responsible import ResponsibleRepository
 from dojoflow.repositories.student import StudentRepository
 from dojoflow.repositories.student_responsible import (
     StudentResponsibleRepository,
 )
 from dojoflow.schemas.address import AddressCreate
 from dojoflow.schemas.enrollment import EnrollmentCreate
+from dojoflow.schemas.responsible import ResponsibleCreate
 from dojoflow.schemas.student import StudentCreate, StudentRead
 from dojoflow.schemas.student_responsible import StudentResponsibleCreate
 from dojoflow.shared.enums import StudentResponsibleRelationship, StudentSex
@@ -33,6 +36,7 @@ class StudentService:
         student_repository: StudentRepository,
         enrollment_repository: EnrollmentRepository,
         address_repository: AddressRepository,
+        responsible_repository: ResponsibleRepository,
         student_responsible_repository: StudentResponsibleRepository,
         academy_modality_repository: AcademyModalityRepository,
         db_session: AsyncSession,
@@ -40,6 +44,7 @@ class StudentService:
         self.student_repository = student_repository
         self.enrollment_repository = enrollment_repository
         self.address_repository = address_repository
+        self.responsible_repository = responsible_repository
         self.student_responsible_repository = student_responsible_repository
         self.academy_modality_repository = academy_modality_repository
         self.db_session = db_session
@@ -217,15 +222,32 @@ class StudentService:
         academy_id: int,
         student_id: int,
     ) -> list[dict[str, Any]]:
-        responsibles = await self.student_responsible_repository.list(
-            filters=[
+        smt = (
+            select(
+                StudentResponsible.id,
+                StudentResponsible.academy_id,
+                StudentResponsible.student_id,
+                StudentResponsible.responsible_id,
+                StudentResponsible.relationship,
+                Responsible.name,
+                Responsible.phone,
+                Responsible.phone_is_whatsapp,
+                Responsible.email,
+            )
+            .join(
+                Responsible,
+                Responsible.id == StudentResponsible.responsible_id,
+            )
+            .where(
                 StudentResponsible.academy_id == academy_id,
                 StudentResponsible.student_id == student_id,
-            ],
-            order_by=[StudentResponsible.name],
+            )
+            .order_by(Responsible.name)
         )
 
-        return responsibles
+        result = await self.db_session.execute(smt)
+
+        return [dict(row) for row in result.mappings().all()]
 
     async def _create_address_from_context(
         self,
@@ -275,19 +297,26 @@ class StudentService:
         responsibles = context_data.get('responsibles', [])
 
         for responsible in responsibles:
-            await self.student_responsible_repository.create(
-                StudentResponsibleCreate(
+            responsible_id = await self.responsible_repository.create(
+                ResponsibleCreate(
                     academy_id=academy_id,
-                    student_id=student_id,
-                    relationship=StudentResponsibleRelationship(
-                        responsible['relationship'],
-                    ),
                     name=responsible['name'],
                     phone=responsible['phone'],
                     phone_is_whatsapp=bool(
                         responsible['phone_is_whatsapp'],
                     ),
                     email=responsible.get('email'),
+                )
+            )
+
+            await self.student_responsible_repository.create(
+                StudentResponsibleCreate(
+                    academy_id=academy_id,
+                    student_id=student_id,
+                    responsible_id=responsible_id,
+                    relationship=StudentResponsibleRelationship(
+                        responsible['relationship'],
+                    ),
                 )
             )
 
