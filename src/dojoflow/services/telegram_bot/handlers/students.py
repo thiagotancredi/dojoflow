@@ -4,6 +4,7 @@ from typing import Any
 
 from dojoflow.integrations.telegram.service import TelegramService
 from dojoflow.schemas.master_context import MasterContextRead
+from dojoflow.services.cep import CepService
 from dojoflow.services.modality import ModalityService
 from dojoflow.services.student import StudentService
 from dojoflow.services.telegram_bot.menus.students import (
@@ -27,6 +28,7 @@ MIN_STUDENT_NAME_LENGTH = 2
 MIN_PHONE_LENGTH = 10
 MAX_PHONE_LENGTH = 11
 CPF_LENGTH = 11
+ZIP_CODE_LENGTH = 8
 MIN_INSTAGRAM_LENGTH = 2
 BIRTH_DATE_FORMAT = '%d/%m/%Y'
 MONEY_DECIMAL_PLACES = Decimal('0.01')
@@ -44,6 +46,7 @@ class StudentsMenuHandler:
         ),
         modality_service: ModalityService,
         student_service: StudentService,
+        cep_service: CepService,
     ) -> None:
         self.telegram_service = telegram_service
         self.telegram_conversation_state_service = (
@@ -51,6 +54,7 @@ class StudentsMenuHandler:
         )
         self.modality_service = modality_service
         self.student_service = student_service
+        self.cep_service = cep_service
 
     async def send_menu(
         self,
@@ -135,9 +139,7 @@ class StudentsMenuHandler:
                 callback_data=callback_data,
             )
 
-        if callback_data.startswith(
-            'students:create:responsible:whatsapp:'
-        ):
+        if callback_data.startswith('students:create:responsible:whatsapp:'):
             return await self._process_responsible_whatsapp_choice(
                 chat_id=chat_id,
                 telegram_user_id=telegram_user_id,
@@ -555,6 +557,11 @@ class StudentsMenuHandler:
 
         await self.telegram_service.send_message(
             chat_id=chat_id,
+            text=f'Modalidade selecionada: {selected_modality.name} ✅',
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
             text='Agora escolha o sexo do aluno:',
             reply_markup=student_sex_reply_markup(),
         )
@@ -652,6 +659,11 @@ class StudentsMenuHandler:
 
         await self.telegram_service.send_message(
             chat_id=chat_id,
+            text=f'Sexo selecionado: {selected_sex.capitalize()} ✅',
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
             text='Esse aluno é o próprio responsável?',
             reply_markup=student_responsible_type_reply_markup(),
         )
@@ -731,6 +743,14 @@ class StudentsMenuHandler:
         state = await state_service.get_by_telegram_user_id(telegram_user_id)
 
         if not self._is_waiting_student_responsible_relationship(state):
+            if self._is_waiting_student_responsible_name(state):
+                await self.telegram_service.send_message(
+                    chat_id=chat_id,
+                    text='Qual é o nome do responsável?',
+                )
+
+                return {'status': 'waiting_student_responsible_name'}
+
             await self.telegram_service.send_message(
                 chat_id=chat_id,
                 text=(
@@ -790,9 +810,7 @@ class StudentsMenuHandler:
             return {'status': 'invalid_student_responsible_name'}
 
         updated_context_data = dict(context_data)
-        current_responsible = dict(
-            updated_context_data['current_responsible']
-        )
+        current_responsible = dict(updated_context_data['current_responsible'])
         current_responsible['name'] = normalized_responsible_name
         updated_context_data['current_responsible'] = current_responsible
 
@@ -841,9 +859,7 @@ class StudentsMenuHandler:
             return {'status': 'invalid_student_responsible_phone'}
 
         updated_context_data = dict(context_data)
-        current_responsible = dict(
-            updated_context_data['current_responsible']
-        )
+        current_responsible = dict(updated_context_data['current_responsible'])
         current_responsible['phone'] = normalized_phone
         updated_context_data['current_responsible'] = current_responsible
 
@@ -859,9 +875,7 @@ class StudentsMenuHandler:
             chat_id=chat_id,
             text='Esse telefone é WhatsApp?',
             reply_markup=yes_no_required_reply_markup(
-                yes_callback_data=(
-                    'students:create:responsible:whatsapp:yes'
-                ),
+                yes_callback_data=('students:create:responsible:whatsapp:yes'),
                 no_callback_data='students:create:responsible:whatsapp:no',
             ),
         )
@@ -965,10 +979,293 @@ class StudentsMenuHandler:
 
             return {'status': 'waiting_student_responsible_relationship'}
 
-        return await self._skip_to_cpf(
+        return await self._ask_student_address_zip_code(
             chat_id=chat_id,
             state_id=state['id'],
             context_data=context_data,
+        )
+
+    async def process_student_address_zip_code_message(
+        self,
+        chat_id: int,
+        zip_code: str,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        normalized_zip_code = ''.join(
+            character for character in zip_code if character.isdigit()
+        )
+
+        if len(normalized_zip_code) != ZIP_CODE_LENGTH:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'CEP inválido.\n\n'
+                    'Digite apenas os 8 números do CEP.\n\n'
+                    'Exemplo:\n'
+                    '74230110\n\n'
+                    'Se não quiser informar agora, toque em "⏭️ Pular".'
+                ),
+                reply_markup=optional_field_reply_markup(),
+            )
+
+            return {'status': 'invalid_student_address_zip_code'}
+
+        cep_address = await self.cep_service.search(normalized_zip_code)
+
+        if cep_address is None:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei esse CEP.\n\n'
+                    'Você pode tentar digitar outro CEP ou tocar em '
+                    '"⏭️ Pular" para continuar sem endereço agora.'
+                ),
+                reply_markup=optional_field_reply_markup(),
+            )
+
+            return {'status': 'student_address_zip_code_not_found'}
+
+        updated_context_data = dict(context_data)
+        updated_context_data['address'] = {
+            'zip_code': cep_address.zip_code,
+            'street': cep_address.street,
+            'neighborhood': cep_address.neighborhood,
+            'city': cep_address.city,
+            'state': cep_address.state,
+        }
+
+        state_service = self.telegram_conversation_state_service
+
+        if not cep_address.street:
+            await state_service.update_student_creation_context(
+                state_id=state_id,
+                next_step=TelegramStep.WAITING_STUDENT_ADDRESS_STREET,
+                context_data=updated_context_data,
+            )
+
+            missing_fields_text = 'o logradouro'
+
+            if not cep_address.neighborhood:
+                missing_fields_text = 'logradouro nem bairro'
+
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Encontrei parcialmente este endereço:\n\n'
+                    f'Cidade/Estado: {cep_address.city}/{cep_address.state}\n'
+                    f'CEP: {cep_address.zip_code}\n\n'
+                    f'O CEP não trouxe {missing_fields_text}.\n\n'
+                    'Primeiro, digite o logradouro ou toque em "⏭️ Pular".'
+                ),
+                reply_markup=optional_field_reply_markup(),
+            )
+
+            return {'status': 'waiting_student_address_street'}
+
+        if not cep_address.neighborhood:
+            await state_service.update_student_creation_context(
+                state_id=state_id,
+                next_step=(TelegramStep.WAITING_STUDENT_ADDRESS_NEIGHBORHOOD),
+                context_data=updated_context_data,
+            )
+
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Encontrei parcialmente este endereço:\n\n'
+                    f'Logradouro: {cep_address.street}\n'
+                    f'Cidade/Estado: {cep_address.city}/{cep_address.state}\n'
+                    f'CEP: {cep_address.zip_code}\n\n'
+                    'O CEP não trouxe o bairro.\n\n'
+                    'Digite o bairro ou toque em "⏭️ Pular".'
+                ),
+                reply_markup=optional_field_reply_markup(),
+            )
+
+            return {'status': 'waiting_student_address_neighborhood'}
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_ADDRESS_NUMBER,
+            context_data=updated_context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Encontrei este endereço:\n\n'
+                f'Logradouro: {cep_address.street}\n'
+                f'Bairro: {cep_address.neighborhood}\n'
+                f'Cidade/Estado: {cep_address.city}/{cep_address.state}\n'
+                f'CEP: {cep_address.zip_code}\n\n'
+                'Agora digite o número do endereço.\n\n'
+                'Exemplos:\n'
+                '123\n'
+                '3B\n'
+                'S/N'
+            ),
+        )
+
+        return {'status': 'waiting_student_address_number'}
+
+    async def process_student_address_street_message(
+        self,
+        chat_id: int,
+        street: str,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        normalized_street = ' '.join(street.strip().split())
+
+        updated_context_data = dict(context_data)
+        address = dict(updated_context_data.get('address', {}))
+        address['street'] = normalized_street
+        updated_context_data['address'] = address
+
+        state_service = self.telegram_conversation_state_service
+
+        if not address.get('neighborhood'):
+            await state_service.update_student_creation_context(
+                state_id=state_id,
+                next_step=(TelegramStep.WAITING_STUDENT_ADDRESS_NEIGHBORHOOD),
+                context_data=updated_context_data,
+            )
+
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Agora digite o bairro do endereço.\n\n'
+                    'Se não quiser informar agora, toque em "⏭️ Pular".'
+                ),
+                reply_markup=optional_field_reply_markup(),
+            )
+
+            return {'status': 'waiting_student_address_neighborhood'}
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_ADDRESS_NUMBER,
+            context_data=updated_context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Agora digite o número do endereço.\n\nExemplos:\n123\n3B\nS/N'
+            ),
+        )
+
+        return {'status': 'waiting_student_address_number'}
+
+    async def process_student_address_neighborhood_message(
+        self,
+        chat_id: int,
+        neighborhood: str,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        normalized_neighborhood = ' '.join(neighborhood.strip().split())
+
+        updated_context_data = dict(context_data)
+        address = dict(updated_context_data.get('address', {}))
+        address['neighborhood'] = normalized_neighborhood
+        updated_context_data['address'] = address
+
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_ADDRESS_NUMBER,
+            context_data=updated_context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Agora digite o número do endereço.\n\nExemplos:\n123\n3B\nS/N'
+            ),
+        )
+
+        return {'status': 'waiting_student_address_number'}
+
+    async def process_student_address_number_message(
+        self,
+        chat_id: int,
+        number: str,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        normalized_number = ' '.join(number.strip().split())
+        normalized_number_compact = normalized_number.casefold().replace(
+            ' ',
+            '',
+        )
+
+        no_number_values = {'s/n', 'sn', 'semnumero', 'semnúmero'}
+
+        if normalized_number_compact in no_number_values:
+            normalized_number = 'S/N'
+
+        if not normalized_number:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Número inválido.\n\n'
+                    'Digite o número do endereço.\n\n'
+                    'Exemplos:\n'
+                    '123\n'
+                    '3B\n'
+                    'S/N'
+                ),
+            )
+
+            return {'status': 'invalid_student_address_number'}
+
+        updated_context_data = dict(context_data)
+        address = dict(updated_context_data.get('address', {}))
+        address['number'] = normalized_number
+        updated_context_data['address'] = address
+
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_ADDRESS_COMPLEMENT,
+            context_data=updated_context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Digite o complemento do endereço.\n\n'
+                'Exemplo:\n'
+                'Casa 2\n\n'
+                'Se não tiver complemento, toque em "⏭️ Pular".'
+            ),
+            reply_markup=optional_field_reply_markup(),
+        )
+
+        return {'status': 'waiting_student_address_complement'}
+
+    async def process_student_address_complement_message(
+        self,
+        chat_id: int,
+        complement: str,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        normalized_complement = complement.strip()
+
+        updated_context_data = dict(context_data)
+        address = dict(updated_context_data.get('address', {}))
+        address['complement'] = normalized_complement
+        updated_context_data['address'] = address
+
+        return await self._skip_to_cpf(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=updated_context_data,
         )
 
     async def process_student_cpf_message(
@@ -1028,7 +1325,7 @@ class StudentsMenuHandler:
         state_id: int,
         context_data: dict[str, Any],
     ) -> dict[str, str]:
-        normalized_instagram = instagram.strip().removeprefix('@').strip()
+        normalized_instagram = instagram.strip().removeprefix('@').casefold()
 
         if len(normalized_instagram) < MIN_INSTAGRAM_LENGTH:
             await self.telegram_service.send_message(
@@ -1073,7 +1370,7 @@ class StudentsMenuHandler:
         state_id: int,
         context_data: dict[str, Any],
     ) -> dict[str, str]:
-        normalized_email = email.strip().lower()
+        normalized_email = email.strip().casefold().casefold().lower()
 
         if not self._is_valid_email(normalized_email):
             await self.telegram_service.send_message(
@@ -1118,9 +1415,7 @@ class StudentsMenuHandler:
             return {'status': 'invalid_student_responsible_email'}
 
         updated_context_data = dict(context_data)
-        current_responsible = dict(
-            updated_context_data['current_responsible']
-        )
+        current_responsible = dict(updated_context_data['current_responsible'])
         current_responsible['email'] = normalized_email
         updated_context_data['current_responsible'] = current_responsible
 
@@ -1137,9 +1432,7 @@ class StudentsMenuHandler:
         context_data: dict[str, Any],
     ) -> dict[str, str]:
         updated_context_data = dict(context_data)
-        current_responsible = dict(
-            updated_context_data['current_responsible']
-        )
+        current_responsible = dict(updated_context_data['current_responsible'])
 
         responsibles = list(updated_context_data.get('responsibles', []))
         responsibles.append(current_responsible)
@@ -1318,6 +1611,19 @@ class StudentsMenuHandler:
 
         return {'status': 'waiting_student_confirmation'}
 
+    async def _resend_student_confirmation_message(
+        self,
+        chat_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=self._build_student_summary(context_data),
+            reply_markup=student_confirmation_reply_markup(),
+        )
+
+        return {'status': 'waiting_student_confirmation'}
+
     async def _send_invalid_due_day_message(
         self,
         chat_id: int,
@@ -1348,18 +1654,79 @@ class StudentsMenuHandler:
         context_data = dict(state['context_data'])
         current_step = state['current_step']
 
-        if current_step == TelegramStep.WAITING_STUDENT_PHONE:
+        if current_step == TelegramStep.WAITING_STUDENT_ADDRESS_ZIP_CODE:
             return await self._skip_to_cpf(
                 chat_id=chat_id,
                 state_id=state['id'],
                 context_data=context_data,
             )
 
-        if current_step == TelegramStep.WAITING_STUDENT_IS_WHATSAPP:
-            return await self._skip_to_cpf(
+        if current_step == TelegramStep.WAITING_STUDENT_PHONE:
+            return await self._ask_student_address_zip_code(
                 chat_id=chat_id,
                 state_id=state['id'],
                 context_data=context_data,
+            )
+
+        if current_step == TelegramStep.WAITING_STUDENT_IS_WHATSAPP:
+            return await self._ask_student_address_zip_code(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+            )
+
+        if current_step == TelegramStep.WAITING_STUDENT_ADDRESS_STREET:
+            updated_context_data = dict(context_data)
+            address = dict(updated_context_data.get('address', {}))
+            address['street'] = None
+            updated_context_data['address'] = address
+
+            await state_service.update_student_creation_context(
+                state_id=state['id'],
+                next_step=(TelegramStep.WAITING_STUDENT_ADDRESS_NEIGHBORHOOD),
+                context_data=updated_context_data,
+            )
+
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Agora digite o bairro do endereço.\n\n'
+                    'Se não quiser informar agora, toque em "⏭️ Pular".'
+                ),
+                reply_markup=optional_field_reply_markup(),
+            )
+
+            return {'status': 'waiting_student_address_neighborhood'}
+
+        if current_step == TelegramStep.WAITING_STUDENT_ADDRESS_NEIGHBORHOOD:
+            updated_context_data = dict(context_data)
+            address = dict(updated_context_data.get('address', {}))
+            address['neighborhood'] = None
+            updated_context_data['address'] = address
+
+            await state_service.update_student_creation_context(
+                state_id=state['id'],
+                next_step=TelegramStep.WAITING_STUDENT_ADDRESS_NUMBER,
+                context_data=updated_context_data,
+            )
+
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=('Agora digite o número do endereço.\n\nExemplo:\n123'),
+            )
+
+            return {'status': 'waiting_student_address_number'}
+
+        if current_step == TelegramStep.WAITING_STUDENT_ADDRESS_COMPLEMENT:
+            updated_context_data = dict(context_data)
+            address = dict(updated_context_data.get('address', {}))
+            address['complement'] = None
+            updated_context_data['address'] = address
+
+            return await self._skip_to_cpf(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=updated_context_data,
             )
 
         if current_step == TelegramStep.WAITING_STUDENT_CPF:
@@ -1415,6 +1782,34 @@ class StudentsMenuHandler:
         await self.send_menu(chat_id)
 
         return {'status': 'invalid_skip_step'}
+
+    async def _ask_student_address_zip_code(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_ADDRESS_ZIP_CODE,
+            context_data=context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Qual é o CEP do aluno?\n\n'
+                'Digite apenas os números.\n\n'
+                'Exemplo:\n'
+                '74230110\n\n'
+                'Se não quiser informar agora, toque em "⏭️ Pular".'
+            ),
+            reply_markup=optional_field_reply_markup(),
+        )
+
+        return {'status': 'waiting_student_address_zip_code'}
 
     async def _skip_to_cpf(
         self,
@@ -1533,9 +1928,7 @@ class StudentsMenuHandler:
         telegram_user_id: int,
     ) -> dict[str, str]:
         state_service = self.telegram_conversation_state_service
-        state = await state_service.get_by_telegram_user_id(
-            telegram_user_id
-        )
+        state = await state_service.get_by_telegram_user_id(telegram_user_id)
 
         if state is not None:
             await state_service.complete_current_flow(state['id'])
@@ -1543,8 +1936,7 @@ class StudentsMenuHandler:
         await self.telegram_service.send_message(
             chat_id=chat_id,
             text=(
-                'Cadastro de aluno cancelado. ❌\n\n'
-                'Nenhum aluno foi salvo.'
+                'Cadastro de aluno cancelado. ❌\n\nNenhum aluno foi salvo.'
             ),
             reply_markup=students_menu_reply_markup(),
         )
@@ -1558,9 +1950,7 @@ class StudentsMenuHandler:
         context: MasterContextRead,
     ) -> dict[str, str]:
         state_service = self.telegram_conversation_state_service
-        state = await state_service.get_by_telegram_user_id(
-            telegram_user_id
-        )
+        state = await state_service.get_by_telegram_user_id(telegram_user_id)
 
         if not self._is_waiting_student_confirmation(state):
             await self.telegram_service.send_message(
@@ -1660,6 +2050,7 @@ class StudentsMenuHandler:
     ) -> str:
         student = details['student']
         enrollments = details['enrollments']
+        address = details.get('address')
         responsibles = details['responsibles']
 
         cpf = student.get('cpf')
@@ -1687,6 +2078,7 @@ class StudentsMenuHandler:
             f'WhatsApp: {whatsapp_text}\n'
             f'Data de nascimento: {birth_date}\n\n'
             f'{StudentsMenuHandler._build_enrollments_details(enrollments)}'
+            f'{StudentsMenuHandler._build_address_details(address)}'
             f'{StudentsMenuHandler._build_responsibles_details(responsibles)}'
         )
 
@@ -1719,6 +2111,31 @@ class StudentsMenuHandler:
             lines.append('')
 
         return '\n'.join(lines) + '\n'
+
+    @staticmethod
+    def _build_address_details(
+        address: dict[str, Any] | None,
+    ) -> str:
+        if not address:
+            return '🏠 Endereço\nNão há endereço cadastrado.\n\n'
+
+        street = address.get('street') or 'Não informado'
+        number = address.get('number') or 'S/N'
+        neighborhood = address.get('neighborhood') or 'Não informado'
+        city = address.get('city') or 'Não informado'
+        state = address.get('state') or 'Não informado'
+        zip_code = address.get('zip_code') or 'Não informado'
+        complement = address.get('complement') or 'Não informado'
+
+        return (
+            '🏠 Endereço\n'
+            f'Logradouro: {street}\n'
+            f'Número: {number}\n'
+            f'Bairro: {neighborhood}\n'
+            f'Cidade/Estado: {city}/{state}\n'
+            f'CEP: {zip_code}\n'
+            f'Complemento: {complement}\n\n'
+        )
 
     @staticmethod
     def _build_responsibles_details(
@@ -1794,6 +2211,50 @@ class StudentsMenuHandler:
         if cpf:
             masked_cpf = f'{cpf[:3]}.***.***-{cpf[-2:]}'
 
+        birth_date = StudentsMenuHandler._format_birth_date_for_display(
+            context_data.get('birth_date'),
+        )
+        contact_summary = StudentsMenuHandler._build_contact_summary(
+            context_data,
+        )
+        instagram = context_data.get('instagram')
+        instagram_text = f'@{instagram}' if instagram else 'Não informado'
+
+        responsibles_summary = StudentsMenuHandler._build_responsibles_summary(
+            context_data
+        )
+        address_summary = StudentsMenuHandler._build_address_summary(
+            context_data,
+        )
+
+        return (
+            '📋 Resumo do cadastro\n\n'
+            '👤 Aluno\n'
+            f'Nome: {context_data["student_name"]}\n'
+            f'Modalidade: {context_data["modality_name"]}\n'
+            f'Sexo: {context_data["sex"].capitalize()}\n'
+            f'CPF: {masked_cpf}\n'
+            f'Instagram: {instagram_text}\n'
+            f'E-mail: {context_data.get("email") or "Não informado"}\n'
+            f'Data de nascimento: {birth_date}\n\n'
+            f'{contact_summary}'
+            f'{address_summary}'
+            f'{responsibles_summary}'
+            '💰 Mensalidade\n'
+            f'Valor: R$ {context_data["monthly_fee"]}\n'
+            f'Vencimento: dia {context_data["due_day"]}\n\n'
+            'Está tudo certo?'
+        )
+
+    @staticmethod
+    def _build_contact_summary(
+        context_data: dict[str, Any],
+    ) -> str:
+        phone = context_data.get('phone')
+
+        if not phone and context_data.get('responsible_type') == 'external':
+            return ''
+
         is_whatsapp = context_data.get('is_whatsapp')
         whatsapp_text = 'Não informado'
 
@@ -1802,29 +2263,69 @@ class StudentsMenuHandler:
         elif is_whatsapp is False:
             whatsapp_text = 'Não'
 
-        birth_date = StudentsMenuHandler._format_birth_date_for_display(
-            context_data.get('birth_date'),
-        )
-        responsibles_summary = (
-            StudentsMenuHandler._build_responsibles_summary(context_data)
+        return (
+            '📞 Contato\n'
+            f'Telefone: {phone or "Não informado"}\n'
+            f'WhatsApp: {whatsapp_text}\n\n'
         )
 
+    @staticmethod
+    def _build_address_summary(
+        context_data: dict[str, Any],
+    ) -> str:
+        address = context_data.get('address')
+
+        if not isinstance(address, dict):
+            return '🏠 Endereço\nNão informado\n\n'
+
+        street = address.get('street') or 'Não informado'
+        number = address.get('number') or 'S/N'
+        neighborhood = address.get('neighborhood') or 'Não informado'
+        city = address.get('city') or 'Não informado'
+        state = address.get('state') or 'Não informado'
+        zip_code = address.get('zip_code') or 'Não informado'
+        complement = address.get('complement') or 'Não informado'
+
         return (
-            '📋 Resumo do cadastro do aluno\n\n'
-            f'Nome: {context_data["student_name"]}\n'
-            f'Modalidade: {context_data["modality_name"]}\n'
-            f'Sexo: {context_data["sex"].capitalize()}\n'
-            f'Telefone: {context_data.get("phone") or "Não informado"}\n'
-            f'WhatsApp: {whatsapp_text}\n'
-            f'{responsibles_summary}'
-            f'CPF: {masked_cpf}\n'
-            f'Instagram: {context_data.get("instagram") or "Não informado"}\n'
-            f'E-mail: {context_data.get("email") or "Não informado"}\n'
-            f'Data de nascimento: {birth_date}\n'
-            f'Mensalidade: R$ {context_data["monthly_fee"]}\n'
-            f'Vencimento: dia {context_data["due_day"]}\n\n'
-            'Está tudo certo?'
+            '🏠 Endereço\n'
+            f'Logradouro: {street}\n'
+            f'Número: {number}\n'
+            f'Bairro: {neighborhood}\n'
+            f'Cidade/Estado: {city}/{state}\n'
+            f'CEP: {zip_code}\n'
+            f'Complemento: {complement}\n\n'
         )
+
+    @staticmethod
+    def _build_responsibles_summary(
+        context_data: dict[str, Any],
+    ) -> str:
+        responsibles = context_data.get('responsibles', [])
+
+        if not responsibles:
+            if context_data.get('responsible_type') == 'self':
+                return '👨‍👩‍👧 Responsáveis\nPróprio aluno\n\n'
+
+            return '👨‍👩‍👧 Responsáveis\nNão informado\n\n'
+
+        lines = ['👨‍👩‍👧 Responsáveis']
+
+        for responsible in responsibles:
+            relationship = StudentsMenuHandler._get_relationship_label(
+                responsible['relationship'],
+            )
+            whatsapp_text = (
+                'Sim' if responsible['phone_is_whatsapp'] else 'Não'
+            )
+            email_text = responsible.get('email') or 'Não informado'
+
+            lines.append('')
+            lines.append(f'{relationship}: {responsible["name"]}')
+            lines.append(f'Telefone: {responsible["phone"]}')
+            lines.append(f'WhatsApp: {whatsapp_text}')
+            lines.append(f'E-mail: {email_text}')
+
+        return '\n'.join(lines) + '\n\n'
 
     @staticmethod
     def _is_valid_email(
@@ -1850,39 +2351,6 @@ class StudentsMenuHandler:
         year, month, day = str(birth_date).split('-')
 
         return f'{day}/{month}/{year}'
-
-    @staticmethod
-    def _build_responsibles_summary(
-        context_data: dict[str, Any],
-    ) -> str:
-        responsibles = context_data.get('responsibles', [])
-
-        if not responsibles:
-            if context_data.get('responsible_type') == 'self':
-                return 'Responsável: próprio aluno\n'
-
-            return 'Responsável: Não informado\n'
-
-        lines = ['Responsáveis:']
-
-        for responsible in responsibles:
-            relationship = StudentsMenuHandler._get_relationship_label(
-                responsible['relationship'],
-            )
-            whatsapp_text = (
-                'Sim' if responsible['phone_is_whatsapp'] else 'Não'
-            )
-
-            email_text = responsible.get('email') or 'Não informado'
-
-            lines.append(
-                '- '
-                f'{relationship}: {responsible["name"]} '
-                f'({responsible["phone"]}, WhatsApp: {whatsapp_text}, '
-                f'E-mail: {email_text})'
-            )
-
-        return '\n'.join(lines) + '\n'
 
     @staticmethod
     def _get_relationship_label(
@@ -1937,9 +2405,9 @@ class StudentsMenuHandler:
         context_data = dict(state['context_data'])
         context_data['is_whatsapp'] = is_whatsapp
 
-        await state_service.update_student_creation_context(
+        return await self._ask_student_address_zip_code(
+            chat_id=chat_id,
             state_id=state['id'],
-            next_step=TelegramStep.WAITING_STUDENT_CPF,
             context_data=context_data,
         )
 
@@ -2040,6 +2508,25 @@ class StudentsMenuHandler:
             and state['current_step']
             == TelegramStep.WAITING_STUDENT_RESPONSIBLE_RELATIONSHIP
             and state['context_data'].get('responsible_type') == 'external'
+        )
+
+    @staticmethod
+    def _is_waiting_student_responsible_name(
+        state: dict[str, Any] | None,
+    ) -> bool:
+        if state is None:
+            return False
+
+        current_responsible = state['context_data'].get(
+            'current_responsible',
+            {},
+        )
+
+        return (
+            state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_RESPONSIBLE_NAME
+            and bool(current_responsible.get('relationship'))
         )
 
     @staticmethod

@@ -4,6 +4,7 @@ from fastapi import Depends
 
 from dojoflow.api.dependencies.db_session import DbSessionDep
 from dojoflow.repositories.academy_modality import AcademyModalityRepository
+from dojoflow.repositories.address import AddressRepository
 from dojoflow.repositories.enrollment import EnrollmentRepository
 from dojoflow.repositories.student import StudentRepository
 from dojoflow.repositories.student_responsible import (
@@ -36,6 +37,18 @@ EnrollmentRepositoryDep = Annotated[
 ]
 
 
+def _get_address_repository(
+    db_session_dep: DbSessionDep,
+) -> AddressRepository:
+    return AddressRepository(db_session=db_session_dep)
+
+
+AddressRepositoryDep = Annotated[
+    AddressRepository,
+    Depends(_get_address_repository),
+]
+
+
 def _get_student_responsible_repository(
     db_session_dep: DbSessionDep,
 ) -> StudentResponsibleRepository:
@@ -60,9 +73,10 @@ AcademyModalityRepositoryDep = Annotated[
 ]
 
 
-def _get_student_service(
+def _get_student_service(  # noqa: PLR0913, PLR0917
     student_repository_dep: StudentRepositoryDep,
     enrollment_repository_dep: EnrollmentRepositoryDep,
+    address_repository_dep: AddressRepositoryDep,
     student_responsible_repository_dep: StudentResponsibleRepositoryDep,
     academy_modality_repository_dep: AcademyModalityRepositoryDep,
     db_session_dep: DbSessionDep,
@@ -70,6 +84,7 @@ def _get_student_service(
     return StudentService(
         student_repository=student_repository_dep,
         enrollment_repository=enrollment_repository_dep,
+        address_repository=address_repository_dep,
         student_responsible_repository=student_responsible_repository_dep,
         academy_modality_repository=academy_modality_repository_dep,
         db_session=db_session_dep,

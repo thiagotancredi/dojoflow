@@ -15,27 +15,27 @@ class TelegramStep(StrEnum):
     WAITING_STUDENT_MODALITY = 'waiting_student_modality'
     WAITING_STUDENT_SEX = 'waiting_student_sex'
 
-    WAITING_STUDENT_RESPONSIBLE_TYPE = (
-        'waiting_student_responsible_type'
-    )
+    WAITING_STUDENT_RESPONSIBLE_TYPE = 'waiting_student_responsible_type'
     WAITING_STUDENT_RESPONSIBLE_RELATIONSHIP = (
         'waiting_student_responsible_relationship'
     )
-    WAITING_STUDENT_RESPONSIBLE_NAME = (
-        'waiting_student_responsible_name'
-    )
-    WAITING_STUDENT_RESPONSIBLE_PHONE = (
-        'waiting_student_responsible_phone'
-    )
+    WAITING_STUDENT_RESPONSIBLE_NAME = 'waiting_student_responsible_name'
+    WAITING_STUDENT_RESPONSIBLE_PHONE = 'waiting_student_responsible_phone'
     WAITING_STUDENT_RESPONSIBLE_IS_WHATSAPP = (
         'waiting_student_responsible_is_whatsapp'
     )
-    WAITING_STUDENT_RESPONSIBLE_EMAIL = (
-        'waiting_student_responsible_email'
-    )
+    WAITING_STUDENT_RESPONSIBLE_EMAIL = 'waiting_student_responsible_email'
     WAITING_STUDENT_RESPONSIBLE_NEXT_ACTION = (
         'waiting_student_responsible_next_action'
     )
+
+    WAITING_STUDENT_ADDRESS_ZIP_CODE = 'waiting_student_address_zip_code'
+    WAITING_STUDENT_ADDRESS_STREET = 'waiting_student_address_street'
+    WAITING_STUDENT_ADDRESS_NEIGHBORHOOD = (
+        'waiting_student_address_neighborhood'
+    )
+    WAITING_STUDENT_ADDRESS_NUMBER = 'waiting_student_address_number'
+    WAITING_STUDENT_ADDRESS_COMPLEMENT = 'waiting_student_address_complement'
 
     WAITING_STUDENT_PHONE = 'waiting_student_phone'
     WAITING_STUDENT_EMAIL = 'waiting_student_email'

@@ -528,3 +528,148 @@ async def test_telegram_webhook_should_process_help_callback_query(
             'reply_markup': expected_main_menu_reply_markup(),
         }
     ]
+
+
+def make_student_confirmation_context() -> dict[str, Any]:
+    return {
+        'student_name': 'Lulu Nuna',
+        'modality_id': 1,
+        'modality_name': 'Taekwondo',
+        'sex': 'feminino',
+        'responsible_type': 'external',
+        'responsibles': [
+            {
+                'relationship': 'father',
+                'name': 'Thiago Tancredi',
+                'phone': '62982551800',
+                'phone_is_whatsapp': True,
+                'email': 'pai@example.com',
+            },
+        ],
+        'address': {
+            'zip_code': '74815705',
+            'street': 'Rua Natal',
+            'neighborhood': 'Alto da Glória',
+            'city': 'Goiânia',
+            'state': 'GO',
+            'number': '327',
+            'complement': 'Apartamento 902 Bloco A',
+        },
+        'cpf': '43256798712',
+        'instagram': 'lunanuninha',
+        'email': 'lunaninha@example.com',
+        'birth_date': '2020-09-24',
+        'monthly_fee': '350.00',
+        'due_day': 7,
+        'is_exempt': False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_webhook_resends_student_confirmation_message(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    _onboarding_response, payload = await register_onboarding(client)
+    telegram_user_id = payload['telegram_user_id']
+
+    async def fake_send_message(
+        _self: TelegramService,
+        chat_id: int,
+        text: str,
+        reply_markup: dict[str, Any] | None = None,
+    ) -> None:
+        message: dict[str, Any] = {
+            'chat_id': chat_id,
+            'text': text,
+        }
+
+        if reply_markup is not None:
+            message['reply_markup'] = reply_markup
+
+        sent_messages.append(message)
+
+    monkeypatch.setattr(
+        settings,
+        'TELEGRAM_WEBHOOK_SECRET',
+        secret,
+    )
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        fake_send_message,
+    )
+
+    state = await db_session.scalar(
+        select(TelegramConversationState).where(
+            TelegramConversationState.telegram_user_id == telegram_user_id
+        )
+    )
+
+    if state is None:
+        state = TelegramConversationState(
+            telegram_user_id=telegram_user_id,
+            current_flow=TelegramFlow.STUDENT_CREATION,
+            current_step=TelegramStep.WAITING_STUDENT_CONFIRMATION,
+            context_data=make_student_confirmation_context(),
+        )
+        db_session.add(state)
+    else:
+        state.current_flow = TelegramFlow.STUDENT_CREATION
+        state.current_step = TelegramStep.WAITING_STUDENT_CONFIRMATION
+        state.context_data = make_student_confirmation_context()
+
+    await db_session.commit()
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={
+            TELEGRAM_SECRET_HEADER: secret,
+        },
+        json={
+            'update_id': 999,
+            'message': {
+                'message_id': 999,
+                'from': {
+                    'id': telegram_user_id,
+                    'first_name': 'Thiago',
+                },
+                'chat': {
+                    'id': telegram_user_id,
+                    'type': 'private',
+                },
+                'text': 'qualquer coisa',
+            },
+        },
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {'status': 'waiting_student_confirmation'}
+
+    assert len(sent_messages) == 1
+
+    message = sent_messages[0]
+    summary_text = message['text']
+    reply_markup = message['reply_markup']
+
+    family_emoji = '\U0001f468\u200d\U0001f469\u200d\U0001f467'
+
+    assert '📋 Resumo do cadastro' in summary_text
+    assert '👥 Alunos' not in summary_text
+    assert 'Escolha uma opção abaixo' not in summary_text
+    assert '📞 Contato\nTelefone: Não informado' not in summary_text
+    assert f'{family_emoji} Responsáveis' in summary_text
+    assert '\n\n💰 Mensalidade\n' in summary_text
+
+    assert reply_markup['inline_keyboard'][0][0] == {
+        'text': '✅ Confirmar cadastro',
+        'callback_data': 'students:create:confirm',
+    }
+    assert reply_markup['inline_keyboard'][1][0] == {
+        'text': '❌ Cancelar cadastro',
+        'callback_data': 'students:create:cancel',
+    }

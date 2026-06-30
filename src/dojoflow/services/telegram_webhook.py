@@ -4,6 +4,7 @@ from dojoflow.integrations.telegram.schemas import (
 )
 from dojoflow.integrations.telegram.service import TelegramService
 from dojoflow.schemas.master_context import MasterContextRead
+from dojoflow.services.cep import CepService
 from dojoflow.services.master import MasterService
 from dojoflow.services.modality import ModalityService
 from dojoflow.services.onboarding import OnboardingService
@@ -33,6 +34,7 @@ class TelegramWebhookService:
         onboarding_service: OnboardingService,
         modality_service: ModalityService,
         student_service: StudentService,
+        cep_service: CepService,
         telegram_conversation_state_service: (
             TelegramConversationStateService
         ),
@@ -41,6 +43,7 @@ class TelegramWebhookService:
         self.master_service = master_service
         self.modality_service = modality_service
         self.student_service = student_service
+        self.cep_service = cep_service
         self.telegram_conversation_state_service = (
             telegram_conversation_state_service
         )
@@ -53,6 +56,7 @@ class TelegramWebhookService:
             ),
             modality_service=modality_service,
             student_service=student_service,
+            cep_service=cep_service,
         )
         self.academy_modalities_handler = AcademyModalitiesHandler(
             telegram_service=telegram_service,
@@ -224,6 +228,91 @@ class TelegramWebhookService:
         if (
             state is not None
             and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_ADDRESS_ZIP_CODE
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_address_zip_code_message(
+                    chat_id=chat_id,
+                    zip_code=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_ADDRESS_STREET
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_address_street_message(
+                    chat_id=chat_id,
+                    street=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_ADDRESS_NEIGHBORHOOD
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_address_neighborhood_message(
+                    chat_id=chat_id,
+                    neighborhood=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_ADDRESS_NUMBER
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_address_number_message(
+                    chat_id=chat_id,
+                    number=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_ADDRESS_COMPLEMENT
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_address_complement_message(
+                    chat_id=chat_id,
+                    complement=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
             and state['current_step'] == TelegramStep.WAITING_STUDENT_CPF
         ):
             students_handler = self.students_menu_handler
@@ -290,6 +379,19 @@ class TelegramWebhookService:
                 chat_id=chat_id,
                 due_day_text=text,
                 state_id=state['id'],
+                context_data=state['context_data'],
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_CONFIRMATION
+        ):
+            students_handler = self.students_menu_handler
+
+            return await students_handler._resend_student_confirmation_message(
+                chat_id=chat_id,
                 context_data=state['context_data'],
             )
 

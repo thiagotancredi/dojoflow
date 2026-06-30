@@ -8,6 +8,7 @@ from dojoflow.shared.enums import StudentSex
 
 class StudentCreate(BaseModel):
     academy_id: int = Field(gt=0)
+    address_id: int | None = Field(default=None, gt=0)
     name: str = Field(min_length=2, max_length=120)
     phone: str | None = Field(default=None, max_length=20)
     phone_is_whatsapp: bool | None = None
@@ -20,6 +21,7 @@ class StudentCreate(BaseModel):
 
 class StudentRead(ReadBase):
     academy_id: int
+    address_id: int | None
     name: str
     phone: str | None
     phone_is_whatsapp: bool | None

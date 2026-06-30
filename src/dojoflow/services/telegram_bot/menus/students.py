@@ -136,15 +136,13 @@ def student_responsible_relationship_reply_markup() -> dict[str, Any]:
                 {
                     'text': 'Avó',
                     'callback_data': (
-                        'students:create:responsible:relationship:'
-                        'grandmother'
+                        'students:create:responsible:relationship:grandmother'
                     ),
                 },
                 {
                     'text': 'Avô',
                     'callback_data': (
-                        'students:create:responsible:relationship:'
-                        'grandfather'
+                        'students:create:responsible:relationship:grandfather'
                     ),
                 },
             ],

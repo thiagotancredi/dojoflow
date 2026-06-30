@@ -1,5 +1,6 @@
 from dojoflow.models.academy import Academy
 from dojoflow.models.academy_modality import AcademyModality
+from dojoflow.models.address import Address
 from dojoflow.models.audit_log import AuditLog
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.import_batch import ImportBatch
@@ -20,6 +21,7 @@ from dojoflow.models.telegram_message_log import TelegramMessageLog
 __all__ = [
     'Academy',
     'AcademyModality',
+    'Address',
     'AuditLog',
     'Enrollment',
     'ImportBatch',

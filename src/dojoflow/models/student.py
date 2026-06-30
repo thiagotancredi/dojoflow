@@ -17,6 +17,7 @@ class Student(BaseModel):
     __tablename__ = 'student'
 
     academy_id: Mapped[int] = int_fk('academy.id')
+    address_id: Mapped[int | None] = int_fk('address.id', nullable=True)
 
     name: Mapped[str] = str_column(length=120)
 

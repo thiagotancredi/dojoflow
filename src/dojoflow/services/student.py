@@ -7,16 +7,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.database.transaction import transactional
 from dojoflow.models.academy_modality import AcademyModality
+from dojoflow.models.address import Address
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.modality import Modality
 from dojoflow.models.student import Student
 from dojoflow.models.student_responsible import StudentResponsible
 from dojoflow.repositories.academy_modality import AcademyModalityRepository
+from dojoflow.repositories.address import AddressRepository
 from dojoflow.repositories.enrollment import EnrollmentRepository
 from dojoflow.repositories.student import StudentRepository
 from dojoflow.repositories.student_responsible import (
     StudentResponsibleRepository,
 )
+from dojoflow.schemas.address import AddressCreate
 from dojoflow.schemas.enrollment import EnrollmentCreate
 from dojoflow.schemas.student import StudentCreate, StudentRead
 from dojoflow.schemas.student_responsible import StudentResponsibleCreate
@@ -25,16 +28,18 @@ from dojoflow.shared.exceptions import NotFoundError
 
 
 class StudentService:
-    def __init__(
+    def __init__(  # noqa: PLR0913, PLR0917
         self,
         student_repository: StudentRepository,
         enrollment_repository: EnrollmentRepository,
+        address_repository: AddressRepository,
         student_responsible_repository: StudentResponsibleRepository,
         academy_modality_repository: AcademyModalityRepository,
         db_session: AsyncSession,
     ) -> None:
         self.student_repository = student_repository
         self.enrollment_repository = enrollment_repository
+        self.address_repository = address_repository
         self.student_responsible_repository = student_responsible_repository
         self.academy_modality_repository = academy_modality_repository
         self.db_session = db_session
@@ -52,9 +57,15 @@ class StudentService:
             modality_id=modality_id,
         )
 
+        address_id = await self._create_address_from_context(
+            academy_id=academy_id,
+            context_data=context_data,
+        )
+
         student_id = await self.student_repository.create(
             StudentCreate(
                 academy_id=academy_id,
+                address_id=address_id,
                 name=context_data['student_name'],
                 phone=context_data.get('phone'),
                 phone_is_whatsapp=context_data.get('is_whatsapp'),
@@ -140,6 +151,10 @@ class StudentService:
             academy_id=academy_id,
             student_id=student_id,
         )
+        address = await self._get_student_address(
+            academy_id=academy_id,
+            student=student,
+        )
         responsibles = await self._get_student_responsibles(
             academy_id=academy_id,
             student_id=student_id,
@@ -148,8 +163,28 @@ class StudentService:
         return {
             'student': student,
             'enrollments': enrollments,
+            'address': address,
             'responsibles': responsibles,
         }
+
+    async def _get_student_address(
+        self,
+        academy_id: int,
+        student: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        address_id = student.get('address_id')
+
+        if address_id is None:
+            return None
+
+        address = await self.address_repository.get_one(
+            filters=[
+                Address.id == address_id,
+                Address.academy_id == academy_id,
+            ],
+        )
+
+        return address
 
     async def _get_student_enrollments(
         self,
@@ -191,6 +226,45 @@ class StudentService:
         )
 
         return responsibles
+
+    async def _create_address_from_context(
+        self,
+        academy_id: int,
+        context_data: dict[str, Any],
+    ) -> int | None:
+        address = context_data.get('address')
+
+        if not isinstance(address, dict):
+            return None
+
+        has_address_data = any(
+            address.get(field)
+            for field in (
+                'zip_code',
+                'street',
+                'neighborhood',
+                'city',
+                'state',
+                'number',
+                'complement',
+            )
+        )
+
+        if not has_address_data:
+            return None
+
+        return await self.address_repository.create(
+            AddressCreate(
+                academy_id=academy_id,
+                zip_code=address.get('zip_code'),
+                street=address.get('street'),
+                neighborhood=address.get('neighborhood'),
+                city=address.get('city'),
+                state=address.get('state'),
+                number=address.get('number'),
+                complement=address.get('complement'),
+            )
+        )
 
     async def _create_responsibles(
         self,
