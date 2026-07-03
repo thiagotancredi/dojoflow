@@ -29,6 +29,17 @@ class TelegramStep(StrEnum):
         'waiting_student_responsible_next_action'
     )
 
+    WAITING_STUDENT_RESPONSIBLE_CHOICE = (
+        'waiting_student_responsible_choice'
+    )
+    WAITING_STUDENT_RESPONSIBLE_REFERENCE_SEARCH = (
+        'waiting_student_responsible_reference_search'
+    )
+
+    WAITING_STUDENT_ADDRESS_CHOICE = 'waiting_student_address_choice'
+    WAITING_STUDENT_ADDRESS_REFERENCE_SEARCH = (
+        'waiting_student_address_reference_search'
+    )
     WAITING_STUDENT_ADDRESS_ZIP_CODE = 'waiting_student_address_zip_code'
     WAITING_STUDENT_ADDRESS_STREET = 'waiting_student_address_street'
     WAITING_STUDENT_ADDRESS_NEIGHBORHOOD = (

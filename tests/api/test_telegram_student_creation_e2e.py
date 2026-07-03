@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.core.settings import settings
@@ -15,6 +16,9 @@ from tests.helpers.onboarding import register_onboarding
 
 TELEGRAM_SECRET_HEADER = 'X-Telegram-Bot-Api-Secret-Token'
 CHAT_ID = 987654321
+EXPECTED_RESPONSIBLE_COUNT = 2
+EXPECTED_STUDENT_RESPONSIBLE_COUNT = 3
+EXPECTED_ADDRESS_COUNT = 1
 
 
 async def mock_telegram_and_cep(
@@ -182,6 +186,20 @@ def get_last_student_details_callback(
     keyboard = list_message['reply_markup']['inline_keyboard']
 
     return keyboard[0][0]['callback_data']
+
+
+def find_callback_by_button_text(
+    sent_messages: list[dict[str, Any]],
+    button_text: str,
+) -> str:
+    keyboard = sent_messages[-1]['reply_markup']['inline_keyboard']
+
+    for row in keyboard:
+        for button in row:
+            if button_text in button['text']:
+                return button['callback_data']
+
+    raise AssertionError(f'Button not found: {button_text}')
 
 
 @pytest.mark.asyncio
@@ -427,6 +445,13 @@ async def test_e2e_create_student_external_responsible(
         105,
         telegram_user_id,
         'students:create:responsible:external',
+    ) == {'status': 'waiting_student_responsible_choice'}
+    assert await post_callback(
+        client,
+        secret,
+        1050,
+        telegram_user_id,
+        'students:create:responsible:new',
     ) == {'status': 'waiting_student_responsible_relationship'}
     assert await post_callback(
         client,
@@ -586,3 +611,412 @@ async def test_e2e_create_student_external_responsible(
     assert 'Pai: Thiago Tancredi' in details_text
     assert 'Telefone: 62982551800' in details_text
     assert 'Valor: R$ 350.00' in details_text
+
+
+@pytest.mark.asyncio
+async def test_e2e_reuse_one_responsible_and_address(  # noqa: PLR0915
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+    answered_callbacks: list[str] = []
+
+    telegram_user_id, modality_id = await setup_master_with_modality(
+        client=client,
+        db_session=db_session,
+    )
+
+    await mock_telegram_and_cep(
+        monkeypatch=monkeypatch,
+        secret=secret,
+        sent_messages=sent_messages,
+        answered_callbacks=answered_callbacks,
+    )
+
+    assert await post_callback(
+        client,
+        secret,
+        1001,
+        telegram_user_id,
+        'students:create',
+    ) == {'status': 'student_creation_started'}
+    assert await post_text(
+        client,
+        secret,
+        1002,
+        telegram_user_id,
+        'Lukito Referencia',
+    ) == {'status': 'waiting_student_modality'}
+    assert await post_callback(
+        client,
+        secret,
+        1003,
+        telegram_user_id,
+        f'students:create:modality:{modality_id}',
+    ) == {'status': 'waiting_student_sex'}
+    assert await post_callback(
+        client,
+        secret,
+        1004,
+        telegram_user_id,
+        'students:create:sex:male',
+    ) == {'status': 'waiting_student_responsible_type'}
+    assert await post_callback(
+        client,
+        secret,
+        1005,
+        telegram_user_id,
+        'students:create:responsible:external',
+    ) == {'status': 'waiting_student_responsible_choice'}
+    assert await post_callback(
+        client,
+        secret,
+        1006,
+        telegram_user_id,
+        'students:create:responsible:new',
+    ) == {'status': 'waiting_student_responsible_relationship'}
+    assert await post_callback(
+        client,
+        secret,
+        1007,
+        telegram_user_id,
+        'students:create:responsible:relationship:father',
+    ) == {'status': 'waiting_student_responsible_name'}
+    assert await post_text(
+        client,
+        secret,
+        1008,
+        telegram_user_id,
+        'Pai Referencia',
+    ) == {'status': 'waiting_student_responsible_phone'}
+    assert await post_text(
+        client,
+        secret,
+        1009,
+        telegram_user_id,
+        '62911111111',
+    ) == {'status': 'waiting_student_responsible_is_whatsapp'}
+    assert await post_callback(
+        client,
+        secret,
+        1010,
+        telegram_user_id,
+        'students:create:responsible:whatsapp:yes',
+    ) == {'status': 'waiting_student_responsible_email'}
+    assert await post_text(
+        client,
+        secret,
+        1011,
+        telegram_user_id,
+        'pai.referencia@example.com',
+    ) == {'status': 'waiting_student_responsible_next_action'}
+    assert await post_callback(
+        client,
+        secret,
+        1012,
+        telegram_user_id,
+        'students:create:responsible:add',
+    ) == {'status': 'waiting_student_responsible_relationship'}
+    assert await post_callback(
+        client,
+        secret,
+        1013,
+        telegram_user_id,
+        'students:create:responsible:relationship:mother',
+    ) == {'status': 'waiting_student_responsible_name'}
+    assert await post_text(
+        client,
+        secret,
+        1014,
+        telegram_user_id,
+        'Mae Referencia',
+    ) == {'status': 'waiting_student_responsible_phone'}
+    assert await post_text(
+        client,
+        secret,
+        1015,
+        telegram_user_id,
+        '62922222222',
+    ) == {'status': 'waiting_student_responsible_is_whatsapp'}
+    assert await post_callback(
+        client,
+        secret,
+        1016,
+        telegram_user_id,
+        'students:create:responsible:whatsapp:no',
+    ) == {'status': 'waiting_student_responsible_email'}
+    assert await post_text(
+        client,
+        secret,
+        1017,
+        telegram_user_id,
+        'mae.referencia@example.com',
+    ) == {'status': 'waiting_student_responsible_next_action'}
+    assert await post_callback(
+        client,
+        secret,
+        1018,
+        telegram_user_id,
+        'students:create:responsible:continue',
+    ) == {'status': 'waiting_student_address_choice'}
+    assert await post_callback(
+        client,
+        secret,
+        1019,
+        telegram_user_id,
+        'students:create:address:new',
+    ) == {'status': 'waiting_student_address_zip_code'}
+    assert await post_text(
+        client,
+        secret,
+        1020,
+        telegram_user_id,
+        '74815705',
+    ) == {'status': 'waiting_student_address_number'}
+    assert await post_text(
+        client,
+        secret,
+        1021,
+        telegram_user_id,
+        '327',
+    ) == {'status': 'waiting_student_address_complement'}
+    assert await post_text(
+        client,
+        secret,
+        1022,
+        telegram_user_id,
+        'Casa 1',
+    ) == {'status': 'waiting_student_cpf'}
+    assert await post_text(
+        client,
+        secret,
+        1023,
+        telegram_user_id,
+        '11122233344',
+    ) == {'status': 'waiting_student_instagram'}
+    assert await post_text(
+        client,
+        secret,
+        1024,
+        telegram_user_id,
+        'lukito',
+    ) == {'status': 'waiting_student_email'}
+    assert await post_text(
+        client,
+        secret,
+        1025,
+        telegram_user_id,
+        'lukito@example.com',
+    ) == {'status': 'waiting_student_birth_date'}
+    assert await post_text(
+        client,
+        secret,
+        1026,
+        telegram_user_id,
+        '01/01/2018',
+    ) == {'status': 'waiting_student_monthly_fee'}
+    assert await post_text(
+        client,
+        secret,
+        1027,
+        telegram_user_id,
+        '300',
+    ) == {'status': 'waiting_student_due_day'}
+    assert await post_text(
+        client,
+        secret,
+        1028,
+        telegram_user_id,
+        '10',
+    ) == {'status': 'waiting_student_confirmation'}
+    assert await post_callback(
+        client,
+        secret,
+        1029,
+        telegram_user_id,
+        'students:create:confirm',
+    ) == {'status': 'student_created'}
+
+    assert await post_callback(
+        client,
+        secret,
+        2001,
+        telegram_user_id,
+        'students:create',
+    ) == {'status': 'student_creation_started'}
+    assert await post_text(
+        client,
+        secret,
+        2002,
+        telegram_user_id,
+        'Irmao do Lukito',
+    ) == {'status': 'waiting_student_modality'}
+    assert await post_callback(
+        client,
+        secret,
+        2003,
+        telegram_user_id,
+        f'students:create:modality:{modality_id}',
+    ) == {'status': 'waiting_student_sex'}
+    assert await post_callback(
+        client,
+        secret,
+        2004,
+        telegram_user_id,
+        'students:create:sex:male',
+    ) == {'status': 'waiting_student_responsible_type'}
+    assert await post_callback(
+        client,
+        secret,
+        2005,
+        telegram_user_id,
+        'students:create:responsible:external',
+    ) == {'status': 'waiting_student_responsible_choice'}
+    assert await post_callback(
+        client,
+        secret,
+        2006,
+        telegram_user_id,
+        'students:create:responsible:reuse',
+    ) == {'status': 'waiting_student_responsible_reference_search'}
+    assert await post_text(
+        client,
+        secret,
+        2007,
+        telegram_user_id,
+        'Lukito',
+    ) == {'status': 'student_responsible_reference_search_sent'}
+
+    reference_student_callback = find_callback_by_button_text(
+        sent_messages,
+        'Lukito Referencia',
+    )
+
+    assert await post_callback(
+        client,
+        secret,
+        2008,
+        telegram_user_id,
+        reference_student_callback,
+    ) == {'status': 'student_responsible_reference_options_sent'}
+
+    father_callback = find_callback_by_button_text(
+        sent_messages,
+        'Pai: Pai Referencia',
+    )
+
+    assert await post_callback(
+        client,
+        secret,
+        2009,
+        telegram_user_id,
+        father_callback,
+    ) == {'status': 'waiting_student_responsible_next_action'}
+    assert await post_callback(
+        client,
+        secret,
+        2010,
+        telegram_user_id,
+        'students:create:responsible:continue',
+    ) == {'status': 'waiting_student_address_choice'}
+    assert await post_callback(
+        client,
+        secret,
+        2011,
+        telegram_user_id,
+        'students:create:address:reuse',
+    ) == {'status': 'waiting_student_address_reference_search'}
+    assert await post_text(
+        client,
+        secret,
+        2012,
+        telegram_user_id,
+        'Lukito',
+    ) == {'status': 'student_address_reference_search_sent'}
+
+    address_reference_callback = find_callback_by_button_text(
+        sent_messages,
+        'Lukito Referencia',
+    )
+
+    assert await post_callback(
+        client,
+        secret,
+        2013,
+        telegram_user_id,
+        address_reference_callback,
+    ) == {'status': 'waiting_student_cpf'}
+    assert await post_text(
+        client,
+        secret,
+        2014,
+        telegram_user_id,
+        '55566677788',
+    ) == {'status': 'waiting_student_instagram'}
+    assert await post_text(
+        client,
+        secret,
+        2015,
+        telegram_user_id,
+        'irmaolukito',
+    ) == {'status': 'waiting_student_email'}
+    assert await post_text(
+        client,
+        secret,
+        2016,
+        telegram_user_id,
+        'irmao@example.com',
+    ) == {'status': 'waiting_student_birth_date'}
+    assert await post_text(
+        client,
+        secret,
+        2017,
+        telegram_user_id,
+        '02/02/2019',
+    ) == {'status': 'waiting_student_monthly_fee'}
+    assert await post_text(
+        client,
+        secret,
+        2018,
+        telegram_user_id,
+        '300',
+    ) == {'status': 'waiting_student_due_day'}
+    assert await post_text(
+        client,
+        secret,
+        2019,
+        telegram_user_id,
+        '10',
+    ) == {'status': 'waiting_student_confirmation'}
+
+    summary_text = sent_messages[-1]['text']
+
+    assert 'Nome: Irmao do Lukito' in summary_text
+    assert 'Reutilizado de: Lukito Referencia' in summary_text
+    assert 'Rua Natal' in summary_text
+    assert 'Pai: Pai Referencia' in summary_text
+    assert 'Mãe: Mae Referencia' not in summary_text
+
+    assert await post_callback(
+        client,
+        secret,
+        2020,
+        telegram_user_id,
+        'students:create:confirm',
+    ) == {'status': 'student_created'}
+
+    responsible_count = await db_session.scalar(
+        text('SELECT COUNT(*) FROM responsible')
+    )
+    student_responsible_count = await db_session.scalar(
+        text('SELECT COUNT(*) FROM student_responsible')
+    )
+    address_count = await db_session.scalar(
+        text('SELECT COUNT(*) FROM address')
+    )
+
+    assert responsible_count == EXPECTED_RESPONSIBLE_COUNT
+    assert student_responsible_count == EXPECTED_STUDENT_RESPONSIBLE_COUNT
+    assert address_count == EXPECTED_ADDRESS_COUNT

@@ -12,6 +12,7 @@ from dojoflow.services.telegram_bot.menus.students import (
     student_address_choice_reply_markup,
     student_confirmation_reply_markup,
     student_modalities_reply_markup,
+    student_responsible_choice_reply_markup,
     student_responsible_next_action_reply_markup,
     student_responsible_relationship_reply_markup,
     student_responsible_type_reply_markup,
@@ -36,6 +37,7 @@ MONEY_DECIMAL_PLACES = Decimal('0.01')
 MIN_MONTHLY_FEE = Decimal('0')
 MIN_DUE_DAY = 1
 MAX_DUE_DAY = 28
+RESPONSIBLE_REFERENCE_CALLBACK_PARTS = 3
 
 
 class StudentsMenuHandler:  # noqa: PLR0904
@@ -128,6 +130,44 @@ class StudentsMenuHandler:  # noqa: PLR0904
             return await self._process_responsible_type_choice(
                 chat_id=chat_id,
                 telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+            )
+
+        if callback_data in {
+            'students:create:responsible:new',
+            'students:create:responsible:reuse',
+        }:
+            return await self._process_responsible_choice(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+            )
+
+        if callback_data.startswith(
+            'students:create:responsible:reference_all:'
+        ):
+            return await self._process_responsible_reference_all_selected(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                context=context,
+                callback_data=callback_data,
+            )
+
+        if callback_data.startswith(
+            'students:create:responsible:reference_one:'
+        ):
+            return await self._process_responsible_reference_one_selected(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                context=context,
+                callback_data=callback_data,
+            )
+
+        if callback_data.startswith('students:create:responsible:reference:'):
+            return await self._process_responsible_reference_selected(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                context=context,
                 callback_data=callback_data,
             )
 
@@ -808,20 +848,479 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         context_data['responsible_type'] = 'external'
         context_data.setdefault('responsibles', [])
+        context_data.setdefault('responsible_references', [])
 
         await state_service.update_student_creation_context(
             state_id=state['id'],
-            next_step=TelegramStep.WAITING_STUDENT_RESPONSIBLE_RELATIONSHIP,
+            next_step=TelegramStep.WAITING_STUDENT_RESPONSIBLE_CHOICE,
             context_data=context_data,
         )
 
         await self.telegram_service.send_message(
             chat_id=chat_id,
-            text='Qual é o parentesco do responsável?',
-            reply_markup=student_responsible_relationship_reply_markup(),
+            text='Como deseja informar o responsável do aluno?',
+            reply_markup=student_responsible_choice_reply_markup(),
         )
 
-        return {'status': 'waiting_student_responsible_relationship'}
+        return {'status': 'waiting_student_responsible_choice'}
+
+    async def _process_responsible_choice(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        callback_data: str,
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+        state = await state_service.get_by_telegram_user_id(telegram_user_id)
+
+        valid_steps = {
+            TelegramStep.WAITING_STUDENT_RESPONSIBLE_CHOICE,
+            TelegramStep.WAITING_STUDENT_RESPONSIBLE_NEXT_ACTION,
+        }
+
+        if state is None or state['current_step'] not in valid_steps:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei um cadastro aguardando escolha '
+                    'de responsável.\n\n'
+                    'Clique em "Cadastrar novo aluno" para começar novamente.'
+                ),
+                reply_markup=students_menu_reply_markup(),
+            )
+
+            return {'status': 'student_responsible_choice_state_not_found'}
+
+        context_data = dict(state['context_data'])
+
+        if callback_data == 'students:create:responsible:new':
+            await state_service.update_student_creation_context(
+                state_id=state['id'],
+                next_step=(
+                    TelegramStep.WAITING_STUDENT_RESPONSIBLE_RELATIONSHIP
+                ),
+                context_data=context_data,
+            )
+
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text='Qual é o parentesco do responsável?',
+                reply_markup=student_responsible_relationship_reply_markup(),
+            )
+
+            return {'status': 'waiting_student_responsible_relationship'}
+
+        await state_service.update_student_creation_context(
+            state_id=state['id'],
+            next_step=TelegramStep.WAITING_STUDENT_RESPONSIBLE_REFERENCE_SEARCH,
+            context_data=context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Digite o nome do aluno que já possui esse mesmo '
+                'responsável.'
+            ),
+        )
+
+        return {'status': 'waiting_student_responsible_reference_search'}
+
+    async def process_student_responsible_reference_search_message(
+        self,
+        chat_id: int,
+        search_text: str,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        normalized_search_text = ' '.join(search_text.strip().split())
+
+        if len(normalized_search_text) < MIN_STUDENT_NAME_LENGTH:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Digite pelo menos 2 caracteres para pesquisar.\n\n'
+                    'Exemplo:\n'
+                    'João'
+                ),
+            )
+
+            return {
+                'status': 'invalid_student_responsible_reference_search_text'
+            }
+
+        students = await self.student_service.search_by_name(
+            academy_id=context.academy_id,
+            search_text=normalized_search_text,
+        )
+
+        if not students:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei nenhum aluno com o nome '
+                    f'"{normalized_search_text}".\n\n'
+                    'Digite outro nome para pesquisar novamente.'
+                ),
+            )
+
+            return {'status': 'student_responsible_reference_search_empty'}
+
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_RESPONSIBLE_REFERENCE_SEARCH,
+            context_data=context_data,
+        )
+
+        inline_keyboard: list[list[dict[str, str]]] = []
+
+        for student in students:
+            inline_keyboard.append([
+                {
+                    'text': f'🔁 {student.name}',
+                    'callback_data': (
+                        f'students:create:responsible:reference:{student.id}'
+                    ),
+                },
+            ])
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Encontrei estes alunos.\n\n'
+                'Toque no aluno que já possui o mesmo responsável.'
+            ),
+            reply_markup={'inline_keyboard': inline_keyboard},
+        )
+
+        return {'status': 'student_responsible_reference_search_sent'}
+
+    async def _process_responsible_reference_selected(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        context: MasterContextRead,
+        callback_data: str,
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+        state = await state_service.get_by_telegram_user_id(telegram_user_id)
+
+        if (
+            state is None
+            or state['current_step']
+            != TelegramStep.WAITING_STUDENT_RESPONSIBLE_REFERENCE_SEARCH
+        ):
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei um cadastro aguardando escolha '
+                    'de responsável.'
+                ),
+            )
+
+            return {'status': 'student_responsible_reference_state_not_found'}
+
+        reference_student_id = self._get_id_from_callback(callback_data)
+
+        if reference_student_id is None:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text='Aluno inválido. Digite novamente o nome do aluno.',
+            )
+
+            return {'status': 'student_responsible_reference_invalid_id'}
+
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=reference_student_id,
+        )
+
+        if details is None:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei esse aluno. '
+                    'Digite outro nome para buscar.'
+                ),
+            )
+
+            return {'status': 'student_responsible_reference_not_found'}
+
+        responsibles = details.get('responsibles', [])
+
+        if not responsibles:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Esse aluno não possui responsável cadastrado.\n\n'
+                    'Digite outro nome para buscar.'
+                ),
+            )
+
+            return {'status': 'student_responsible_reference_without_data'}
+
+        reference_student = details['student']
+        inline_keyboard = self._build_responsible_reference_keyboard(
+            student_id=reference_student_id,
+            responsibles=responsibles,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                f'Aluno referência: {reference_student["name"]}\n\n'
+                'Quais responsáveis deseja reutilizar?'
+            ),
+            reply_markup={'inline_keyboard': inline_keyboard},
+        )
+
+        return {'status': 'student_responsible_reference_options_sent'}
+
+    async def _process_responsible_reference_all_selected(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        context: MasterContextRead,
+        callback_data: str,
+    ) -> dict[str, str]:
+        reference_student_id = self._get_id_from_callback(callback_data)
+
+        if reference_student_id is None:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text='Aluno inválido. Digite novamente o nome do aluno.',
+            )
+
+            return {'status': 'student_responsible_reference_invalid_id'}
+
+        return await self._save_responsible_references(
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+            context=context,
+            reference_student_id=reference_student_id,
+            selected_responsible_id=None,
+        )
+
+    async def _process_responsible_reference_one_selected(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        context: MasterContextRead,
+        callback_data: str,
+    ) -> dict[str, str]:
+        ids = callback_data.rsplit(':', maxsplit=2)
+
+        if (
+            len(ids) != RESPONSIBLE_REFERENCE_CALLBACK_PARTS
+            or not ids[-2].isdigit()
+            or not ids[-1].isdigit()
+        ):
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text='Responsável inválido. Digite novamente o nome do aluno.',
+            )
+
+            return {'status': 'student_responsible_reference_invalid_id'}
+
+        return await self._save_responsible_references(
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+            context=context,
+            reference_student_id=int(ids[-2]),
+            selected_responsible_id=int(ids[-1]),
+        )
+
+    async def _save_responsible_references(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        context: MasterContextRead,
+        reference_student_id: int,
+        selected_responsible_id: int | None,
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+        state = await state_service.get_by_telegram_user_id(telegram_user_id)
+
+        if (
+            state is None
+            or state['current_flow'] != TelegramFlow.STUDENT_CREATION
+        ):
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei um cadastro de aluno em andamento.\n\n'
+                    'Clique em "Cadastrar novo aluno" para começar novamente.'
+                ),
+                reply_markup=students_menu_reply_markup(),
+            )
+
+            return {'status': 'student_responsible_reference_state_not_found'}
+
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=reference_student_id,
+        )
+
+        if details is None:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei esse aluno. '
+                    'Digite outro nome para buscar.'
+                ),
+            )
+
+            return {'status': 'student_responsible_reference_not_found'}
+
+        responsibles = details.get('responsibles', [])
+
+        if selected_responsible_id is not None:
+            responsibles = [
+                responsible
+                for responsible in responsibles
+                if self._get_responsible_id(responsible)
+                == selected_responsible_id
+            ]
+
+        if not responsibles:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei responsável para reaproveitar.\n\n'
+                    'Digite outro nome para buscar.'
+                ),
+            )
+
+            return {'status': 'student_responsible_reference_without_data'}
+
+        context_data = dict(state['context_data'])
+        responsible_references = list(
+            context_data.get('responsible_references', [])
+        )
+        responsible_reference_details = list(
+            context_data.get('responsible_reference_details', [])
+        )
+
+        for responsible in responsibles:
+            responsible_id = self._get_responsible_id(responsible)
+
+            if responsible_id is None:
+                continue
+
+            responsible_references.append({
+                'responsible_id': responsible_id,
+                'relationship': responsible['relationship'],
+            })
+            responsible_reference_details.append({
+                'responsible_id': responsible_id,
+                'relationship': responsible['relationship'],
+                'name': responsible['name'],
+                'phone': responsible['phone'],
+                'phone_is_whatsapp': responsible.get('phone_is_whatsapp'),
+                'email': responsible.get('email'),
+            })
+
+        context_data['responsible_references'] = responsible_references
+        context_data['responsible_reference_details'] = (
+            responsible_reference_details
+        )
+        context_data['responsible_reference_student_name'] = (
+            details['student']['name']
+        )
+
+        await state_service.update_student_creation_context(
+            state_id=state['id'],
+            next_step=TelegramStep.WAITING_STUDENT_RESPONSIBLE_NEXT_ACTION,
+            context_data=context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Responsável reaproveitado com sucesso! ✅\n\n'
+                'Deseja cadastrar mais um responsável ou continuar '
+                'o cadastro do aluno?'
+            ),
+            reply_markup=student_responsible_next_action_reply_markup(),
+        )
+
+        return {'status': 'waiting_student_responsible_next_action'}
+
+    @staticmethod
+    def _build_responsible_reference_keyboard(
+        student_id: int,
+        responsibles: list[dict[str, Any]],
+    ) -> list[list[dict[str, str]]]:
+        inline_keyboard = [
+            [
+                {
+                    'text': '🔁 Usar todos os responsáveis',
+                    'callback_data': (
+                        'students:create:responsible:reference_all:'
+                        f'{student_id}'
+                    ),
+                },
+            ],
+        ]
+
+        for responsible in responsibles:
+            responsible_id = StudentsMenuHandler._get_responsible_id(
+                responsible,
+            )
+
+            if responsible_id is None:
+                continue
+
+            relationship = StudentsMenuHandler._get_relationship_label(
+                responsible['relationship'],
+            )
+
+            inline_keyboard.append([
+                {
+                    'text': f'{relationship}: {responsible["name"]}',
+                    'callback_data': (
+                        'students:create:responsible:reference_one:'
+                        f'{student_id}:{responsible_id}'
+                    ),
+                },
+            ])
+
+        inline_keyboard.append([
+            {
+                'text': '❌ Cancelar cadastro',
+                'callback_data': 'students:create:cancel',
+            },
+        ])
+
+        return inline_keyboard
+
+    @staticmethod
+    def _get_responsible_id(
+        responsible: dict[str, Any],
+    ) -> int | None:
+        responsible_id = responsible.get('responsible_id')
+
+        if responsible_id is None:
+            responsible_id = responsible.get('id')
+
+        if responsible_id is None:
+            return None
+
+        return int(responsible_id)
+
+    @staticmethod
+    def _get_id_from_callback(
+        callback_data: str,
+    ) -> int | None:
+        raw_id = callback_data.rsplit(':', maxsplit=1)[-1]
+
+        if not raw_id.isdigit():
+            return None
+
+        return int(raw_id)
 
     async def _process_responsible_relationship_choice(
         self,
@@ -1146,17 +1645,15 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         if (
             state is None
-            or state['current_step']
-            != TelegramStep.WAITING_STUDENT_ADDRESS_REFERENCE_SEARCH
+            or state['current_flow'] != TelegramFlow.STUDENT_CREATION
         ):
             await self.telegram_service.send_message(
                 chat_id=chat_id,
                 text=(
-                    'Não encontrei um cadastro aguardando escolha '
-                    'de endereço.\n\n'
-                    'Digite novamente o nome do aluno que possui '
-                    'o endereço.'
+                    'Não encontrei um cadastro de aluno em andamento.\n\n'
+                    'Clique em "Cadastrar novo aluno" para começar novamente.'
                 ),
+                reply_markup=students_menu_reply_markup(),
             )
 
             return {'status': 'student_address_reference_state_not_found'}
@@ -1191,6 +1688,22 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         context_data = dict(state['context_data'])
         context_data['address_reference_student_id'] = reference_student_id
+        context_data['address_reference_student_name'] = (
+            reference_student['student']['name']
+        )
+
+        address_reference = reference_student.get('address')
+
+        if isinstance(address_reference, dict):
+            context_data['address_reference'] = {
+                'zip_code': address_reference.get('zip_code'),
+                'street': address_reference.get('street'),
+                'number': address_reference.get('number'),
+                'complement': address_reference.get('complement'),
+                'neighborhood': address_reference.get('neighborhood'),
+                'city': address_reference.get('city'),
+                'state': address_reference.get('state'),
+            }
 
         await state_service.update_student_creation_context(
             state_id=state['id'],
@@ -1198,10 +1711,12 @@ class StudentsMenuHandler:  # noqa: PLR0904
             context_data=context_data,
         )
 
+        reference_student_name = reference_student['student']['name']
+
         await self.telegram_service.send_message(
             chat_id=chat_id,
             text=(
-                f'✅ Endereço reaproveitado de {reference_student.name}.\n\n'
+                f'✅ Endereço reaproveitado de {reference_student_name}.\n\n'
                 'Agora vamos continuar o cadastro.'
             ),
         )
@@ -2523,6 +3038,11 @@ class StudentsMenuHandler:  # noqa: PLR0904
         context_data: dict[str, Any],
     ) -> str:
         address = context_data.get('address')
+        reused_from = None
+
+        if not isinstance(address, dict):
+            address = context_data.get('address_reference')
+            reused_from = context_data.get('address_reference_student_name')
 
         if not isinstance(address, dict):
             return '🏠 Endereço\nNão informado\n\n'
@@ -2535,8 +3055,14 @@ class StudentsMenuHandler:  # noqa: PLR0904
         zip_code = address.get('zip_code') or 'Não informado'
         complement = address.get('complement') or 'Não informado'
 
+        reused_text = ''
+
+        if reused_from:
+            reused_text = f'Reutilizado de: {reused_from}\n'
+
         return (
             '🏠 Endereço\n'
+            f'{reused_text}'
             f'Logradouro: {street}\n'
             f'Número: {number}\n'
             f'Bairro: {neighborhood}\n'
@@ -2550,6 +3076,43 @@ class StudentsMenuHandler:  # noqa: PLR0904
         context_data: dict[str, Any],
     ) -> str:
         responsibles = context_data.get('responsibles', [])
+        responsible_references = context_data.get('responsible_references', [])
+
+        if responsible_references and not responsibles:
+            reference_details = context_data.get(
+                'responsible_reference_details',
+                [],
+            )
+            reference_student_name = context_data.get(
+                'responsible_reference_student_name',
+            )
+
+            lines = ['👨‍👩‍👧 Responsáveis']
+
+            if reference_student_name:
+                lines.append(f'Reutilizado de: {reference_student_name}')
+
+            if not reference_details:
+                lines.append('Reutilizado de outro aluno')
+
+                return '\n'.join(lines) + '\n\n'
+
+            for responsible in reference_details:
+                relationship = StudentsMenuHandler._get_relationship_label(
+                    responsible['relationship'],
+                )
+                whatsapp_text = StudentsMenuHandler._format_bool_text(
+                    responsible.get('phone_is_whatsapp'),
+                )
+                email_text = responsible.get('email') or 'Não informado'
+
+                lines.append('')
+                lines.append(f'{relationship}: {responsible["name"]}')
+                lines.append(f'Telefone: {responsible["phone"]}')
+                lines.append(f'WhatsApp: {whatsapp_text}')
+                lines.append(f'E-mail: {email_text}')
+
+            return '\n'.join(lines) + '\n\n'
 
         if not responsibles:
             if context_data.get('responsible_type') == 'self':
@@ -2810,7 +3373,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
             state['current_flow'] == TelegramFlow.STUDENT_CREATION
             and state['current_step']
             == TelegramStep.WAITING_STUDENT_RESPONSIBLE_NEXT_ACTION
-            and bool(state['context_data'].get('responsibles'))
+            and bool(
+                state['context_data'].get('responsibles')
+                or state['context_data'].get('responsible_references')
+            )
         )
 
     @staticmethod

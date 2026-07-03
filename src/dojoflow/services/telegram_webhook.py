@@ -229,6 +229,42 @@ class TelegramWebhookService:
             state is not None
             and state['current_flow'] == TelegramFlow.STUDENT_CREATION
             and state['current_step']
+            == TelegramStep.WAITING_STUDENT_RESPONSIBLE_REFERENCE_SEARCH
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_responsible_reference_search_message(
+                    chat_id=chat_id,
+                    search_text=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                    context=context,
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_ADDRESS_REFERENCE_SEARCH
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_address_reference_search_message(
+                    chat_id=chat_id,
+                    search_text=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                    context=context,
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
             == TelegramStep.WAITING_STUDENT_ADDRESS_ZIP_CODE
         ):
             students_handler = self.students_menu_handler

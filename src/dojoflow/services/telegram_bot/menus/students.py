@@ -115,6 +115,31 @@ def student_responsible_type_reply_markup() -> dict[str, Any]:
     }
 
 
+def student_responsible_choice_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '👤 Cadastrar novo responsável',
+                    'callback_data': 'students:create:responsible:new',
+                },
+            ],
+            [
+                {
+                    'text': '🔁 Usar responsável de outro aluno',
+                    'callback_data': 'students:create:responsible:reuse',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar cadastro',
+                    'callback_data': 'students:create:cancel',
+                },
+            ],
+        ]
+    }
+
+
 def student_responsible_relationship_reply_markup() -> dict[str, Any]:
     return {
         'inline_keyboard': [
@@ -204,6 +229,31 @@ def student_responsible_next_action_reply_markup() -> dict[str, Any]:
                     'text': '❌ Cancelar cadastro',
                     'callback_data': 'students:create:cancel',
                 },
+            ],
+        ]
+    }
+
+
+def student_address_choice_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '🏠 Cadastrar novo endereço',
+                    'callback_data': 'students:create:address:new',
+                }
+            ],
+            [
+                {
+                    'text': '🔁 Usar endereço de outro aluno',
+                    'callback_data': 'students:create:address:reuse',
+                }
+            ],
+            [
+                {
+                    'text': '⏭️ Pular endereço',
+                    'callback_data': 'students:create:address:skip',
+                }
             ],
         ]
     }
