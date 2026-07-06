@@ -179,6 +179,60 @@ async def post_callback(
     return response.json()
 
 
+async def post_confirm_field(
+    client: AsyncClient,
+    secret: str,
+    update_id: int,
+    telegram_user_id: int,
+) -> dict[str, str]:
+    return await post_callback(
+        client=client,
+        secret=secret,
+        update_id=update_id,
+        telegram_user_id=telegram_user_id,
+        callback_data='students:create:field:confirm',
+    )
+
+
+async def post_skip(
+    client: AsyncClient,
+    secret: str,
+    update_id: int,
+    telegram_user_id: int,
+) -> dict[str, str]:
+    return await post_callback(
+        client=client,
+        secret=secret,
+        update_id=update_id,
+        telegram_user_id=telegram_user_id,
+        callback_data='students:create:skip',
+    )
+
+
+async def enter_and_confirm_field(  # noqa: PLR0913, PLR0917
+    client: AsyncClient,
+    secret: str,
+    text_update_id: int,
+    confirm_update_id: int,
+    telegram_user_id: int,
+    text: str,
+    expected_status_after_confirm: str,
+) -> None:
+    assert await post_text(
+        client=client,
+        secret=secret,
+        update_id=text_update_id,
+        telegram_user_id=telegram_user_id,
+        text=text,
+    ) == {'status': 'waiting_student_field_confirmation'}
+    assert await post_confirm_field(
+        client=client,
+        secret=secret,
+        update_id=confirm_update_id,
+        telegram_user_id=telegram_user_id,
+    ) == {'status': expected_status_after_confirm}
+
+
 def get_last_student_details_callback(
     sent_messages: list[dict[str, Any]],
 ) -> str:
@@ -231,13 +285,15 @@ async def test_e2e_create_student_self_responsible(
         telegram_user_id,
         'students:create',
     ) == {'status': 'student_creation_started'}
-    assert await post_text(
-        client,
-        secret,
-        2,
-        telegram_user_id,
-        'Naruto Uzumaki',
-    ) == {'status': 'waiting_student_modality'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=2,
+        confirm_update_id=21,
+        telegram_user_id=telegram_user_id,
+        text='Naruto Uzumaki',
+        expected_status_after_confirm='waiting_student_modality',
+    )
     assert await post_callback(
         client,
         secret,
@@ -259,13 +315,15 @@ async def test_e2e_create_student_self_responsible(
         telegram_user_id,
         'students:create:responsible:self',
     ) == {'status': 'waiting_student_phone'}
-    assert await post_text(
-        client,
-        secret,
-        6,
-        telegram_user_id,
-        '62999999999',
-    ) == {'status': 'waiting_student_is_whatsapp'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=6,
+        confirm_update_id=61,
+        telegram_user_id=telegram_user_id,
+        text='62999999999',
+        expected_status_after_confirm='waiting_student_is_whatsapp',
+    )
     assert await post_callback(
         client,
         secret,
@@ -280,69 +338,87 @@ async def test_e2e_create_student_self_responsible(
         telegram_user_id,
         'students:create:address:new',
     ) == {'status': 'waiting_student_address_zip_code'}
-    assert await post_text(
-        client,
-        secret,
-        8,
-        telegram_user_id,
-        '74815705',
-    ) == {'status': 'waiting_student_address_number'}
-    assert await post_text(
-        client,
-        secret,
-        9,
-        telegram_user_id,
-        '327',
-    ) == {'status': 'waiting_student_address_complement'}
-    assert await post_text(
-        client,
-        secret,
-        10,
-        telegram_user_id,
-        'Casa 2',
-    ) == {'status': 'waiting_student_cpf'}
-    assert await post_text(
-        client,
-        secret,
-        11,
-        telegram_user_id,
-        '12345678911',
-    ) == {'status': 'waiting_student_instagram'}
-    assert await post_text(
-        client,
-        secret,
-        12,
-        telegram_user_id,
-        'NarutoUzumaki',
-    ) == {'status': 'waiting_student_email'}
-    assert await post_text(
-        client,
-        secret,
-        13,
-        telegram_user_id,
-        'naruto@example.com',
-    ) == {'status': 'waiting_student_birth_date'}
-    assert await post_text(
-        client,
-        secret,
-        14,
-        telegram_user_id,
-        '24/01/1994',
-    ) == {'status': 'waiting_student_monthly_fee'}
-    assert await post_text(
-        client,
-        secret,
-        15,
-        telegram_user_id,
-        '250',
-    ) == {'status': 'waiting_student_due_day'}
-    assert await post_text(
-        client,
-        secret,
-        16,
-        telegram_user_id,
-        '7',
-    ) == {'status': 'waiting_student_confirmation'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=8,
+        confirm_update_id=81,
+        telegram_user_id=telegram_user_id,
+        text='74815705',
+        expected_status_after_confirm='waiting_student_address_number',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=9,
+        confirm_update_id=91,
+        telegram_user_id=telegram_user_id,
+        text='327',
+        expected_status_after_confirm='waiting_student_address_complement',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=10,
+        confirm_update_id=101,
+        telegram_user_id=telegram_user_id,
+        text='Casa 2',
+        expected_status_after_confirm='waiting_student_cpf',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=11,
+        confirm_update_id=111,
+        telegram_user_id=telegram_user_id,
+        text='12345678911',
+        expected_status_after_confirm='waiting_student_instagram',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=12,
+        confirm_update_id=121,
+        telegram_user_id=telegram_user_id,
+        text='NarutoUzumaki',
+        expected_status_after_confirm='waiting_student_email',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=13,
+        confirm_update_id=131,
+        telegram_user_id=telegram_user_id,
+        text='naruto@example.com',
+        expected_status_after_confirm='waiting_student_birth_date',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=14,
+        confirm_update_id=141,
+        telegram_user_id=telegram_user_id,
+        text='24/01/1994',
+        expected_status_after_confirm='waiting_student_monthly_fee',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=15,
+        confirm_update_id=151,
+        telegram_user_id=telegram_user_id,
+        text='250',
+        expected_status_after_confirm='waiting_student_due_day',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=16,
+        confirm_update_id=161,
+        telegram_user_id=telegram_user_id,
+        text='7',
+        expected_status_after_confirm='waiting_student_confirmation',
+    )
 
     summary_text = sent_messages[-1]['text']
 
@@ -418,13 +494,15 @@ async def test_e2e_create_student_external_responsible(
         telegram_user_id,
         'students:create',
     ) == {'status': 'student_creation_started'}
-    assert await post_text(
-        client,
-        secret,
-        102,
-        telegram_user_id,
-        'Lulu Nuna',
-    ) == {'status': 'waiting_student_modality'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=102,
+        confirm_update_id=1021,
+        telegram_user_id=telegram_user_id,
+        text='Lulu Nuna',
+        expected_status_after_confirm='waiting_student_modality',
+    )
     assert await post_callback(
         client,
         secret,
@@ -460,20 +538,24 @@ async def test_e2e_create_student_external_responsible(
         telegram_user_id,
         'students:create:responsible:relationship:father',
     ) == {'status': 'waiting_student_responsible_name'}
-    assert await post_text(
-        client,
-        secret,
-        107,
-        telegram_user_id,
-        'Thiago Tancredi',
-    ) == {'status': 'waiting_student_responsible_phone'}
-    assert await post_text(
-        client,
-        secret,
-        108,
-        telegram_user_id,
-        '62982551800',
-    ) == {'status': 'waiting_student_responsible_is_whatsapp'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=107,
+        confirm_update_id=1071,
+        telegram_user_id=telegram_user_id,
+        text='Thiago Tancredi',
+        expected_status_after_confirm='waiting_student_responsible_phone',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=108,
+        confirm_update_id=1081,
+        telegram_user_id=telegram_user_id,
+        text='62982551800',
+        expected_status_after_confirm='waiting_student_responsible_is_whatsapp',
+    )
     assert await post_callback(
         client,
         secret,
@@ -481,13 +563,15 @@ async def test_e2e_create_student_external_responsible(
         telegram_user_id,
         'students:create:responsible:whatsapp:yes',
     ) == {'status': 'waiting_student_responsible_email'}
-    assert await post_text(
-        client,
-        secret,
-        110,
-        telegram_user_id,
-        'pai@example.com',
-    ) == {'status': 'waiting_student_responsible_next_action'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=110,
+        confirm_update_id=1101,
+        telegram_user_id=telegram_user_id,
+        text='pai@example.com',
+        expected_status_after_confirm='waiting_student_responsible_next_action',
+    )
     assert await post_callback(
         client,
         secret,
@@ -502,69 +586,87 @@ async def test_e2e_create_student_external_responsible(
         telegram_user_id,
         'students:create:address:new',
     ) == {'status': 'waiting_student_address_zip_code'}
-    assert await post_text(
-        client,
-        secret,
-        112,
-        telegram_user_id,
-        '74815705',
-    ) == {'status': 'waiting_student_address_number'}
-    assert await post_text(
-        client,
-        secret,
-        113,
-        telegram_user_id,
-        '327',
-    ) == {'status': 'waiting_student_address_complement'}
-    assert await post_text(
-        client,
-        secret,
-        114,
-        telegram_user_id,
-        'Apartamento 902',
-    ) == {'status': 'waiting_student_cpf'}
-    assert await post_text(
-        client,
-        secret,
-        115,
-        telegram_user_id,
-        '43256798712',
-    ) == {'status': 'waiting_student_instagram'}
-    assert await post_text(
-        client,
-        secret,
-        116,
-        telegram_user_id,
-        'LunaNuninha',
-    ) == {'status': 'waiting_student_email'}
-    assert await post_text(
-        client,
-        secret,
-        117,
-        telegram_user_id,
-        'luna@example.com',
-    ) == {'status': 'waiting_student_birth_date'}
-    assert await post_text(
-        client,
-        secret,
-        118,
-        telegram_user_id,
-        '24/09/2020',
-    ) == {'status': 'waiting_student_monthly_fee'}
-    assert await post_text(
-        client,
-        secret,
-        119,
-        telegram_user_id,
-        '350',
-    ) == {'status': 'waiting_student_due_day'}
-    assert await post_text(
-        client,
-        secret,
-        120,
-        telegram_user_id,
-        '7',
-    ) == {'status': 'waiting_student_confirmation'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=112,
+        confirm_update_id=1121,
+        telegram_user_id=telegram_user_id,
+        text='74815705',
+        expected_status_after_confirm='waiting_student_address_number',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=113,
+        confirm_update_id=1131,
+        telegram_user_id=telegram_user_id,
+        text='327',
+        expected_status_after_confirm='waiting_student_address_complement',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=114,
+        confirm_update_id=1141,
+        telegram_user_id=telegram_user_id,
+        text='Apartamento 902',
+        expected_status_after_confirm='waiting_student_cpf',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=115,
+        confirm_update_id=1151,
+        telegram_user_id=telegram_user_id,
+        text='43256798712',
+        expected_status_after_confirm='waiting_student_instagram',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=116,
+        confirm_update_id=1161,
+        telegram_user_id=telegram_user_id,
+        text='LunaNuninha',
+        expected_status_after_confirm='waiting_student_email',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=117,
+        confirm_update_id=1171,
+        telegram_user_id=telegram_user_id,
+        text='luna@example.com',
+        expected_status_after_confirm='waiting_student_birth_date',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=118,
+        confirm_update_id=1181,
+        telegram_user_id=telegram_user_id,
+        text='24/09/2020',
+        expected_status_after_confirm='waiting_student_monthly_fee',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=119,
+        confirm_update_id=1191,
+        telegram_user_id=telegram_user_id,
+        text='350',
+        expected_status_after_confirm='waiting_student_due_day',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=120,
+        confirm_update_id=1201,
+        telegram_user_id=telegram_user_id,
+        text='7',
+        expected_status_after_confirm='waiting_student_confirmation',
+    )
 
     summary_text = sent_messages[-1]['text']
     family_emoji = '\U0001f468\u200d\U0001f469\u200d\U0001f467'
@@ -614,6 +716,164 @@ async def test_e2e_create_student_external_responsible(
 
 
 @pytest.mark.asyncio
+async def test_e2e_create_student_skipping_optional_fields_and_address(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+    answered_callbacks: list[str] = []
+
+    telegram_user_id, modality_id = await setup_master_with_modality(
+        client=client,
+        db_session=db_session,
+    )
+
+    await mock_telegram_and_cep(
+        monkeypatch=monkeypatch,
+        secret=secret,
+        sent_messages=sent_messages,
+        answered_callbacks=answered_callbacks,
+    )
+
+    assert await post_callback(
+        client,
+        secret,
+        501,
+        telegram_user_id,
+        'students:create',
+    ) == {'status': 'student_creation_started'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=502,
+        confirm_update_id=5021,
+        telegram_user_id=telegram_user_id,
+        text='Sasuke Uchiha',
+        expected_status_after_confirm='waiting_student_modality',
+    )
+    assert await post_callback(
+        client,
+        secret,
+        503,
+        telegram_user_id,
+        f'students:create:modality:{modality_id}',
+    ) == {'status': 'waiting_student_sex'}
+    assert await post_callback(
+        client,
+        secret,
+        504,
+        telegram_user_id,
+        'students:create:sex:male',
+    ) == {'status': 'waiting_student_responsible_type'}
+    assert await post_callback(
+        client,
+        secret,
+        505,
+        telegram_user_id,
+        'students:create:responsible:self',
+    ) == {'status': 'waiting_student_phone'}
+    assert await post_skip(
+        client,
+        secret,
+        506,
+        telegram_user_id,
+    ) == {'status': 'waiting_student_address_choice'}
+    assert await post_callback(
+        client,
+        secret,
+        507,
+        telegram_user_id,
+        'students:create:address:skip',
+    ) == {'status': 'waiting_student_cpf'}
+    assert await post_skip(
+        client,
+        secret,
+        508,
+        telegram_user_id,
+    ) == {'status': 'waiting_student_instagram'}
+    assert await post_skip(
+        client,
+        secret,
+        509,
+        telegram_user_id,
+    ) == {'status': 'waiting_student_email'}
+    assert await post_skip(
+        client,
+        secret,
+        510,
+        telegram_user_id,
+    ) == {'status': 'waiting_student_birth_date'}
+    assert await post_skip(
+        client,
+        secret,
+        511,
+        telegram_user_id,
+    ) == {'status': 'waiting_student_monthly_fee'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=512,
+        confirm_update_id=5121,
+        telegram_user_id=telegram_user_id,
+        text='180',
+        expected_status_after_confirm='waiting_student_due_day',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=513,
+        confirm_update_id=5131,
+        telegram_user_id=telegram_user_id,
+        text='12',
+        expected_status_after_confirm='waiting_student_confirmation',
+    )
+
+    summary_text = sent_messages[-1]['text']
+
+    assert 'Nome: Sasuke Uchiha' in summary_text
+    assert 'Telefone: Não informado' in summary_text
+    assert 'WhatsApp: Não informado' in summary_text
+    assert 'CPF: Não informado' in summary_text
+    assert 'Instagram: Não informado' in summary_text
+    assert 'E-mail: Não informado' in summary_text
+    assert 'Data de nascimento: Não informado' in summary_text
+    assert '🏠 Endereço\nNão informado' in summary_text
+
+    assert await post_callback(
+        client,
+        secret,
+        514,
+        telegram_user_id,
+        'students:create:confirm',
+    ) == {'status': 'student_created'}
+    assert await post_callback(
+        client,
+        secret,
+        515,
+        telegram_user_id,
+        'students:list',
+    ) == {'status': 'students_list_sent'}
+
+    details_callback = get_last_student_details_callback(sent_messages)
+
+    assert await post_callback(
+        client,
+        secret,
+        516,
+        telegram_user_id,
+        details_callback,
+    ) == {'status': 'student_details_sent'}
+
+    details_text = sent_messages[-1]['text']
+    assert 'Nome: Sasuke Uchiha' in details_text
+    assert 'Telefone: Não informado' in details_text
+    assert '🏠 Endereço\nNão há endereço cadastrado.' in details_text
+    assert 'Valor: R$ 180.00' in details_text
+
+
+@pytest.mark.asyncio
 async def test_e2e_reuse_one_responsible_and_address(  # noqa: PLR0915
     client: AsyncClient,
     db_session: AsyncSession,
@@ -642,13 +902,15 @@ async def test_e2e_reuse_one_responsible_and_address(  # noqa: PLR0915
         telegram_user_id,
         'students:create',
     ) == {'status': 'student_creation_started'}
-    assert await post_text(
-        client,
-        secret,
-        1002,
-        telegram_user_id,
-        'Lukito Referencia',
-    ) == {'status': 'waiting_student_modality'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1002,
+        confirm_update_id=10021,
+        telegram_user_id=telegram_user_id,
+        text='Lukito Referencia',
+        expected_status_after_confirm='waiting_student_modality',
+    )
     assert await post_callback(
         client,
         secret,
@@ -684,20 +946,24 @@ async def test_e2e_reuse_one_responsible_and_address(  # noqa: PLR0915
         telegram_user_id,
         'students:create:responsible:relationship:father',
     ) == {'status': 'waiting_student_responsible_name'}
-    assert await post_text(
-        client,
-        secret,
-        1008,
-        telegram_user_id,
-        'Pai Referencia',
-    ) == {'status': 'waiting_student_responsible_phone'}
-    assert await post_text(
-        client,
-        secret,
-        1009,
-        telegram_user_id,
-        '62911111111',
-    ) == {'status': 'waiting_student_responsible_is_whatsapp'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1008,
+        confirm_update_id=10081,
+        telegram_user_id=telegram_user_id,
+        text='Pai Referencia',
+        expected_status_after_confirm='waiting_student_responsible_phone',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1009,
+        confirm_update_id=10091,
+        telegram_user_id=telegram_user_id,
+        text='62911111111',
+        expected_status_after_confirm='waiting_student_responsible_is_whatsapp',
+    )
     assert await post_callback(
         client,
         secret,
@@ -705,13 +971,15 @@ async def test_e2e_reuse_one_responsible_and_address(  # noqa: PLR0915
         telegram_user_id,
         'students:create:responsible:whatsapp:yes',
     ) == {'status': 'waiting_student_responsible_email'}
-    assert await post_text(
-        client,
-        secret,
-        1011,
-        telegram_user_id,
-        'pai.referencia@example.com',
-    ) == {'status': 'waiting_student_responsible_next_action'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1011,
+        confirm_update_id=10111,
+        telegram_user_id=telegram_user_id,
+        text='pai.referencia@example.com',
+        expected_status_after_confirm='waiting_student_responsible_next_action',
+    )
     assert await post_callback(
         client,
         secret,
@@ -726,20 +994,24 @@ async def test_e2e_reuse_one_responsible_and_address(  # noqa: PLR0915
         telegram_user_id,
         'students:create:responsible:relationship:mother',
     ) == {'status': 'waiting_student_responsible_name'}
-    assert await post_text(
-        client,
-        secret,
-        1014,
-        telegram_user_id,
-        'Mae Referencia',
-    ) == {'status': 'waiting_student_responsible_phone'}
-    assert await post_text(
-        client,
-        secret,
-        1015,
-        telegram_user_id,
-        '62922222222',
-    ) == {'status': 'waiting_student_responsible_is_whatsapp'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1014,
+        confirm_update_id=10141,
+        telegram_user_id=telegram_user_id,
+        text='Mae Referencia',
+        expected_status_after_confirm='waiting_student_responsible_phone',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1015,
+        confirm_update_id=10151,
+        telegram_user_id=telegram_user_id,
+        text='62922222222',
+        expected_status_after_confirm='waiting_student_responsible_is_whatsapp',
+    )
     assert await post_callback(
         client,
         secret,
@@ -747,13 +1019,15 @@ async def test_e2e_reuse_one_responsible_and_address(  # noqa: PLR0915
         telegram_user_id,
         'students:create:responsible:whatsapp:no',
     ) == {'status': 'waiting_student_responsible_email'}
-    assert await post_text(
-        client,
-        secret,
-        1017,
-        telegram_user_id,
-        'mae.referencia@example.com',
-    ) == {'status': 'waiting_student_responsible_next_action'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1017,
+        confirm_update_id=10171,
+        telegram_user_id=telegram_user_id,
+        text='mae.referencia@example.com',
+        expected_status_after_confirm='waiting_student_responsible_next_action',
+    )
     assert await post_callback(
         client,
         secret,
@@ -768,69 +1042,87 @@ async def test_e2e_reuse_one_responsible_and_address(  # noqa: PLR0915
         telegram_user_id,
         'students:create:address:new',
     ) == {'status': 'waiting_student_address_zip_code'}
-    assert await post_text(
-        client,
-        secret,
-        1020,
-        telegram_user_id,
-        '74815705',
-    ) == {'status': 'waiting_student_address_number'}
-    assert await post_text(
-        client,
-        secret,
-        1021,
-        telegram_user_id,
-        '327',
-    ) == {'status': 'waiting_student_address_complement'}
-    assert await post_text(
-        client,
-        secret,
-        1022,
-        telegram_user_id,
-        'Casa 1',
-    ) == {'status': 'waiting_student_cpf'}
-    assert await post_text(
-        client,
-        secret,
-        1023,
-        telegram_user_id,
-        '11122233344',
-    ) == {'status': 'waiting_student_instagram'}
-    assert await post_text(
-        client,
-        secret,
-        1024,
-        telegram_user_id,
-        'lukito',
-    ) == {'status': 'waiting_student_email'}
-    assert await post_text(
-        client,
-        secret,
-        1025,
-        telegram_user_id,
-        'lukito@example.com',
-    ) == {'status': 'waiting_student_birth_date'}
-    assert await post_text(
-        client,
-        secret,
-        1026,
-        telegram_user_id,
-        '01/01/2018',
-    ) == {'status': 'waiting_student_monthly_fee'}
-    assert await post_text(
-        client,
-        secret,
-        1027,
-        telegram_user_id,
-        '300',
-    ) == {'status': 'waiting_student_due_day'}
-    assert await post_text(
-        client,
-        secret,
-        1028,
-        telegram_user_id,
-        '10',
-    ) == {'status': 'waiting_student_confirmation'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1020,
+        confirm_update_id=10201,
+        telegram_user_id=telegram_user_id,
+        text='74815705',
+        expected_status_after_confirm='waiting_student_address_number',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1021,
+        confirm_update_id=10211,
+        telegram_user_id=telegram_user_id,
+        text='327',
+        expected_status_after_confirm='waiting_student_address_complement',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1022,
+        confirm_update_id=10221,
+        telegram_user_id=telegram_user_id,
+        text='Casa 1',
+        expected_status_after_confirm='waiting_student_cpf',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1023,
+        confirm_update_id=10231,
+        telegram_user_id=telegram_user_id,
+        text='11122233344',
+        expected_status_after_confirm='waiting_student_instagram',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1024,
+        confirm_update_id=10241,
+        telegram_user_id=telegram_user_id,
+        text='lukito',
+        expected_status_after_confirm='waiting_student_email',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1025,
+        confirm_update_id=10251,
+        telegram_user_id=telegram_user_id,
+        text='lukito@example.com',
+        expected_status_after_confirm='waiting_student_birth_date',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1026,
+        confirm_update_id=10261,
+        telegram_user_id=telegram_user_id,
+        text='01/01/2018',
+        expected_status_after_confirm='waiting_student_monthly_fee',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1027,
+        confirm_update_id=10271,
+        telegram_user_id=telegram_user_id,
+        text='300',
+        expected_status_after_confirm='waiting_student_due_day',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=1028,
+        confirm_update_id=10281,
+        telegram_user_id=telegram_user_id,
+        text='10',
+        expected_status_after_confirm='waiting_student_confirmation',
+    )
     assert await post_callback(
         client,
         secret,
@@ -846,13 +1138,15 @@ async def test_e2e_reuse_one_responsible_and_address(  # noqa: PLR0915
         telegram_user_id,
         'students:create',
     ) == {'status': 'student_creation_started'}
-    assert await post_text(
-        client,
-        secret,
-        2002,
-        telegram_user_id,
-        'Irmao do Lukito',
-    ) == {'status': 'waiting_student_modality'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=2002,
+        confirm_update_id=20021,
+        telegram_user_id=telegram_user_id,
+        text='Irmao do Lukito',
+        expected_status_after_confirm='waiting_student_modality',
+    )
     assert await post_callback(
         client,
         secret,
@@ -948,48 +1242,60 @@ async def test_e2e_reuse_one_responsible_and_address(  # noqa: PLR0915
         telegram_user_id,
         address_reference_callback,
     ) == {'status': 'waiting_student_cpf'}
-    assert await post_text(
-        client,
-        secret,
-        2014,
-        telegram_user_id,
-        '55566677788',
-    ) == {'status': 'waiting_student_instagram'}
-    assert await post_text(
-        client,
-        secret,
-        2015,
-        telegram_user_id,
-        'irmaolukito',
-    ) == {'status': 'waiting_student_email'}
-    assert await post_text(
-        client,
-        secret,
-        2016,
-        telegram_user_id,
-        'irmao@example.com',
-    ) == {'status': 'waiting_student_birth_date'}
-    assert await post_text(
-        client,
-        secret,
-        2017,
-        telegram_user_id,
-        '02/02/2019',
-    ) == {'status': 'waiting_student_monthly_fee'}
-    assert await post_text(
-        client,
-        secret,
-        2018,
-        telegram_user_id,
-        '300',
-    ) == {'status': 'waiting_student_due_day'}
-    assert await post_text(
-        client,
-        secret,
-        2019,
-        telegram_user_id,
-        '10',
-    ) == {'status': 'waiting_student_confirmation'}
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=2014,
+        confirm_update_id=20141,
+        telegram_user_id=telegram_user_id,
+        text='55566677788',
+        expected_status_after_confirm='waiting_student_instagram',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=2015,
+        confirm_update_id=20151,
+        telegram_user_id=telegram_user_id,
+        text='irmaolukito',
+        expected_status_after_confirm='waiting_student_email',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=2016,
+        confirm_update_id=20161,
+        telegram_user_id=telegram_user_id,
+        text='irmao@example.com',
+        expected_status_after_confirm='waiting_student_birth_date',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=2017,
+        confirm_update_id=20171,
+        telegram_user_id=telegram_user_id,
+        text='02/02/2019',
+        expected_status_after_confirm='waiting_student_monthly_fee',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=2018,
+        confirm_update_id=20181,
+        telegram_user_id=telegram_user_id,
+        text='300',
+        expected_status_after_confirm='waiting_student_due_day',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=2019,
+        confirm_update_id=20191,
+        telegram_user_id=telegram_user_id,
+        text='10',
+        expected_status_after_confirm='waiting_student_confirmation',
+    )
 
     summary_text = sent_messages[-1]['text']
 

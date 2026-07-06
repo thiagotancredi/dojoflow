@@ -26,7 +26,7 @@ def main_menu_reply_markup() -> dict[str, Any]:
             ],
             [
                 {
-                    'text': '🏫 Minha academia',
+                    'text': '🏫 Minha Academia',
                     'callback_data': 'menu:academy',
                 },
             ],

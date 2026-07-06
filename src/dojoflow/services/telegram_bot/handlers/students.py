@@ -10,10 +10,15 @@ from dojoflow.services.student import StudentService
 from dojoflow.services.telegram_bot.menus.students import (
     optional_field_reply_markup,
     student_address_choice_reply_markup,
+    student_address_number_reply_markup,
+    student_address_reference_search_actions_rows,
     student_confirmation_reply_markup,
+    student_creation_cancel_reply_markup,
+    student_field_confirmation_reply_markup,
     student_modalities_reply_markup,
     student_responsible_choice_reply_markup,
     student_responsible_next_action_reply_markup,
+    student_responsible_reference_search_actions_rows,
     student_responsible_relationship_reply_markup,
     student_responsible_type_reply_markup,
     student_sex_reply_markup,
@@ -38,6 +43,15 @@ MIN_MONTHLY_FEE = Decimal('0')
 MIN_DUE_DAY = 1
 MAX_DUE_DAY = 28
 RESPONSIBLE_REFERENCE_CALLBACK_PARTS = 3
+FIELD_CONFIRM_CALLBACK_DATA = 'students:create:field:confirm'
+FIELD_REWRITE_CALLBACK_DATA = 'students:create:field:rewrite'
+PENDING_FIELD_CONFIRMATION_KEY = 'pending_field_confirmation'
+ADDRESS_SEARCH_AGAIN_CALLBACK_DATA = 'students:create:address:search_again'
+ADDRESS_BACK_CALLBACK_DATA = 'students:create:address:back'
+RESPONSIBLE_SEARCH_AGAIN_CALLBACK_DATA = (
+    'students:create:responsible:search_again'
+)
+RESPONSIBLE_BACK_CALLBACK_DATA = 'students:create:responsible:back'
 
 
 class StudentsMenuHandler:  # noqa: PLR0904
@@ -108,6 +122,17 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 telegram_user_id=telegram_user_id,
             )
 
+        if callback_data in {
+            FIELD_CONFIRM_CALLBACK_DATA,
+            FIELD_REWRITE_CALLBACK_DATA,
+        }:
+            return await self._process_field_confirmation_choice(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+                context=context,
+            )
+
         if callback_data.startswith('students:create:modality:'):
             return await self._process_modality_choice(
                 chat_id=chat_id,
@@ -136,6 +161,8 @@ class StudentsMenuHandler:  # noqa: PLR0904
         if callback_data in {
             'students:create:responsible:new',
             'students:create:responsible:reuse',
+            RESPONSIBLE_SEARCH_AGAIN_CALLBACK_DATA,
+            RESPONSIBLE_BACK_CALLBACK_DATA,
         }:
             return await self._process_responsible_choice(
                 chat_id=chat_id,
@@ -197,10 +224,18 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 callback_data=callback_data,
             )
 
+        if callback_data == 'students:create:address:change_zip':
+            return await self._process_address_change_zip(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+            )
+
         if callback_data in {
             'students:create:address:new',
             'students:create:address:reuse',
             'students:create:address:skip',
+            ADDRESS_SEARCH_AGAIN_CALLBACK_DATA,
+            ADDRESS_BACK_CALLBACK_DATA,
         }:
             return await self._process_address_choice(
                 chat_id=chat_id,
@@ -487,6 +522,414 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         return {'status': 'student_details_sent'}
 
+    async def _request_field_confirmation(  # noqa: PLR0913, PLR0917
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        source_step: TelegramStep,
+        field_label: str,
+        value: Any,
+        display_value: str,
+        prompt_text: str,
+        prompt_reply_markup: dict[str, Any] | None = None,
+    ) -> dict[str, str]:
+        updated_context_data = dict(context_data)
+        updated_context_data[PENDING_FIELD_CONFIRMATION_KEY] = {
+            'source_step': source_step.value,
+            'field_label': field_label,
+            'value': value,
+            'display_value': display_value,
+            'prompt_text': prompt_text,
+            'prompt_reply_markup': prompt_reply_markup,
+        }
+
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_FIELD_CONFIRMATION,
+            context_data=updated_context_data,
+        )
+
+        await self._send_field_confirmation_message(
+            chat_id=chat_id,
+            pending_field_confirmation=updated_context_data[
+                PENDING_FIELD_CONFIRMATION_KEY
+            ],
+        )
+
+        return {'status': 'waiting_student_field_confirmation'}
+
+    async def _send_field_confirmation_message(
+        self,
+        chat_id: int,
+        pending_field_confirmation: dict[str, Any],
+    ) -> None:
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=self._build_field_confirmation_text(
+                field_label=str(
+                    pending_field_confirmation.get('field_label', 'o campo')
+                ),
+                display_value=str(
+                    pending_field_confirmation.get('display_value', '')
+                ),
+            ),
+            reply_markup=student_field_confirmation_reply_markup(),
+        )
+
+    async def _resend_field_confirmation_message(
+        self,
+        chat_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        pending_field_confirmation = context_data.get(
+            PENDING_FIELD_CONFIRMATION_KEY
+        )
+
+        if not isinstance(pending_field_confirmation, dict):
+            await self.send_menu(chat_id)
+
+            return {'status': 'student_field_confirmation_not_found'}
+
+        await self._send_field_confirmation_message(
+            chat_id=chat_id,
+            pending_field_confirmation=pending_field_confirmation,
+        )
+
+        return {'status': 'waiting_student_field_confirmation'}
+
+    async def _process_field_confirmation_choice(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+        state = await state_service.get_by_telegram_user_id(telegram_user_id)
+
+        if not self._is_waiting_student_field_confirmation(state):
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei uma confirmação de campo aguardando '
+                    'resposta.\n\n'
+                    'Clique em "Cadastrar novo aluno" para começar novamente.'
+                ),
+                reply_markup=students_menu_reply_markup(),
+            )
+
+            return {'status': 'student_field_confirmation_state_not_found'}
+
+        context_data = dict(state['context_data'])
+        pending_field_confirmation = context_data.get(
+            PENDING_FIELD_CONFIRMATION_KEY
+        )
+
+        if not isinstance(pending_field_confirmation, dict):
+            await self.send_menu(chat_id)
+
+            return {'status': 'student_field_confirmation_not_found'}
+
+        if callback_data == FIELD_REWRITE_CALLBACK_DATA:
+            return await self._rewrite_pending_field(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                pending_field_confirmation=pending_field_confirmation,
+            )
+
+        return await self._confirm_pending_field(
+            chat_id=chat_id,
+            state_id=state['id'],
+            context_data=context_data,
+            pending_field_confirmation=pending_field_confirmation,
+            context=context,
+        )
+
+    async def _rewrite_pending_field(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        pending_field_confirmation: dict[str, Any],
+    ) -> dict[str, str]:
+        source_step = self._get_pending_source_step(
+            pending_field_confirmation,
+        )
+
+        if source_step is None:
+            await self.send_menu(chat_id)
+
+            return {'status': 'student_field_confirmation_invalid_source'}
+
+        updated_context_data = dict(context_data)
+        updated_context_data.pop(PENDING_FIELD_CONFIRMATION_KEY, None)
+
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
+            next_step=source_step,
+            context_data=updated_context_data,
+        )
+
+        send_message_kwargs: dict[str, Any] = {
+            'chat_id': chat_id,
+            'text': str(pending_field_confirmation['prompt_text']),
+        }
+        prompt_reply_markup = pending_field_confirmation.get(
+            'prompt_reply_markup'
+        )
+
+        if isinstance(prompt_reply_markup, dict):
+            send_message_kwargs['reply_markup'] = prompt_reply_markup
+
+        await self.telegram_service.send_message(**send_message_kwargs)
+
+        return {'status': self._get_waiting_status_for_step(source_step)}
+
+    async def _confirm_pending_field(  # noqa: PLR0911, PLR0912
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        pending_field_confirmation: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        source_step = self._get_pending_source_step(
+            pending_field_confirmation,
+        )
+
+        if source_step is None:
+            await self.send_menu(chat_id)
+
+            return {'status': 'student_field_confirmation_invalid_source'}
+
+        updated_context_data = dict(context_data)
+        updated_context_data.pop(PENDING_FIELD_CONFIRMATION_KEY, None)
+        value = pending_field_confirmation.get('value')
+
+        if source_step == TelegramStep.WAITING_STUDENT_NAME:
+            return await self._apply_confirmed_student_name(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                context=context,
+                student_name=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_PHONE:
+            return await self._apply_confirmed_student_phone(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                phone=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_RESPONSIBLE_NAME:
+            return await self._apply_confirmed_student_responsible_name(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                responsible_name=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_RESPONSIBLE_PHONE:
+            return await self._apply_confirmed_student_responsible_phone(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                phone=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_RESPONSIBLE_EMAIL:
+            return await self._apply_confirmed_student_responsible_email(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                email=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_ADDRESS_ZIP_CODE:
+            return await self._apply_confirmed_student_address_zip_code(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                zip_code=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_ADDRESS_STREET:
+            return await self._apply_confirmed_student_address_street(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                street=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_ADDRESS_NEIGHBORHOOD:
+            return await self._apply_confirmed_student_address_neighborhood(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                neighborhood=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_ADDRESS_NUMBER:
+            return await self._apply_confirmed_student_address_number(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                number=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_ADDRESS_COMPLEMENT:
+            return await self._apply_confirmed_student_address_complement(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                complement=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_CPF:
+            return await self._apply_confirmed_student_cpf(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                cpf=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_INSTAGRAM:
+            return await self._apply_confirmed_student_instagram(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                instagram=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_EMAIL:
+            return await self._apply_confirmed_student_email(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                email=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_BIRTH_DATE:
+            return await self._apply_confirmed_student_birth_date(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                birth_date=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_MONTHLY_FEE:
+            return await self._apply_confirmed_student_monthly_fee(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                monthly_fee=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_DUE_DAY:
+            return await self._apply_confirmed_student_due_day(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                due_day=int(value),
+            )
+
+        await self.send_menu(chat_id)
+
+        return {'status': 'student_field_confirmation_invalid_source'}
+
+    @staticmethod
+    def _build_field_confirmation_text(
+        field_label: str,
+        display_value: str,
+    ) -> str:
+        return (
+            f'Confirme {field_label}:\n\n'
+            f'{display_value}\n\n'
+            'Escolha uma opção abaixo.'
+        )
+
+    @staticmethod
+    def _get_pending_source_step(
+        pending_field_confirmation: dict[str, Any],
+    ) -> TelegramStep | None:
+        source_step = pending_field_confirmation.get('source_step')
+
+        try:
+            return TelegramStep(str(source_step))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _get_waiting_status_for_step(
+        step: TelegramStep,
+    ) -> str:
+        waiting_statuses = {
+            TelegramStep.WAITING_STUDENT_NAME: 'waiting_student_name',
+            TelegramStep.WAITING_STUDENT_PHONE: 'waiting_student_phone',
+            TelegramStep.WAITING_STUDENT_RESPONSIBLE_NAME: (
+                'waiting_student_responsible_name'
+            ),
+            TelegramStep.WAITING_STUDENT_RESPONSIBLE_PHONE: (
+                'waiting_student_responsible_phone'
+            ),
+            TelegramStep.WAITING_STUDENT_RESPONSIBLE_EMAIL: (
+                'waiting_student_responsible_email'
+            ),
+            TelegramStep.WAITING_STUDENT_ADDRESS_ZIP_CODE: (
+                'waiting_student_address_zip_code'
+            ),
+            TelegramStep.WAITING_STUDENT_ADDRESS_STREET: (
+                'waiting_student_address_street'
+            ),
+            TelegramStep.WAITING_STUDENT_ADDRESS_NEIGHBORHOOD: (
+                'waiting_student_address_neighborhood'
+            ),
+            TelegramStep.WAITING_STUDENT_ADDRESS_NUMBER: (
+                'waiting_student_address_number'
+            ),
+            TelegramStep.WAITING_STUDENT_ADDRESS_COMPLEMENT: (
+                'waiting_student_address_complement'
+            ),
+            TelegramStep.WAITING_STUDENT_CPF: 'waiting_student_cpf',
+            TelegramStep.WAITING_STUDENT_INSTAGRAM: (
+                'waiting_student_instagram'
+            ),
+            TelegramStep.WAITING_STUDENT_EMAIL: 'waiting_student_email',
+            TelegramStep.WAITING_STUDENT_BIRTH_DATE: (
+                'waiting_student_birth_date'
+            ),
+            TelegramStep.WAITING_STUDENT_MONTHLY_FEE: (
+                'waiting_student_monthly_fee'
+            ),
+            TelegramStep.WAITING_STUDENT_DUE_DAY: 'waiting_student_due_day',
+        }
+
+        return waiting_statuses.get(step, 'waiting_student_field')
+
+    @staticmethod
+    def _clear_address_context(
+        context_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        updated_context_data = dict(context_data)
+
+        for key in (
+            'address',
+            'address_reference',
+            'address_reference_student_id',
+            'address_reference_student_name',
+        ):
+            updated_context_data.pop(key, None)
+
+        return updated_context_data
+
     async def process_student_name_message(
         self,
         chat_id: int,
@@ -507,16 +950,39 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'invalid_student_name'}
 
-        context_data = {
-            'student_name': normalized_student_name,
-        }
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data={},
+            source_step=TelegramStep.WAITING_STUDENT_NAME,
+            field_label='o nome do aluno',
+            value=normalized_student_name,
+            display_value=normalized_student_name,
+            prompt_text=(
+                '➕ Cadastrar novo aluno\n\n'
+                'Vamos cadastrar um novo aluno na sua academia.\n\n'
+                'Digite o nome completo do aluno.'
+            ),
+            prompt_reply_markup=student_creation_cancel_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_name(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+        student_name: str,
+    ) -> dict[str, str]:
+        updated_context_data = dict(context_data)
+        updated_context_data['student_name'] = student_name
 
         state_service = self.telegram_conversation_state_service
 
         await state_service.update_student_creation_context(
             state_id=state_id,
             next_step=TelegramStep.WAITING_STUDENT_MODALITY,
-            context_data=context_data,
+            context_data=updated_context_data,
         )
 
         modalities = await self.modality_service.list_selected_by_academy(
@@ -527,7 +993,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
             chat_id=chat_id,
             text=(
                 'Perfeito! ✅\n\n'
-                f'Aluno: {normalized_student_name}\n\n'
+                f'Aluno: {student_name}\n\n'
                 'Agora escolha a modalidade do aluno:'
             ),
             reply_markup=student_modalities_reply_markup(modalities),
@@ -568,8 +1034,13 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 text=(
                     'Não encontrei nenhum aluno com o nome '
                     f'"{normalized_search_text}".\n\n'
-                    'Digite outro nome para pesquisar novamente.'
+                    'O que deseja fazer?'
                 ),
+                reply_markup={
+                    'inline_keyboard': (
+                        student_address_reference_search_actions_rows()
+                    ),
+                },
             )
 
             return {'status': 'student_address_reference_search_empty'}
@@ -593,6 +1064,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
                     ),
                 },
             ])
+
+        inline_keyboard.extend(
+            student_address_reference_search_actions_rows(),
+        )
 
         await self.telegram_service.send_message(
             chat_id=chat_id,
@@ -624,8 +1099,9 @@ class StudentsMenuHandler:  # noqa: PLR0904
             text=(
                 '➕ Cadastrar novo aluno\n\n'
                 'Vamos cadastrar um novo aluno na sua academia.\n\n'
-                'Qual é o nome completo do aluno?'
+                'Digite o nome completo do aluno.'
             ),
+            reply_markup=student_creation_cancel_reply_markup(),
         )
 
         return {'status': 'student_creation_started'}
@@ -723,8 +1199,33 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'invalid_student_phone'}
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_PHONE,
+            field_label='o telefone do aluno',
+            value=normalized_phone,
+            display_value=normalized_phone,
+            prompt_text=(
+                'Qual é o telefone do aluno?\n\n'
+                'Digite apenas os números, com DDD.\n\n'
+                'Exemplo:\n'
+                '62999999999\n\n'
+                'Se não quiser informar agora, toque em "⏭️ Pular".'
+            ),
+            prompt_reply_markup=optional_field_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_phone(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        phone: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
-        updated_context_data['phone'] = normalized_phone
+        updated_context_data['phone'] = phone
 
         state_service = self.telegram_conversation_state_service
 
@@ -876,6 +1377,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
         valid_steps = {
             TelegramStep.WAITING_STUDENT_RESPONSIBLE_CHOICE,
             TelegramStep.WAITING_STUDENT_RESPONSIBLE_NEXT_ACTION,
+            TelegramStep.WAITING_STUDENT_RESPONSIBLE_REFERENCE_SEARCH,
         }
 
         if state is None or state['current_step'] not in valid_steps:
@@ -893,6 +1395,21 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         context_data = dict(state['context_data'])
 
+        if callback_data == RESPONSIBLE_BACK_CALLBACK_DATA:
+            await state_service.update_student_creation_context(
+                state_id=state['id'],
+                next_step=TelegramStep.WAITING_STUDENT_RESPONSIBLE_CHOICE,
+                context_data=context_data,
+            )
+
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text='Como deseja informar o responsável do aluno?',
+                reply_markup=student_responsible_choice_reply_markup(),
+            )
+
+            return {'status': 'waiting_student_responsible_choice'}
+
         if callback_data == 'students:create:responsible:new':
             await state_service.update_student_creation_context(
                 state_id=state['id'],
@@ -904,27 +1421,20 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             await self.telegram_service.send_message(
                 chat_id=chat_id,
-                text='Qual é o parentesco do responsável?',
+                text=(
+                    '👨‍👩‍👧 Responsável\n\n'
+                    'Qual é o parentesco do responsável com o aluno?'
+                ),
                 reply_markup=student_responsible_relationship_reply_markup(),
             )
 
             return {'status': 'waiting_student_responsible_relationship'}
 
-        await state_service.update_student_creation_context(
+        return await self._prompt_student_responsible_reference_search(
+            chat_id=chat_id,
             state_id=state['id'],
-            next_step=TelegramStep.WAITING_STUDENT_RESPONSIBLE_REFERENCE_SEARCH,
             context_data=context_data,
         )
-
-        await self.telegram_service.send_message(
-            chat_id=chat_id,
-            text=(
-                'Digite o nome do aluno que já possui esse mesmo '
-                'responsável.'
-            ),
-        )
-
-        return {'status': 'waiting_student_responsible_reference_search'}
 
     async def process_student_responsible_reference_search_message(
         self,
@@ -961,8 +1471,13 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 text=(
                     'Não encontrei nenhum aluno com o nome '
                     f'"{normalized_search_text}".\n\n'
-                    'Digite outro nome para pesquisar novamente.'
+                    'O que deseja fazer?'
                 ),
+                reply_markup={
+                    'inline_keyboard': (
+                        student_responsible_reference_search_actions_rows()
+                    ),
+                },
             )
 
             return {'status': 'student_responsible_reference_search_empty'}
@@ -986,6 +1501,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
                     ),
                 },
             ])
+
+        inline_keyboard.extend(
+            student_responsible_reference_search_actions_rows(),
+        )
 
         await self.telegram_service.send_message(
             chat_id=chat_id,
@@ -1056,8 +1575,13 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 chat_id=chat_id,
                 text=(
                     'Esse aluno não possui responsável cadastrado.\n\n'
-                    'Digite outro nome para buscar.'
+                    'O que deseja fazer?'
                 ),
+                reply_markup={
+                    'inline_keyboard': (
+                        student_responsible_reference_search_actions_rows()
+                    ),
+                },
             )
 
             return {'status': 'student_responsible_reference_without_data'}
@@ -1190,8 +1714,13 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 chat_id=chat_id,
                 text=(
                     'Não encontrei responsável para reaproveitar.\n\n'
-                    'Digite outro nome para buscar.'
+                    'O que deseja fazer?'
                 ),
+                reply_markup={
+                    'inline_keyboard': (
+                        student_responsible_reference_search_actions_rows()
+                    ),
+                },
             )
 
             return {'status': 'student_responsible_reference_without_data'}
@@ -1370,7 +1899,11 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         await self.telegram_service.send_message(
             chat_id=chat_id,
-            text='Qual é o nome do responsável?',
+            text=(
+                '👨‍👩‍👧 Responsável\n\n'
+                'Digite o nome completo do responsável.'
+            ),
+            reply_markup=student_creation_cancel_reply_markup(),
         )
 
         return {'status': 'waiting_student_responsible_name'}
@@ -1398,9 +1931,28 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'invalid_student_responsible_name'}
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_RESPONSIBLE_NAME,
+            field_label='o nome do responsável',
+            value=normalized_responsible_name,
+            display_value=normalized_responsible_name,
+            prompt_text='Qual é o nome do responsável?',
+            prompt_reply_markup=student_creation_cancel_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_responsible_name(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        responsible_name: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
         current_responsible = dict(updated_context_data['current_responsible'])
-        current_responsible['name'] = normalized_responsible_name
+        current_responsible['name'] = responsible_name
         updated_context_data['current_responsible'] = current_responsible
 
         state_service = self.telegram_conversation_state_service
@@ -1419,6 +1971,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 'Exemplo:\n'
                 '62999999999'
             ),
+            reply_markup=student_creation_cancel_reply_markup(),
         )
 
         return {'status': 'waiting_student_responsible_phone'}
@@ -1447,9 +2000,33 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'invalid_student_responsible_phone'}
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_RESPONSIBLE_PHONE,
+            field_label='o telefone do responsável',
+            value=normalized_phone,
+            display_value=normalized_phone,
+            prompt_text=(
+                'Qual é o telefone do responsável?\n\n'
+                'Digite apenas os números, com DDD.\n\n'
+                'Exemplo:\n'
+                '62999999999'
+            ),
+            prompt_reply_markup=student_creation_cancel_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_responsible_phone(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        phone: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
         current_responsible = dict(updated_context_data['current_responsible'])
-        current_responsible['phone'] = normalized_phone
+        current_responsible['phone'] = phone
         updated_context_data['current_responsible'] = current_responsible
 
         state_service = self.telegram_conversation_state_service
@@ -1562,13 +2139,51 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             await self.telegram_service.send_message(
                 chat_id=chat_id,
-                text='Qual é o parentesco do responsável?',
+                text=(
+                    '👨‍👩‍👧 Responsável\n\n'
+                    'Qual é o parentesco do responsável com o aluno?'
+                ),
                 reply_markup=student_responsible_relationship_reply_markup(),
             )
 
             return {'status': 'waiting_student_responsible_relationship'}
 
         return await self._ask_student_address_choice(
+            chat_id=chat_id,
+            state_id=state['id'],
+            context_data=context_data,
+        )
+
+    async def _process_address_change_zip(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+        state = await state_service.get_by_telegram_user_id(telegram_user_id)
+
+        if (
+            state is None
+            or state['current_step']
+            != TelegramStep.WAITING_STUDENT_ADDRESS_NUMBER
+        ):
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei um cadastro aguardando número '
+                    'de endereço.\n\n'
+                    'Clique em "Cadastrar novo aluno" para começar '
+                    'novamente.'
+                ),
+                reply_markup=students_menu_reply_markup(),
+            )
+
+            return {'status': 'student_address_change_zip_state_not_found'}
+
+        context_data = dict(state['context_data'])
+        context_data.pop('address', None)
+
+        return await self._ask_student_address_zip_code(
             chat_id=chat_id,
             state_id=state['id'],
             context_data=context_data,
@@ -1583,11 +2198,12 @@ class StudentsMenuHandler:  # noqa: PLR0904
         state_service = self.telegram_conversation_state_service
         state = await state_service.get_by_telegram_user_id(telegram_user_id)
 
-        if (
-            state is None
-            or state['current_step']
-            != TelegramStep.WAITING_STUDENT_ADDRESS_CHOICE
-        ):
+        valid_steps = {
+            TelegramStep.WAITING_STUDENT_ADDRESS_CHOICE,
+            TelegramStep.WAITING_STUDENT_ADDRESS_REFERENCE_SEARCH,
+        }
+
+        if state is None or state['current_step'] not in valid_steps:
             await self.telegram_service.send_message(
                 chat_id=chat_id,
                 text=(
@@ -1604,34 +2220,39 @@ class StudentsMenuHandler:  # noqa: PLR0904
         context_data = dict(state['context_data'])
 
         if callback_data == 'students:create:address:new':
+            context_data = self._clear_address_context(context_data)
+
             return await self._ask_student_address_zip_code(
                 chat_id=chat_id,
                 state_id=state['id'],
                 context_data=context_data,
             )
 
+        if callback_data == ADDRESS_BACK_CALLBACK_DATA:
+            context_data = self._clear_address_context(context_data)
+
+            return await self._ask_student_address_choice(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+            )
+
         if callback_data == 'students:create:address:skip':
+            context_data = self._clear_address_context(context_data)
+
             return await self._skip_to_cpf(
                 chat_id=chat_id,
                 state_id=state['id'],
                 context_data=context_data,
             )
 
-        await state_service.update_student_creation_context(
+        context_data = self._clear_address_context(context_data)
+
+        return await self._prompt_student_address_reference_search(
+            chat_id=chat_id,
             state_id=state['id'],
-            next_step=TelegramStep.WAITING_STUDENT_ADDRESS_REFERENCE_SEARCH,
             context_data=context_data,
         )
-
-        await self.telegram_service.send_message(
-            chat_id=chat_id,
-            text=(
-                'Digite o nome do aluno que já possui o endereço '
-                'que deseja reutilizar.'
-            ),
-        )
-
-        return {'status': 'waiting_student_address_reference_search'}
 
     async def _process_address_reference_selected(
         self,
@@ -1686,24 +2307,38 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'student_address_reference_not_found'}
 
-        context_data = dict(state['context_data'])
+        address_reference = reference_student.get('address')
+
+        if not isinstance(address_reference, dict):
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Esse aluno não possui endereço cadastrado.\n\n'
+                    'O que deseja fazer?'
+                ),
+                reply_markup={
+                    'inline_keyboard': (
+                        student_address_reference_search_actions_rows()
+                    ),
+                },
+            )
+
+            return {'status': 'student_address_reference_without_data'}
+
+        context_data = self._clear_address_context(state['context_data'])
         context_data['address_reference_student_id'] = reference_student_id
         context_data['address_reference_student_name'] = (
             reference_student['student']['name']
         )
-
-        address_reference = reference_student.get('address')
-
-        if isinstance(address_reference, dict):
-            context_data['address_reference'] = {
-                'zip_code': address_reference.get('zip_code'),
-                'street': address_reference.get('street'),
-                'number': address_reference.get('number'),
-                'complement': address_reference.get('complement'),
-                'neighborhood': address_reference.get('neighborhood'),
-                'city': address_reference.get('city'),
-                'state': address_reference.get('state'),
-            }
+        context_data['address_reference'] = {
+            'zip_code': address_reference.get('zip_code'),
+            'street': address_reference.get('street'),
+            'number': address_reference.get('number'),
+            'complement': address_reference.get('complement'),
+            'neighborhood': address_reference.get('neighborhood'),
+            'city': address_reference.get('city'),
+            'state': address_reference.get('state'),
+        }
 
         await state_service.update_student_creation_context(
             state_id=state['id'],
@@ -1753,7 +2388,32 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'invalid_student_address_zip_code'}
 
-        cep_address = await self.cep_service.search(normalized_zip_code)
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_ADDRESS_ZIP_CODE,
+            field_label='o CEP do aluno',
+            value=normalized_zip_code,
+            display_value=normalized_zip_code,
+            prompt_text=(
+                'Qual é o CEP do aluno?\n\n'
+                'Digite apenas os números.\n\n'
+                'Exemplo:\n'
+                '74230110\n\n'
+                'Se não quiser informar agora, toque em "⏭️ Pular".'
+            ),
+            prompt_reply_markup=optional_field_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_address_zip_code(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        zip_code: str,
+    ) -> dict[str, str]:
+        cep_address = await self.cep_service.search(zip_code)
 
         if cep_address is None:
             await self.telegram_service.send_message(
@@ -1847,6 +2507,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 '3B\n'
                 'S/N'
             ),
+            reply_markup=student_address_number_reply_markup(),
         )
 
         return {'status': 'waiting_student_address_number'}
@@ -1860,9 +2521,31 @@ class StudentsMenuHandler:  # noqa: PLR0904
     ) -> dict[str, str]:
         normalized_street = ' '.join(street.strip().split())
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_ADDRESS_STREET,
+            field_label='o logradouro do endereço',
+            value=normalized_street,
+            display_value=normalized_street,
+            prompt_text=(
+                'Digite o logradouro do endereço.\n\n'
+                'Se não quiser informar agora, toque em "⏭️ Pular".'
+            ),
+            prompt_reply_markup=optional_field_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_address_street(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        street: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
         address = dict(updated_context_data.get('address', {}))
-        address['street'] = normalized_street
+        address['street'] = street
         updated_context_data['address'] = address
 
         state_service = self.telegram_conversation_state_service
@@ -1909,9 +2592,31 @@ class StudentsMenuHandler:  # noqa: PLR0904
     ) -> dict[str, str]:
         normalized_neighborhood = ' '.join(neighborhood.strip().split())
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_ADDRESS_NEIGHBORHOOD,
+            field_label='o bairro do endereço',
+            value=normalized_neighborhood,
+            display_value=normalized_neighborhood,
+            prompt_text=(
+                'Digite o bairro do endereço.\n\n'
+                'Se não quiser informar agora, toque em "⏭️ Pular".'
+            ),
+            prompt_reply_markup=optional_field_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_address_neighborhood(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        neighborhood: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
         address = dict(updated_context_data.get('address', {}))
-        address['neighborhood'] = normalized_neighborhood
+        address['neighborhood'] = neighborhood
         updated_context_data['address'] = address
 
         state_service = self.telegram_conversation_state_service
@@ -1960,13 +2665,39 @@ class StudentsMenuHandler:  # noqa: PLR0904
                     '3B\n'
                     'S/N'
                 ),
+                reply_markup=student_address_number_reply_markup(),
             )
 
             return {'status': 'invalid_student_address_number'}
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_ADDRESS_NUMBER,
+            field_label='o número do endereço',
+            value=normalized_number,
+            display_value=normalized_number,
+            prompt_text=(
+                'Digite o número do endereço.\n\n'
+                'Exemplos:\n'
+                '123\n'
+                '3B\n'
+                'S/N'
+            ),
+            prompt_reply_markup=student_address_number_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_address_number(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        number: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
         address = dict(updated_context_data.get('address', {}))
-        address['number'] = normalized_number
+        address['number'] = number
         updated_context_data['address'] = address
 
         state_service = self.telegram_conversation_state_service
@@ -1999,9 +2730,33 @@ class StudentsMenuHandler:  # noqa: PLR0904
     ) -> dict[str, str]:
         normalized_complement = complement.strip()
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_ADDRESS_COMPLEMENT,
+            field_label='o complemento do endereço',
+            value=normalized_complement,
+            display_value=normalized_complement or 'Sem complemento',
+            prompt_text=(
+                'Digite o complemento do endereço.\n\n'
+                'Exemplo:\n'
+                'Casa 2\n\n'
+                'Se não tiver complemento, toque em "⏭️ Pular".'
+            ),
+            prompt_reply_markup=optional_field_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_address_complement(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        complement: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
         address = dict(updated_context_data.get('address', {}))
-        address['complement'] = normalized_complement
+        address['complement'] = complement
         updated_context_data['address'] = address
 
         return await self._skip_to_cpf(
@@ -2035,8 +2790,33 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'invalid_student_cpf'}
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_CPF,
+            field_label='o CPF do aluno',
+            value=normalized_cpf,
+            display_value=normalized_cpf,
+            prompt_text=(
+                'Qual é o CPF do aluno?\n\n'
+                'Digite apenas os números, sem pontos ou traços.\n\n'
+                'Exemplo:\n'
+                '12345678911\n\n'
+                'Se não quiser informar agora, toque em "⏭️ Pular".'
+            ),
+            prompt_reply_markup=optional_field_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_cpf(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        cpf: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
-        updated_context_data['cpf'] = normalized_cpf
+        updated_context_data['cpf'] = cpf
 
         state_service = self.telegram_conversation_state_service
 
@@ -2083,8 +2863,33 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'invalid_student_instagram'}
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_INSTAGRAM,
+            field_label='o Instagram do aluno',
+            value=normalized_instagram,
+            display_value=f'@{normalized_instagram}',
+            prompt_text=(
+                'Qual é o Instagram do aluno?\n\n'
+                'Digite sem @.\n\n'
+                'Exemplo:\n'
+                'joaosilva\n\n'
+                'Se não quiser informar agora, toque em "⏭️ Pular".'
+            ),
+            prompt_reply_markup=optional_field_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_instagram(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        instagram: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
-        updated_context_data['instagram'] = normalized_instagram
+        updated_context_data['instagram'] = instagram
 
         state_service = self.telegram_conversation_state_service
 
@@ -2126,8 +2931,30 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'invalid_student_email'}
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_EMAIL,
+            field_label='o e-mail do aluno',
+            value=normalized_email,
+            display_value=normalized_email,
+            prompt_text=(
+                'Qual é o e-mail do aluno?\n\n'
+                'Se não quiser informar agora, toque em "⏭️ Pular".'
+            ),
+            prompt_reply_markup=optional_field_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_email(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        email: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
-        updated_context_data['email'] = normalized_email
+        updated_context_data['email'] = email
 
         return await self._skip_to_birth_date(
             chat_id=chat_id,
@@ -2156,9 +2983,31 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'invalid_student_responsible_email'}
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_RESPONSIBLE_EMAIL,
+            field_label='o e-mail do responsável',
+            value=normalized_email,
+            display_value=normalized_email,
+            prompt_text=(
+                'Qual é o e-mail do responsável?\n\n'
+                'Se não quiser informar agora, toque em "⏭️ Pular".'
+            ),
+            prompt_reply_markup=optional_field_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_responsible_email(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        email: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
         current_responsible = dict(updated_context_data['current_responsible'])
-        current_responsible['email'] = normalized_email
+        current_responsible['email'] = email
         updated_context_data['current_responsible'] = current_responsible
 
         return await self._finish_current_responsible(
@@ -2228,8 +3077,33 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'invalid_student_birth_date'}
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_BIRTH_DATE,
+            field_label='a data de nascimento do aluno',
+            value=birth_date.isoformat(),
+            display_value=birth_date.strftime(BIRTH_DATE_FORMAT),
+            prompt_text=(
+                'Qual é a data de nascimento do aluno?\n\n'
+                'Digite no formato dia/mês/ano.\n\n'
+                'Exemplo:\n'
+                '24/01/1994\n\n'
+                'Se não quiser informar agora, toque em "⏭️ Pular".'
+            ),
+            prompt_reply_markup=optional_field_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_birth_date(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        birth_date: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
-        updated_context_data['birth_date'] = birth_date.isoformat()
+        updated_context_data['birth_date'] = birth_date
 
         state_service = self.telegram_conversation_state_service
 
@@ -2275,8 +3149,32 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         monthly_fee = monthly_fee.quantize(MONEY_DECIMAL_PLACES)
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_MONTHLY_FEE,
+            field_label='o valor da mensalidade',
+            value=str(monthly_fee),
+            display_value=f'R$ {monthly_fee}',
+            prompt_text=(
+                'Qual é o valor da mensalidade do aluno?\n\n'
+                'Exemplo:\n'
+                '125\n'
+                'ou\n'
+                '100,50'
+            ),
+        )
+
+    async def _apply_confirmed_student_monthly_fee(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        monthly_fee: str,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
-        updated_context_data['monthly_fee'] = str(monthly_fee)
+        updated_context_data['monthly_fee'] = monthly_fee
 
         state_service = self.telegram_conversation_state_service
 
@@ -2333,6 +3231,29 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'invalid_student_due_day'}
 
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_DUE_DAY,
+            field_label='o dia de vencimento',
+            value=due_day,
+            display_value=f'Dia {due_day}',
+            prompt_text=(
+                'Qual é o dia de vencimento da mensalidade?\n\n'
+                'Digite um dia entre 1 e 28.\n\n'
+                'Exemplo:\n'
+                '10'
+            ),
+        )
+
+    async def _apply_confirmed_student_due_day(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        due_day: int,
+    ) -> dict[str, str]:
         updated_context_data = dict(context_data)
         updated_context_data['due_day'] = due_day
         updated_context_data['is_exempt'] = False
@@ -2546,6 +3467,54 @@ class StudentsMenuHandler:  # noqa: PLR0904
         )
 
         return {'status': 'waiting_student_address_choice'}
+
+    async def _prompt_student_address_reference_search(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_ADDRESS_REFERENCE_SEARCH,
+            context_data=context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Digite o nome do aluno que já possui o endereço '
+                'que deseja reutilizar.'
+            ),
+        )
+
+        return {'status': 'waiting_student_address_reference_search'}
+
+    async def _prompt_student_responsible_reference_search(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_RESPONSIBLE_REFERENCE_SEARCH,
+            context_data=context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Digite o nome do aluno que já possui esse mesmo '
+                'responsável.'
+            ),
+        )
+
+        return {'status': 'waiting_student_responsible_reference_search'}
 
     async def _ask_student_address_zip_code(
         self,
@@ -3037,12 +4006,24 @@ class StudentsMenuHandler:  # noqa: PLR0904
     def _build_address_summary(
         context_data: dict[str, Any],
     ) -> str:
-        address = context_data.get('address')
-        reused_from = None
+        reused_from = context_data.get('address_reference_student_name')
+        address = None
 
-        if not isinstance(address, dict):
+        if reused_from:
+            address_reference = context_data.get('address_reference')
+
+            if isinstance(address_reference, dict):
+                address = address_reference
+
+        if address is None:
+            address = context_data.get('address')
+            reused_from = None
+
+        if address is None:
             address = context_data.get('address_reference')
-            reused_from = context_data.get('address_reference_student_name')
+            reused_from = context_data.get(
+                'address_reference_student_name',
+            )
 
         if not isinstance(address, dict):
             return '🏠 Endereço\nNão informado\n\n'
@@ -3339,6 +4320,23 @@ class StudentsMenuHandler:  # noqa: PLR0904
             and state['current_step']
             == TelegramStep.WAITING_STUDENT_RESPONSIBLE_NAME
             and bool(current_responsible.get('relationship'))
+        )
+
+    @staticmethod
+    def _is_waiting_student_field_confirmation(
+        state: dict[str, Any] | None,
+    ) -> bool:
+        if state is None:
+            return False
+
+        return (
+            state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_FIELD_CONFIRMATION
+            and isinstance(
+                state['context_data'].get(PENDING_FIELD_CONFIRMATION_KEY),
+                dict,
+            )
         )
 
     @staticmethod

@@ -41,7 +41,7 @@ class MainMenuHandler:
                 '✅ Pagamentos: registrar pagamento normal, parcial '
                 'ou adiantado.\n'
                 '📊 Relatórios: ver resumo financeiro e taxas.\n'
-                '🏫 Minha academia: alterar seus dados, dados da academia '
+                '🏫 Minha Academia: alterar seus dados, dados da academia '
                 'e modalidades.\n\n'
                 'Comandos úteis:\n'
                 '📌 menu - mostra o menu principal\n'
@@ -90,7 +90,7 @@ class MainMenuHandler:
                 'Vamos implementar esse fluxo em seguida.'
             ),
             'menu:academy': (
-                '🏫 Minha academia\n\n'
+                '🏫 Minha Academia\n\n'
                 'Aqui você vai poder alterar seu nome, o nome da academia, '
                 'telefone e modalidades.\n\n'
                 'Vamos implementar esse fluxo em seguida.'

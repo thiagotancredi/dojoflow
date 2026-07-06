@@ -34,6 +34,19 @@ def students_menu_reply_markup() -> dict[str, Any]:
     }
 
 
+def student_creation_cancel_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '❌ Cancelar cadastro',
+                    'callback_data': 'students:create:cancel',
+                },
+            ],
+        ],
+    }
+
+
 def student_modalities_reply_markup(
     modalities: list[ModalityRead],
 ) -> dict[str, Any]:
@@ -255,6 +268,31 @@ def student_address_choice_reply_markup() -> dict[str, Any]:
                     'callback_data': 'students:create:address:skip',
                 }
             ],
+            [
+                {
+                    'text': '❌ Cancelar cadastro',
+                    'callback_data': 'students:create:cancel',
+                }
+            ],
+        ]
+    }
+
+
+def student_address_number_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '🔁 Digitar outro CEP',
+                    'callback_data': 'students:create:address:change_zip',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar cadastro',
+                    'callback_data': 'students:create:cancel',
+                },
+            ],
         ]
     }
 
@@ -351,3 +389,76 @@ def student_confirmation_reply_markup() -> dict[str, Any]:
             ],
         ]
     }
+
+
+def student_field_confirmation_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '✅ Confirmar',
+                    'callback_data': 'students:create:field:confirm',
+                },
+            ],
+            [
+                {
+                    'text': '✏️ Reescrever',
+                    'callback_data': 'students:create:field:rewrite',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar cadastro',
+                    'callback_data': 'students:create:cancel',
+                },
+            ],
+        ]
+    }
+
+
+def student_address_reference_search_actions_rows(
+) -> list[list[dict[str, str]]]:
+    return [
+        [
+            {
+                'text': '🔎 Pesquisar novamente',
+                'callback_data': 'students:create:address:search_again',
+            },
+        ],
+        [
+            {
+                'text': '🔙 Voltar para opções de endereço',
+                'callback_data': 'students:create:address:back',
+            },
+        ],
+        [
+            {
+                'text': '❌ Cancelar cadastro',
+                'callback_data': 'students:create:cancel',
+            },
+        ],
+    ]
+
+
+def student_responsible_reference_search_actions_rows(
+) -> list[list[dict[str, str]]]:
+    return [
+        [
+            {
+                'text': '🔎 Pesquisar novamente',
+                'callback_data': 'students:create:responsible:search_again',
+            },
+        ],
+        [
+            {
+                'text': '🔙 Voltar para opções de responsável',
+                'callback_data': 'students:create:responsible:back',
+            },
+        ],
+        [
+            {
+                'text': '❌ Cancelar cadastro',
+                'callback_data': 'students:create:cancel',
+            },
+        ],
+    ]

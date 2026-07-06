@@ -422,6 +422,19 @@ class TelegramWebhookService:
             state is not None
             and state['current_flow'] == TelegramFlow.STUDENT_CREATION
             and state['current_step']
+            == TelegramStep.WAITING_STUDENT_FIELD_CONFIRMATION
+        ):
+            students_handler = self.students_menu_handler
+
+            return await students_handler._resend_field_confirmation_message(
+                chat_id=chat_id,
+                context_data=state['context_data'],
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
             == TelegramStep.WAITING_STUDENT_CONFIRMATION
         ):
             students_handler = self.students_menu_handler
