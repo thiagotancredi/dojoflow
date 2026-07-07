@@ -284,6 +284,94 @@ class StudentService:
             data=update_data,
         )
 
+    @transactional
+    async def update_address(
+        self,
+        academy_id: int,
+        student_id: int,
+        address_data: dict[str, Any],
+    ) -> None:
+        student = await self._get_student_or_fail(
+            academy_id=academy_id,
+            student_id=student_id,
+        )
+
+        has_address_data = any(
+            address_data.get(field)
+            for field in (
+                'zip_code',
+                'street',
+                'number',
+                'complement',
+                'neighborhood',
+                'city',
+                'state',
+            )
+        )
+
+        if not has_address_data:
+            await self.student_repository.update_by_id(
+                record_id=student_id,
+                data={'address_id': None},
+            )
+            return
+
+        address_id = await self.address_repository.create(
+            AddressCreate(
+                academy_id=academy_id,
+                zip_code=address_data.get('zip_code'),
+                street=address_data.get('street'),
+                number=address_data.get('number'),
+                complement=address_data.get('complement'),
+                neighborhood=address_data.get('neighborhood'),
+                city=address_data.get('city'),
+                state=address_data.get('state'),
+            )
+        )
+
+        await self.student_repository.update_by_id(
+            record_id=int(student['id']),
+            data={'address_id': address_id},
+        )
+
+    @transactional
+    async def reuse_address(
+        self,
+        academy_id: int,
+        student_id: int,
+        reference_student_id: int,
+    ) -> None:
+        await self._get_student_or_fail(
+            academy_id=academy_id,
+            student_id=student_id,
+        )
+
+        reference_address_id = await self._get_reference_student_address_id(
+            academy_id=academy_id,
+            student_id=reference_student_id,
+        )
+
+        await self.student_repository.update_by_id(
+            record_id=student_id,
+            data={'address_id': reference_address_id},
+        )
+
+    @transactional
+    async def remove_address(
+        self,
+        academy_id: int,
+        student_id: int,
+    ) -> None:
+        await self._get_student_or_fail(
+            academy_id=academy_id,
+            student_id=student_id,
+        )
+
+        await self.student_repository.update_by_id(
+            record_id=student_id,
+            data={'address_id': None},
+        )
+
     async def _get_student_address(
         self,
         academy_id: int,
@@ -328,6 +416,25 @@ class StudentService:
         result = await self.db_session.execute(smt)
 
         return [dict(row) for row in result.mappings().all()]
+
+    async def _get_student_or_fail(
+        self,
+        academy_id: int,
+        student_id: int,
+    ) -> dict[str, Any]:
+        student = await self.student_repository.get_one(
+            filters=[
+                Student.id == student_id,
+                Student.academy_id == academy_id,
+            ],
+        )
+
+        if student is None:
+            raise NotFoundError(
+                f'Could not find Student with id {student_id}.'
+            )
+
+        return student
 
     async def _get_student_responsibles(
         self,

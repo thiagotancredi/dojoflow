@@ -869,7 +869,7 @@ async def test_e2e_create_student_skipping_optional_fields_and_address(
     details_text = sent_messages[-1]['text']
     assert 'Nome: Sasuke Uchiha' in details_text
     assert 'Telefone: Não informado' in details_text
-    assert '🏠 Endereço\nNão há endereço cadastrado.' in details_text
+    assert '🏠 Endereço\nNão informado' in details_text
     assert 'Valor: R$ 180.00' in details_text
 
 

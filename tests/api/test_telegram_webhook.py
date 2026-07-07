@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -10,6 +11,7 @@ from dojoflow.core.settings import settings
 from dojoflow.integrations.telegram.service import TelegramService
 from dojoflow.models.academy import Academy
 from dojoflow.models.academy_modality import AcademyModality
+from dojoflow.models.address import Address
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.master import Master
 from dojoflow.models.modality import Modality
@@ -17,6 +19,7 @@ from dojoflow.models.student import Student
 from dojoflow.models.telegram_conversation_state import (
     TelegramConversationState,
 )
+from dojoflow.services.cep import CepService
 from dojoflow.shared.telegram_enums import TelegramFlow, TelegramStep
 from tests.helpers.onboarding import register_onboarding
 
@@ -26,6 +29,24 @@ NAME_EDIT_PROMPT = 'Nome atual:\nThiago\n\nDigite o novo nome do aluno.'
 MONTHLY_FEE_EDIT_PROMPT = (
     'Valor atual:\nR$ 250,00\n\nDigite o novo valor da mensalidade.'
 )
+CURRENT_ADDRESS = {
+    'zip_code': '74815705',
+    'street': 'Rua Natal',
+    'neighborhood': 'Alto da Gloria',
+    'city': 'Goiania',
+    'state': 'GO',
+    'number': '327',
+    'complement': 'Apartamento 902 Bloco A',
+}
+NEW_ADDRESS = {
+    'zip_code': '74230110',
+    'street': 'Rua Nova',
+    'neighborhood': 'Setor Central',
+    'city': 'Goiania',
+    'state': 'GO',
+    'number': '180',
+    'complement': None,
+}
 
 
 def expected_main_menu_reply_markup() -> dict[str, Any]:
@@ -167,6 +188,7 @@ async def upsert_state(
 async def setup_student_for_edit(
     client: AsyncClient,
     db_session: AsyncSession,
+    address: dict[str, Any] | None = None,
 ) -> tuple[int, int]:
     onboarding_response, payload = await register_onboarding(client)
     academy_id = onboarding_response.json()['academy_id']
@@ -205,6 +227,15 @@ async def setup_student_for_edit(
     db_session.add(student)
     await db_session.flush()
 
+    if address is not None:
+        student_address = Address(
+            academy_id=academy_id,
+            **address,
+        )
+        db_session.add(student_address)
+        await db_session.flush()
+        student.address_id = student_address.id
+
     db_session.add(
         Enrollment(
             academy_id=academy_id,
@@ -218,6 +249,46 @@ async def setup_student_for_edit(
     await db_session.commit()
 
     return payload['telegram_user_id'], student.id
+
+
+async def create_reference_student_with_address(
+    db_session: AsyncSession,
+    academy_id: int,
+    modality_id: int,
+    name: str,
+    address: dict[str, Any],
+) -> int:
+    student_address = Address(
+        academy_id=academy_id,
+        **address,
+    )
+    db_session.add(student_address)
+    await db_session.flush()
+
+    student = Student(
+        academy_id=academy_id,
+        address_id=student_address.id,
+        name=name,
+        cpf='98765432100',
+        instagram='luna',
+        email='luna@example.com',
+    )
+    db_session.add(student)
+    await db_session.flush()
+
+    db_session.add(
+        Enrollment(
+            academy_id=academy_id,
+            student_id=student.id,
+            modality_id=modality_id,
+            monthly_fee='250.00',
+            due_day=7,
+            is_exempt=False,
+        )
+    )
+    await db_session.commit()
+
+    return student.id
 
 
 @pytest.mark.asyncio
@@ -1360,6 +1431,725 @@ async def test_webhook_opens_student_edit_monthly_fee_menu(
     assert sent_messages[0]['text'] == (
         '💰 Mensalidade\n\nEscolha o campo que deseja editar:'
     )
+
+
+@pytest.mark.asyncio
+async def test_webhook_opens_student_edit_address_menu(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        address=CURRENT_ADDRESS,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_MENU,
+        context_data={'student_id': student_id},
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200211,
+            callback_data='students:edit:section:address',
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        'status': 'waiting_student_edit_address_menu'
+    }
+    assert 'Endereço atual:' in sent_messages[0]['text']
+    assert 'Rua Natal' in sent_messages[0]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_opens_student_edit_new_address_prompt(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        address=CURRENT_ADDRESS,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_MENU,
+        context_data={'student_id': student_id},
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200212,
+            callback_data='students:edit:address:new',
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        'status': 'waiting_student_edit_address_zip_code'
+    }
+    assert 'Digite o CEP do novo endereço.' in sent_messages[0]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_student_edit_address_zip_code_confirmation(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        address=CURRENT_ADDRESS,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_ZIP_CODE,
+        context_data={
+            'student_id': student_id,
+            'edit_current_address': CURRENT_ADDRESS,
+        },
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_message_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200213,
+            text=NEW_ADDRESS['zip_code'],
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        'status': 'waiting_student_edit_field_confirmation'
+    }
+    assert 'Confirme o CEP do aluno:' in sent_messages[0]['text']
+    assert NEW_ADDRESS['zip_code'] in sent_messages[0]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_student_edit_address_field_confirm_callback(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    async def fake_search(
+        _self: CepService,
+        _zip_code: str,
+    ) -> SimpleNamespace:
+        return SimpleNamespace(
+            zip_code=NEW_ADDRESS['zip_code'],
+            street=NEW_ADDRESS['street'],
+            neighborhood=NEW_ADDRESS['neighborhood'],
+            city=NEW_ADDRESS['city'],
+            state=NEW_ADDRESS['state'],
+        )
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        address=CURRENT_ADDRESS,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(CepService, 'search', fake_search)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_FIELD_CONFIRMATION,
+        context_data={
+            'student_id': student_id,
+            'edit_current_address': CURRENT_ADDRESS,
+            'pending_student_edit_field_confirmation': {
+                'source_step': (
+                    TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_ZIP_CODE.value
+                ),
+                'field_label': 'o CEP do aluno',
+                'value': NEW_ADDRESS['zip_code'],
+                'display_value': NEW_ADDRESS['zip_code'],
+                'prompt_text': 'Digite o CEP do novo endereço.',
+                'prompt_reply_markup': {'inline_keyboard': []},
+            },
+        },
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200214,
+            callback_data='students:edit:field:confirm',
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        'status': 'waiting_student_edit_address_number'
+    }
+    assert 'Agora digite o número do endereço.' in sent_messages[0]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_student_edit_address_field_rewrite_callback(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        address=CURRENT_ADDRESS,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_FIELD_CONFIRMATION,
+        context_data={
+            'student_id': student_id,
+            'pending_student_edit_field_confirmation': {
+                'source_step': (
+                    TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_ZIP_CODE.value
+                ),
+                'field_label': 'o CEP do aluno',
+                'value': NEW_ADDRESS['zip_code'],
+                'display_value': NEW_ADDRESS['zip_code'],
+                'prompt_text': 'Digite o CEP do novo endereço.',
+                'prompt_reply_markup': {'inline_keyboard': []},
+            },
+        },
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200215,
+            callback_data='students:edit:field:rewrite',
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        'status': 'waiting_student_edit_address_zip_code'
+    }
+    assert 'Digite o CEP do novo endereço.' in sent_messages[0]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_address_reference_search_without_results(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        address=CURRENT_ADDRESS,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_REFERENCE_SEARCH,
+        context_data={'student_id': student_id},
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_message_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200216,
+            text='Aluno Inexistente',
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        'status': 'student_edit_address_reference_search_empty'
+    }
+    assert 'Não encontrei nenhum aluno com o nome' in sent_messages[0]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_student_edit_address_search_again_callback(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        address=CURRENT_ADDRESS,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_REFERENCE_SEARCH,
+        context_data={'student_id': student_id},
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200217,
+            callback_data='students:edit:address:search_again',
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        'status': 'waiting_student_edit_address_reference_search'
+    }
+    assert 'Digite o nome do aluno' in sent_messages[0]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_address_reference_search_and_selection(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        address=CURRENT_ADDRESS,
+    )
+    student = await db_session.get(Student, student_id)
+    enrollment = await db_session.scalar(
+        select(Enrollment).where(Enrollment.student_id == student_id)
+    )
+    assert student is not None
+    assert enrollment is not None
+
+    reference_student_id = await create_reference_student_with_address(
+        db_session=db_session,
+        academy_id=student.academy_id,
+        modality_id=enrollment.modality_id,
+        name='Luna',
+        address=NEW_ADDRESS,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_REFERENCE_SEARCH,
+        context_data={'student_id': student_id},
+    )
+
+    search_response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_message_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200218,
+            text='Luna',
+        ),
+    )
+
+    assert search_response.status_code == HTTPStatus.OK
+    assert search_response.json() == {
+        'status': 'student_edit_address_reference_search_sent'
+    }
+    assert 'Encontrei estes alunos.' in sent_messages[0]['text']
+
+    selection_response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200219,
+            callback_data=(
+                f'students:edit:address:reference:{reference_student_id}'
+            ),
+        ),
+    )
+
+    assert selection_response.status_code == HTTPStatus.OK
+    assert selection_response.json() == {
+        'status': 'waiting_student_edit_confirmation'
+    }
+    assert 'Confirmar uso deste endereço?' in sent_messages[1]['text']
+    assert 'Aluno selecionado:\nLuna' in sent_messages[1]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_student_edit_address_confirm_callback(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        address=CURRENT_ADDRESS,
+    )
+    student = await db_session.get(Student, student_id)
+    assert student is not None
+    previous_address_id = student.address_id
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+        context_data={
+            'student_id': student_id,
+            'edit_current_address': CURRENT_ADDRESS,
+            'edit_address': NEW_ADDRESS,
+            'pending_student_edit': {
+                'action': 'update_address',
+                'source_step': (
+                    TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_ZIP_CODE.value
+                ),
+                'prompt_text': 'Digite o CEP do novo endereço.',
+                'prompt_reply_markup': {'inline_keyboard': []},
+                'confirmation_text': 'Confirmar novo endereço?',
+                'include_rewrite': True,
+                'confirm_label': '✅ Confirmar alteração',
+                'rewrite_label': '✏️ Reescrever endereço',
+            },
+        },
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200220,
+            callback_data='students:edit:confirm',
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {'status': 'student_edit_saved'}
+
+    updated_student = await db_session.get(Student, student_id)
+    assert updated_student is not None
+    assert updated_student.address_id != previous_address_id
+    assert 'Rua Nova' in sent_messages[1]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_student_edit_address_remove_and_confirm(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        address=CURRENT_ADDRESS,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_MENU,
+        context_data={'student_id': student_id},
+    )
+
+    remove_response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200221,
+            callback_data='students:edit:address:remove',
+        ),
+    )
+
+    assert remove_response.status_code == HTTPStatus.OK
+    assert remove_response.json() == {
+        'status': 'waiting_student_edit_confirmation'
+    }
+    assert 'Confirmar remoção do endereço?' in sent_messages[0]['text']
+
+    confirm_response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200222,
+            callback_data='students:edit:confirm',
+        ),
+    )
+
+    assert confirm_response.status_code == HTTPStatus.OK
+    assert confirm_response.json() == {'status': 'student_edit_saved'}
+
+    student = await db_session.get(Student, student_id)
+    assert student is not None
+    assert student.address_id is None
+    assert '🏠 Endereço\nNão informado' in sent_messages[2]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_student_edit_address_back_callback(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        address=CURRENT_ADDRESS,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+        context_data={
+            'student_id': student_id,
+            'pending_student_edit': {
+                'action': 'reuse_address',
+                'source_step': (
+                    TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_REFERENCE_SEARCH.value
+                ),
+                'prompt_text': 'Digite o nome do aluno.',
+                'prompt_reply_markup': {'inline_keyboard': []},
+                'confirmation_text': 'Confirmar uso deste endereço?',
+                'include_rewrite': False,
+                'confirm_label': '✅ Confirmar alteração',
+                'rewrite_label': '✏️ Reescrever',
+            },
+        },
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200223,
+            callback_data='students:edit:back',
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        'status': 'waiting_student_edit_address_menu'
+    }
+    assert 'O que deseja fazer?' in sent_messages[0]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_student_edit_address_cancel_callback(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        address=CURRENT_ADDRESS,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+        context_data={
+            'student_id': student_id,
+            'edit_current_address': CURRENT_ADDRESS,
+            'edit_address': NEW_ADDRESS,
+            'pending_student_edit': {
+                'action': 'update_address',
+                'source_step': (
+                    TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_ZIP_CODE.value
+                ),
+                'prompt_text': 'Digite o CEP do novo endereço.',
+                'prompt_reply_markup': {'inline_keyboard': []},
+                'confirmation_text': 'Confirmar novo endereço?',
+                'include_rewrite': True,
+                'confirm_label': '✅ Confirmar alteração',
+                'rewrite_label': '✏️ Reescrever endereço',
+            },
+        },
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=200224,
+            callback_data='students:edit:cancel',
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {'status': 'student_edit_cancelled'}
+
+    state = await db_session.scalar(
+        select(TelegramConversationState).where(
+            TelegramConversationState.telegram_user_id == telegram_user_id
+        )
+    )
+    student = await db_session.get(Student, student_id)
+
+    assert state is not None
+    assert state.current_step == TelegramStep.COMPLETED
+    assert student is not None
+    assert student.address_id is not None
+    assert 'Rua Natal' in sent_messages[0]['text']
 
 
 @pytest.mark.asyncio

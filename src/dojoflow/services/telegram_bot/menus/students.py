@@ -178,6 +178,51 @@ def student_edit_basic_data_reply_markup() -> dict[str, Any]:
     }
 
 
+def student_edit_address_reply_markup(
+    *,
+    has_address: bool,
+) -> dict[str, Any]:
+    inline_keyboard: list[list[dict[str, str]]] = [
+        [
+            {
+                'text': '📝 Informar novo endereço',
+                'callback_data': 'students:edit:address:new',
+            },
+        ],
+        [
+            {
+                'text': '🔁 Usar endereço de outro aluno',
+                'callback_data': 'students:edit:address:reuse',
+            },
+        ],
+    ]
+
+    if has_address:
+        inline_keyboard.append([
+            {
+                'text': '🧹 Remover endereço',
+                'callback_data': 'students:edit:address:remove',
+            },
+        ])
+
+    inline_keyboard.append([
+        {
+            'text': '🔙 Voltar para edição',
+            'callback_data': 'students:edit:back:menu',
+        },
+    ])
+    inline_keyboard.append([
+        {
+            'text': '❌ Cancelar edição',
+            'callback_data': 'students:edit:cancel',
+        },
+    ])
+
+    return {
+        'inline_keyboard': inline_keyboard,
+    }
+
+
 def student_edit_monthly_fee_reply_markup() -> dict[str, Any]:
     return {
         'inline_keyboard': [
@@ -206,6 +251,44 @@ def student_edit_monthly_fee_reply_markup() -> dict[str, Any]:
                 },
             ],
         ],
+    }
+
+
+def student_edit_address_number_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '🔁 Digitar outro CEP',
+                    'callback_data': 'students:edit:address:change_zip',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar edição',
+                    'callback_data': 'students:edit:cancel',
+                },
+            ],
+        ]
+    }
+
+
+def student_edit_optional_field_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '⏭️ Pular',
+                    'callback_data': 'students:edit:address:skip',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar edição',
+                    'callback_data': 'students:edit:cancel',
+                },
+            ],
+        ]
     }
 
 
@@ -244,11 +327,13 @@ def student_edit_prompt_reply_markup(
 def student_edit_confirmation_reply_markup(
     *,
     include_rewrite: bool = True,
+    confirm_label: str = '✅ Confirmar alteração',
+    rewrite_label: str = '✏️ Reescrever',
 ) -> dict[str, Any]:
     inline_keyboard: list[list[dict[str, str]]] = [
         [
             {
-                'text': '✅ Confirmar alteração',
+                'text': confirm_label,
                 'callback_data': 'students:edit:confirm',
             },
         ],
@@ -257,7 +342,7 @@ def student_edit_confirmation_reply_markup(
     if include_rewrite:
         inline_keyboard.append([
             {
-                'text': '✏️ Reescrever',
+                'text': rewrite_label,
                 'callback_data': 'students:edit:rewrite',
             },
         ])
@@ -277,6 +362,31 @@ def student_edit_confirmation_reply_markup(
 
     return {
         'inline_keyboard': inline_keyboard,
+    }
+
+
+def student_edit_field_confirmation_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '✅ Confirmar',
+                    'callback_data': 'students:edit:field:confirm',
+                },
+            ],
+            [
+                {
+                    'text': '✏️ Reescrever',
+                    'callback_data': 'students:edit:field:rewrite',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar edição',
+                    'callback_data': 'students:edit:cancel',
+                },
+            ],
+        ]
     }
 
 
@@ -736,6 +846,30 @@ def student_address_reference_search_actions_rows(
             {
                 'text': '❌ Cancelar cadastro',
                 'callback_data': 'students:create:cancel',
+            },
+        ],
+    ]
+
+
+def student_edit_address_reference_search_actions_rows(
+) -> list[list[dict[str, str]]]:
+    return [
+        [
+            {
+                'text': '🔎 Pesquisar novamente',
+                'callback_data': 'students:edit:address:search_again',
+            },
+        ],
+        [
+            {
+                'text': '🔙 Voltar para opções de endereço',
+                'callback_data': 'students:edit:address:back',
+            },
+        ],
+        [
+            {
+                'text': '❌ Cancelar edição',
+                'callback_data': 'students:edit:cancel',
             },
         ],
     ]

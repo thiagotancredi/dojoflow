@@ -135,6 +135,124 @@ class TelegramWebhookService:
         if (
             state is not None
             and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_REFERENCE_SEARCH
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_edit_address_reference_search_message(
+                    chat_id=chat_id,
+                    search_text=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                    context=context,
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_ZIP_CODE
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_edit_address_zip_code_message(
+                    chat_id=chat_id,
+                    zip_code=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_STREET
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_edit_address_street_message(
+                    chat_id=chat_id,
+                    street=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_NEIGHBORHOOD
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_edit_address_neighborhood_message(
+                    chat_id=chat_id,
+                    neighborhood=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_NUMBER
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_edit_address_number_message(
+                    chat_id=chat_id,
+                    number=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_COMPLEMENT
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_edit_address_complement_message(
+                    chat_id=chat_id,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                    complement=text,
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_FIELD_CONFIRMATION
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler._resend_student_edit_field_confirmation_message(
+                    chat_id=chat_id,
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
             and state['current_step'] == TelegramStep.WAITING_STUDENT_EDIT_NAME
         ):
             students_handler = self.students_menu_handler

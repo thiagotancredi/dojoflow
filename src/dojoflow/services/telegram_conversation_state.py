@@ -1,4 +1,7 @@
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -67,9 +70,11 @@ class TelegramConversationStateService:
             data={
                 'current_flow': TelegramFlow.ONBOARDING,
                 'current_step': TelegramStep.WAITING_MASTER_NAME,
-                'context_data': {
-                    'academy_name': academy_name,
-                },
+                'context_data': self._serialize_context_data(
+                    {
+                        'academy_name': academy_name,
+                    }
+                ),
             },
         )
 
@@ -105,7 +110,7 @@ class TelegramConversationStateService:
             'master_id': master_id,
             'current_flow': TelegramFlow.STUDENT_CREATION,
             'current_step': TelegramStep.WAITING_STUDENT_NAME,
-            'context_data': {},
+            'context_data': self._serialize_context_data({}),
         }
 
         if state is None:
@@ -133,7 +138,9 @@ class TelegramConversationStateService:
                 data={
                     'current_flow': TelegramFlow.STUDENT_CREATION,
                     'current_step': next_step,
-                    'context_data': context_data,
+                    'context_data': self._serialize_context_data(
+                        context_data
+                    ),
                 },
             )
             await self.db_session.commit()
@@ -153,7 +160,9 @@ class TelegramConversationStateService:
                 data={
                     'current_flow': TelegramFlow.STUDENT_SEARCH,
                     'current_step': next_step,
-                    'context_data': context_data,
+                    'context_data': self._serialize_context_data(
+                        context_data
+                    ),
                 },
             )
             await self.db_session.commit()
@@ -177,9 +186,11 @@ class TelegramConversationStateService:
             'master_id': master_id,
             'current_flow': TelegramFlow.STUDENT_EDIT,
             'current_step': TelegramStep.WAITING_STUDENT_EDIT_MENU,
-            'context_data': {
-                'student_id': student_id,
-            },
+            'context_data': self._serialize_context_data(
+                {
+                    'student_id': student_id,
+                }
+            ),
         }
 
         if state is None:
@@ -206,7 +217,9 @@ class TelegramConversationStateService:
                 data={
                     'current_flow': TelegramFlow.STUDENT_EDIT,
                     'current_step': next_step,
-                    'context_data': context_data,
+                    'context_data': self._serialize_context_data(
+                        context_data
+                    ),
                 },
             )
             await self.db_session.commit()
@@ -226,3 +239,28 @@ class TelegramConversationStateService:
                 'context_data': {},
             },
         )
+
+    @classmethod
+    def _serialize_context_data(
+        cls,
+        value: Any,
+    ) -> Any:
+        if isinstance(value, dict):
+            serialized_value: Any = {
+                str(key): cls._serialize_context_data(item)
+                for key, item in value.items()
+            }
+        elif isinstance(value, list | tuple):
+            serialized_value = [
+                cls._serialize_context_data(item) for item in value
+            ]
+        elif isinstance(value, UUID):
+            serialized_value = str(value)
+        elif isinstance(value, datetime | date):
+            serialized_value = value.isoformat()
+        elif isinstance(value, Decimal):
+            serialized_value = str(value)
+        else:
+            serialized_value = value
+
+        return serialized_value

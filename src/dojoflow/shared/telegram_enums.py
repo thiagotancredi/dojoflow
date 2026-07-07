@@ -67,6 +67,28 @@ class TelegramStep(StrEnum):
 
     WAITING_STUDENT_EDIT_MENU = 'waiting_student_edit_menu'
     WAITING_STUDENT_EDIT_BASIC_DATA = 'waiting_student_edit_basic_data'
+    WAITING_STUDENT_EDIT_ADDRESS_MENU = 'waiting_student_edit_address_menu'
+    WAITING_STUDENT_EDIT_ADDRESS_REFERENCE_SEARCH = (
+        'waiting_student_edit_address_reference_search'
+    )
+    WAITING_STUDENT_EDIT_ADDRESS_ZIP_CODE = (
+        'waiting_student_edit_address_zip_code'
+    )
+    WAITING_STUDENT_EDIT_ADDRESS_STREET = (
+        'waiting_student_edit_address_street'
+    )
+    WAITING_STUDENT_EDIT_ADDRESS_NEIGHBORHOOD = (
+        'waiting_student_edit_address_neighborhood'
+    )
+    WAITING_STUDENT_EDIT_ADDRESS_NUMBER = (
+        'waiting_student_edit_address_number'
+    )
+    WAITING_STUDENT_EDIT_ADDRESS_COMPLEMENT = (
+        'waiting_student_edit_address_complement'
+    )
+    WAITING_STUDENT_EDIT_FIELD_CONFIRMATION = (
+        'waiting_student_edit_field_confirmation'
+    )
     WAITING_STUDENT_EDIT_MONTHLY_FEE_MENU = (
         'waiting_student_edit_monthly_fee_menu'
     )
