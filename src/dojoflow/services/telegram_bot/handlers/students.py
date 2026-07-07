@@ -65,6 +65,7 @@ MIN_MONTHLY_FEE = Decimal('0')
 MIN_DUE_DAY = 1
 MAX_DUE_DAY = 28
 RESPONSIBLE_REFERENCE_CALLBACK_PARTS = 3
+STUDENT_EDIT_START_CALLBACK_PARTS = 2
 FIELD_CONFIRM_CALLBACK_DATA = 'students:create:field:confirm'
 FIELD_REWRITE_CALLBACK_DATA = 'students:create:field:rewrite'
 PENDING_FIELD_CONFIRMATION_KEY = 'pending_field_confirmation'
@@ -234,6 +235,14 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 context=context,
             )
 
+        if callback_data.startswith('students:edit:section:'):
+            return await self._process_student_edit_callback(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+                context=context,
+            )
+
         if callback_data.startswith('students:edit:responsibles:'):
             return await self._process_student_edit_callback(
                 chat_id=chat_id,
@@ -252,6 +261,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         if (
             callback_data.startswith('students:edit:')
+            and callback_data.count(':') == STUDENT_EDIT_START_CALLBACK_PARTS
             and self._get_id_from_callback(callback_data) is not None
         ):
             return await self._start_student_edit(
@@ -670,18 +680,19 @@ class StudentsMenuHandler:  # noqa: PLR0904
             student_id=student_id,
         )
 
-        await self._show_student_edit_menu(chat_id)
+        await self._show_student_edit_menu(chat_id, student_id=student_id)
 
         return {'status': 'waiting_student_edit_menu'}
 
     async def _show_student_edit_menu(
         self,
         chat_id: int,
+        student_id: int | None = None,
     ) -> None:
         await self.telegram_service.send_message(
             chat_id=chat_id,
             text='✏️ Editar aluno\n\nO que deseja editar?',
-            reply_markup=student_edit_menu_reply_markup(),
+            reply_markup=student_edit_menu_reply_markup(student_id),
         )
 
     async def _show_student_edit_basic_data_menu(
@@ -860,7 +871,26 @@ class StudentsMenuHandler:  # noqa: PLR0904
         )
 
         if state is None:
-            return {'status': 'student_edit_state_not_found'}
+            student_id = self._get_id_from_callback(callback_data)
+
+            if student_id is not None and callback_data.startswith(
+                'students:edit:section:'
+            ):
+                await self._start_student_edit(
+                    chat_id=chat_id,
+                    telegram_user_id=telegram_user_id,
+                    callback_data=f'students:edit:{student_id}',
+                    context=context,
+                )
+                state = await self._get_student_edit_state(
+                    chat_id=chat_id,
+                    telegram_user_id=telegram_user_id,
+                )
+
+                if state is None:
+                    return {'status': 'student_edit_state_not_found'}
+            else:
+                return {'status': 'student_edit_state_not_found'}
 
         context_data = dict(state['context_data'])
         student_id = self._get_student_id_from_state(state)
@@ -981,14 +1011,14 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 context_data=context_data,
             )
 
-        if callback_data == 'students:edit:section:basic':
+        if callback_data.startswith('students:edit:section:basic'):
             return await self._show_student_edit_basic_data_menu(
                 chat_id=chat_id,
                 state_id=state['id'],
                 context_data=context_data,
             )
 
-        if callback_data == 'students:edit:section:address':
+        if callback_data.startswith('students:edit:section:address'):
             return await self._show_student_edit_address_menu(
                 chat_id=chat_id,
                 state_id=state['id'],
@@ -996,7 +1026,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 context=context,
             )
 
-        if callback_data == 'students:edit:section:responsibles':
+        if callback_data.startswith('students:edit:section:responsibles'):
             return await self._show_student_edit_responsibles_menu(
                 chat_id=chat_id,
                 state_id=state['id'],
@@ -1004,14 +1034,14 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 context=context,
             )
 
-        if callback_data == 'students:edit:section:monthly_fee':
+        if callback_data.startswith('students:edit:section:monthly_fee'):
             return await self._show_student_edit_monthly_fee_menu(
                 chat_id=chat_id,
                 state_id=state['id'],
                 context_data=context_data,
             )
 
-        if callback_data == 'students:edit:section:status':
+        if callback_data.startswith('students:edit:section:status'):
             return await self._show_student_edit_enrollment_status_menu(
                 chat_id=chat_id,
                 state_id=state['id'],

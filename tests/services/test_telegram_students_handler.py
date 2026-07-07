@@ -1465,6 +1465,89 @@ async def test_open_student_edit_menu_from_details() -> None:
 
 
 @pytest.mark.asyncio
+async def test_student_edit_menu_keeps_student_id_in_state() -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.return_value = make_student_details()
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:1',
+        context=SimpleNamespace(
+            academy_id=ACADEMY_ID,
+            master_id=22,
+        ),
+    )
+
+    assert result == {'status': 'waiting_student_edit_menu'}
+    state_service.start_student_edit.assert_awaited_once_with(
+        telegram_user_id=TELEGRAM_USER_ID,
+        academy_id=ACADEMY_ID,
+        master_id=22,
+        student_id=1,
+    )
+
+
+@pytest.mark.asyncio
+async def test_student_edit_section_callback_recovers_missing_state() -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.return_value = make_student_details()
+    state_service.get_by_telegram_user_id.side_effect = [
+        None,
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_MENU,
+        ),
+    ]
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:section:basic:1',
+        context=SimpleNamespace(
+            academy_id=ACADEMY_ID,
+            master_id=22,
+        ),
+    )
+
+    assert result == {'status': 'waiting_student_edit_basic_data'}
+    assert extract_button_texts(
+        telegram_service.send_message.await_args_list[-1].kwargs[
+            'reply_markup'
+        ]
+    ) == [
+        'Nome',
+        'Modalidade',
+        'Sexo',
+        'CPF',
+        'Instagram',
+        'Data de nascimento',
+        'E-mail',
+        '🔙 Voltar para edição',
+        '❌ Cancelar edição',
+    ]
+
+
+@pytest.mark.asyncio
 async def test_student_edit_basic_data_menu_lists_editable_fields() -> None:
     telegram_service = AsyncMock()
     state_service = AsyncMock()

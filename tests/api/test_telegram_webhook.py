@@ -1442,6 +1442,33 @@ async def test_webhook_opens_student_edit_menu(
     assert response.json() == {'status': 'waiting_student_edit_menu'}
     assert sent_messages[0]['text'] == '✏️ Editar aluno\n\nO que deseja editar?'
 
+    state = await db_session.scalar(
+        select(TelegramConversationState).where(
+            TelegramConversationState.telegram_user_id == telegram_user_id
+        )
+    )
+
+    assert state is not None
+    assert state.current_flow == TelegramFlow.STUDENT_EDIT
+    assert state.current_step == TelegramStep.WAITING_STUDENT_EDIT_MENU
+    assert state.context_data['student_id'] == student_id
+
+    basic_response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=2001,
+            callback_data='students:edit:section:basic',
+        ),
+    )
+
+    assert basic_response.status_code == HTTPStatus.OK
+    assert basic_response.json() == {
+        'status': 'waiting_student_edit_basic_data'
+    }
+    assert 'Escolha o campo que deseja editar' in sent_messages[-1]['text']
+
 
 @pytest.mark.asyncio
 async def test_webhook_opens_student_edit_basic_data_menu(

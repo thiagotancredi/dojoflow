@@ -74,43 +74,61 @@ def student_details_reply_markup(
     }
 
 
-def student_edit_menu_reply_markup() -> dict[str, Any]:
+def student_edit_menu_reply_markup(
+    student_id: int | None = None,
+) -> dict[str, Any]:
+    basic_callback_data = 'students:edit:section:basic'
+    address_callback_data = 'students:edit:section:address'
+    responsibles_callback_data = 'students:edit:section:responsibles'
+    monthly_fee_callback_data = 'students:edit:section:monthly_fee'
+    status_callback_data = 'students:edit:section:status'
+    back_callback_data = 'students:edit:back:details'
+
+    if student_id is not None:
+        basic_callback_data = f'{basic_callback_data}:{student_id}'
+        address_callback_data = f'{address_callback_data}:{student_id}'
+        responsibles_callback_data = (
+            f'{responsibles_callback_data}:{student_id}'
+        )
+        monthly_fee_callback_data = f'{monthly_fee_callback_data}:{student_id}'
+        status_callback_data = f'{status_callback_data}:{student_id}'
+
     return {
         'inline_keyboard': [
             [
                 {
                     'text': '👤 Dados do aluno',
-                    'callback_data': 'students:edit:section:basic',
+                    'callback_data': basic_callback_data,
                 },
             ],
             [
                 {
                     'text': '🏠 Endereço',
-                    'callback_data': 'students:edit:section:address',
+                    'callback_data': address_callback_data,
                 },
             ],
             [
                 {
                     'text': '👥 Responsáveis',
-                    'callback_data': 'students:edit:section:responsibles',
+                    'callback_data': responsibles_callback_data,
                 },
             ],
             [
                 {
                     'text': '💰 Mensalidade',
-                    'callback_data': 'students:edit:section:monthly_fee',
+                    'callback_data': monthly_fee_callback_data,
                 },
             ],
             [
                 {
                     'text': '📌 Status da matrícula',
-                    'callback_data': 'students:edit:section:status',
+                    'callback_data': status_callback_data,
                 },
             ],
             [
                 {
                     'text': '🔙 Voltar aos detalhes',
-                    'callback_data': 'students:edit:back:details',
+                    'callback_data': back_callback_data,
                 },
             ],
         ],
