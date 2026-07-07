@@ -26,7 +26,11 @@ from dojoflow.schemas.enrollment import EnrollmentCreate
 from dojoflow.schemas.responsible import ResponsibleCreate
 from dojoflow.schemas.student import StudentCreate, StudentRead
 from dojoflow.schemas.student_responsible import StudentResponsibleCreate
-from dojoflow.shared.enums import StudentResponsibleRelationship, StudentSex
+from dojoflow.shared.enums import (
+    EnrollmentStatus,
+    StudentResponsibleRelationship,
+    StudentSex,
+)
 from dojoflow.shared.exceptions import NotFoundError
 
 
@@ -275,9 +279,13 @@ class StudentService:
 
         update_data = dict(data)
         monthly_fee = update_data.get('monthly_fee')
+        status = update_data.get('status')
 
         if monthly_fee is not None:
             update_data['monthly_fee'] = Decimal(str(monthly_fee))
+
+        if status is not None:
+            update_data['status'] = EnrollmentStatus(str(status))
 
         await self.enrollment_repository.update_by_id(
             record_id=enrollments[0]['id'],
@@ -389,9 +397,7 @@ class StudentService:
                 academy_id=academy_id,
                 name=str(responsible_data['name']),
                 phone=str(responsible_data['phone']),
-                phone_is_whatsapp=bool(
-                    responsible_data['phone_is_whatsapp']
-                ),
+                phone_is_whatsapp=bool(responsible_data['phone_is_whatsapp']),
                 email=responsible_data.get('email'),
             )
         )

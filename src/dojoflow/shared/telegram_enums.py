@@ -30,9 +30,7 @@ class TelegramStep(StrEnum):
         'waiting_student_responsible_next_action'
     )
 
-    WAITING_STUDENT_RESPONSIBLE_CHOICE = (
-        'waiting_student_responsible_choice'
-    )
+    WAITING_STUDENT_RESPONSIBLE_CHOICE = 'waiting_student_responsible_choice'
     WAITING_STUDENT_RESPONSIBLE_REFERENCE_SEARCH = (
         'waiting_student_responsible_reference_search'
     )
@@ -58,9 +56,7 @@ class TelegramStep(StrEnum):
     WAITING_STUDENT_MONTHLY_FEE = 'waiting_student_monthly_fee'
     WAITING_STUDENT_DUE_DAY = 'waiting_student_due_day'
     WAITING_STUDENT_IS_EXEMPT = 'waiting_student_is_exempt'
-    WAITING_STUDENT_FIELD_CONFIRMATION = (
-        'waiting_student_field_confirmation'
-    )
+    WAITING_STUDENT_FIELD_CONFIRMATION = 'waiting_student_field_confirmation'
     WAITING_STUDENT_CONFIRMATION = 'waiting_student_confirmation'
 
     WAITING_STUDENT_SEARCH_NAME = 'waiting_student_search_name'
@@ -70,6 +66,13 @@ class TelegramStep(StrEnum):
     WAITING_STUDENT_EDIT_ADDRESS_MENU = 'waiting_student_edit_address_menu'
     WAITING_STUDENT_EDIT_RESPONSIBLES_MENU = (
         'waiting_student_edit_responsibles_menu'
+    )
+    WAITING_STUDENT_EDIT_ENROLLMENT_STATUS_MENU = (
+        'waiting_student_edit_enrollment_status_menu'
+    )
+    WAITING_STUDENT_EDIT_IS_EXEMPT = 'waiting_student_edit_is_exempt'
+    WAITING_STUDENT_EDIT_ENROLLMENT_STATUS = (
+        'waiting_student_edit_enrollment_status'
     )
     WAITING_STUDENT_EDIT_RESPONSIBLE_RELATIONSHIP = (
         'waiting_student_edit_responsible_relationship'
@@ -98,15 +101,11 @@ class TelegramStep(StrEnum):
     WAITING_STUDENT_EDIT_ADDRESS_ZIP_CODE = (
         'waiting_student_edit_address_zip_code'
     )
-    WAITING_STUDENT_EDIT_ADDRESS_STREET = (
-        'waiting_student_edit_address_street'
-    )
+    WAITING_STUDENT_EDIT_ADDRESS_STREET = 'waiting_student_edit_address_street'
     WAITING_STUDENT_EDIT_ADDRESS_NEIGHBORHOOD = (
         'waiting_student_edit_address_neighborhood'
     )
-    WAITING_STUDENT_EDIT_ADDRESS_NUMBER = (
-        'waiting_student_edit_address_number'
-    )
+    WAITING_STUDENT_EDIT_ADDRESS_NUMBER = 'waiting_student_edit_address_number'
     WAITING_STUDENT_EDIT_ADDRESS_COMPLEMENT = (
         'waiting_student_edit_address_complement'
     )
@@ -123,12 +122,8 @@ class TelegramStep(StrEnum):
     WAITING_STUDENT_EDIT_INSTAGRAM = 'waiting_student_edit_instagram'
     WAITING_STUDENT_EDIT_BIRTH_DATE = 'waiting_student_edit_birth_date'
     WAITING_STUDENT_EDIT_EMAIL = 'waiting_student_edit_email'
-    WAITING_STUDENT_EDIT_MONTHLY_FEE = (
-        'waiting_student_edit_monthly_fee'
-    )
+    WAITING_STUDENT_EDIT_MONTHLY_FEE = 'waiting_student_edit_monthly_fee'
     WAITING_STUDENT_EDIT_DUE_DAY = 'waiting_student_edit_due_day'
-    WAITING_STUDENT_EDIT_CONFIRMATION = (
-        'waiting_student_edit_confirmation'
-    )
+    WAITING_STUDENT_EDIT_CONFIRMATION = 'waiting_student_edit_confirmation'
 
     COMPLETED = 'completed'

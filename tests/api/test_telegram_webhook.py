@@ -22,7 +22,10 @@ from dojoflow.models.telegram_conversation_state import (
     TelegramConversationState,
 )
 from dojoflow.services.cep import CepService
-from dojoflow.shared.enums import StudentResponsibleRelationship
+from dojoflow.shared.enums import (
+    EnrollmentStatus,
+    StudentResponsibleRelationship,
+)
 from dojoflow.shared.telegram_enums import TelegramFlow, TelegramStep
 from tests.helpers.onboarding import register_onboarding
 
@@ -202,11 +205,13 @@ async def upsert_state(
     await db_session.commit()
 
 
-async def setup_student_for_edit(
+async def setup_student_for_edit(  # noqa: PLR0913, PLR0917
     client: AsyncClient,
     db_session: AsyncSession,
     address: dict[str, Any] | None = None,
     responsibles: list[dict[str, Any]] | None = None,
+    enrollment_status: EnrollmentStatus = EnrollmentStatus.ACTIVE,
+    is_exempt: bool = False,
 ) -> tuple[int, int]:
     onboarding_response, payload = await register_onboarding(client)
     academy_id = onboarding_response.json()['academy_id']
@@ -259,9 +264,10 @@ async def setup_student_for_edit(
             academy_id=academy_id,
             student_id=student.id,
             modality_id=modality_1.id,
+            status=enrollment_status,
             monthly_fee='250.00',
             due_day=7,
-            is_exempt=False,
+            is_exempt=is_exempt,
         )
     )
 
@@ -1530,6 +1536,54 @@ async def test_webhook_opens_student_edit_monthly_fee_menu(
 
 
 @pytest.mark.asyncio
+async def test_webhook_opens_student_edit_enrollment_status_menu(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_MENU,
+        context_data={'student_id': student_id},
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=20022,
+            callback_data='students:edit:section:status',
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        'status': 'waiting_student_edit_enrollment_status_menu'
+    }
+    assert sent_messages[0]['text'] == (
+        '📌 Status da matrícula\n\nEscolha o que deseja editar:'
+    )
+
+
+@pytest.mark.asyncio
 async def test_webhook_opens_student_edit_address_menu(
     client: AsyncClient,
     db_session: AsyncSession,
@@ -2240,6 +2294,302 @@ async def test_webhook_processes_student_edit_address_cancel_callback(
     assert student is not None
     assert student.address_id is not None
     assert 'Rua Natal' in sent_messages[0]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_student_edit_is_exempt_and_confirm(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        is_exempt=False,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_ENROLLMENT_STATUS_MENU,
+        context_data={'student_id': student_id},
+    )
+
+    prompt_response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=2002241,
+            callback_data='students:edit:status:is_exempt',
+        ),
+    )
+
+    assert prompt_response.status_code == HTTPStatus.OK
+    assert prompt_response.json() == {
+        'status': 'waiting_student_edit_is_exempt'
+    }
+    assert 'Isenção atual:\nNão' in sent_messages[-1]['text']
+
+    confirm_prompt_response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=2002242,
+            callback_data='students:edit:status:is_exempt:yes',
+        ),
+    )
+
+    assert confirm_prompt_response.status_code == HTTPStatus.OK
+    assert confirm_prompt_response.json() == {
+        'status': 'waiting_student_edit_confirmation'
+    }
+    assert 'Confirmar alteração de isenção?' in sent_messages[-1]['text']
+
+    confirm_response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=2002243,
+            callback_data='students:edit:confirm',
+        ),
+    )
+
+    assert confirm_response.status_code == HTTPStatus.OK
+    assert confirm_response.json() == {'status': 'student_edit_saved'}
+
+    enrollment = await db_session.scalar(
+        select(Enrollment).where(Enrollment.student_id == student_id)
+    )
+
+    assert enrollment is not None
+    assert enrollment.is_exempt is True
+    assert 'Isento: Sim' in sent_messages[-1]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_student_edit_enrollment_status_and_confirm(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        enrollment_status=EnrollmentStatus.ACTIVE,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_ENROLLMENT_STATUS_MENU,
+        context_data={'student_id': student_id},
+    )
+
+    prompt_response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=2002244,
+            callback_data='students:edit:status:status',
+        ),
+    )
+
+    assert prompt_response.status_code == HTTPStatus.OK
+    assert prompt_response.json() == {
+        'status': 'waiting_student_edit_enrollment_status'
+    }
+    assert 'Status atual:\nAtiva' in sent_messages[-1]['text']
+
+    confirm_prompt_response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=2002245,
+            callback_data='students:edit:status:enrollment:inactive',
+        ),
+    )
+
+    assert confirm_prompt_response.status_code == HTTPStatus.OK
+    assert confirm_prompt_response.json() == {
+        'status': 'waiting_student_edit_confirmation'
+    }
+    assert 'Confirmar alteração de status?' in sent_messages[-1]['text']
+
+    confirm_response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=2002246,
+            callback_data='students:edit:confirm',
+        ),
+    )
+
+    assert confirm_response.status_code == HTTPStatus.OK
+    assert confirm_response.json() == {'status': 'student_edit_saved'}
+
+    enrollment = await db_session.scalar(
+        select(Enrollment).where(Enrollment.student_id == student_id)
+    )
+
+    assert enrollment is not None
+    assert enrollment.status == EnrollmentStatus.INACTIVE
+    assert 'Status: Inativa' in sent_messages[-1]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_student_edit_enrollment_status_back_callback(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+        context_data={
+            'student_id': student_id,
+            'pending_student_edit': {
+                'action': 'update_enrollment',
+                'source_step': (
+                    TelegramStep.WAITING_STUDENT_EDIT_IS_EXEMPT.value
+                ),
+                'field': 'is_exempt',
+                'value': True,
+                'prompt_text': 'Isenção atual:\nNão\n\nDeseja alterar para:',
+                'prompt_reply_markup': {'inline_keyboard': []},
+                'confirmation_text': 'Confirmar alteração de isenção?',
+                'include_rewrite': False,
+                'confirm_label': '✅ Confirmar alteração',
+            },
+        },
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=2002247,
+            callback_data='students:edit:back',
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        'status': 'waiting_student_edit_enrollment_status_menu'
+    }
+    assert 'Escolha o que deseja editar' in sent_messages[-1]['text']
+
+
+@pytest.mark.asyncio
+async def test_webhook_processes_student_edit_is_exempt_cancel_callback(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+
+    telegram_user_id, student_id = await setup_student_for_edit(
+        client,
+        db_session,
+        is_exempt=False,
+    )
+
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', secret)
+    monkeypatch.setattr(
+        TelegramService,
+        'send_message',
+        make_fake_send_message(sent_messages),
+    )
+
+    await upsert_state(
+        db_session=db_session,
+        telegram_user_id=telegram_user_id,
+        current_flow=TelegramFlow.STUDENT_EDIT,
+        current_step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+        context_data={
+            'student_id': student_id,
+            'pending_student_edit': {
+                'action': 'update_enrollment',
+                'source_step': (
+                    TelegramStep.WAITING_STUDENT_EDIT_IS_EXEMPT.value
+                ),
+                'field': 'is_exempt',
+                'value': True,
+                'prompt_text': 'Isenção atual:\nNão\n\nDeseja alterar para:',
+                'prompt_reply_markup': {'inline_keyboard': []},
+                'confirmation_text': 'Confirmar alteração de isenção?',
+                'include_rewrite': False,
+                'confirm_label': '✅ Confirmar alteração',
+            },
+        },
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json=build_callback_payload(
+            telegram_user_id=telegram_user_id,
+            update_id=2002248,
+            callback_data='students:edit:cancel',
+        ),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {'status': 'student_edit_cancelled'}
+
+    enrollment = await db_session.scalar(
+        select(Enrollment).where(Enrollment.student_id == student_id)
+    )
+
+    assert enrollment is not None
+    assert enrollment.is_exempt is False
+    assert 'Isento: Não' in sent_messages[-1]['text']
 
 
 @pytest.mark.asyncio

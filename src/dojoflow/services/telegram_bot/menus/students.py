@@ -299,6 +299,101 @@ def student_edit_monthly_fee_reply_markup() -> dict[str, Any]:
     }
 
 
+def student_edit_enrollment_status_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': 'Isenção da mensalidade',
+                    'callback_data': 'students:edit:status:is_exempt',
+                },
+            ],
+            [
+                {
+                    'text': 'Status da matrícula',
+                    'callback_data': 'students:edit:status:status',
+                },
+            ],
+            [
+                {
+                    'text': '🔙 Voltar para edição',
+                    'callback_data': 'students:edit:back:menu',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar edição',
+                    'callback_data': 'students:edit:cancel',
+                },
+            ],
+        ],
+    }
+
+
+def student_edit_is_exempt_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': 'Sim',
+                    'callback_data': 'students:edit:status:is_exempt:yes',
+                },
+            ],
+            [
+                {
+                    'text': 'Não',
+                    'callback_data': 'students:edit:status:is_exempt:no',
+                },
+            ],
+            [
+                {
+                    'text': '🔙 Voltar',
+                    'callback_data': 'students:edit:back',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar edição',
+                    'callback_data': 'students:edit:cancel',
+                },
+            ],
+        ],
+    }
+
+
+def student_edit_enrollment_status_options_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': 'Ativa',
+                    'callback_data': 'students:edit:status:enrollment:active',
+                },
+            ],
+            [
+                {
+                    'text': 'Inativa',
+                    'callback_data': (
+                        'students:edit:status:enrollment:inactive'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': '🔙 Voltar',
+                    'callback_data': 'students:edit:back',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar edição',
+                    'callback_data': 'students:edit:cancel',
+                },
+            ],
+        ],
+    }
+
+
 def student_edit_address_number_reply_markup() -> dict[str, Any]:
     return {
         'inline_keyboard': [
@@ -576,8 +671,9 @@ def student_edit_responsible_whatsapp_reply_markup() -> dict[str, Any]:
     }
 
 
-def student_edit_responsible_reference_search_actions_rows(
-) -> list[list[dict[str, str]]]:
+def student_edit_responsible_reference_search_actions_rows() -> list[
+    list[dict[str, str]]
+]:
     return [
         [
             {
@@ -1037,8 +1133,9 @@ def student_field_confirmation_reply_markup() -> dict[str, Any]:
     }
 
 
-def student_address_reference_search_actions_rows(
-) -> list[list[dict[str, str]]]:
+def student_address_reference_search_actions_rows() -> list[
+    list[dict[str, str]]
+]:
     return [
         [
             {
@@ -1061,8 +1158,9 @@ def student_address_reference_search_actions_rows(
     ]
 
 
-def student_edit_address_reference_search_actions_rows(
-) -> list[list[dict[str, str]]]:
+def student_edit_address_reference_search_actions_rows() -> list[
+    list[dict[str, str]]
+]:
     return [
         [
             {
@@ -1085,8 +1183,9 @@ def student_edit_address_reference_search_actions_rows(
     ]
 
 
-def student_responsible_reference_search_actions_rows(
-) -> list[list[dict[str, str]]]:
+def student_responsible_reference_search_actions_rows() -> list[
+    list[dict[str, str]]
+]:
     return [
         [
             {

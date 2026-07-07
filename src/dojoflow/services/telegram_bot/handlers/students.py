@@ -20,7 +20,10 @@ from dojoflow.services.telegram_bot.menus.students import (
     student_edit_address_reply_markup,
     student_edit_basic_data_reply_markup,
     student_edit_confirmation_reply_markup,
+    student_edit_enrollment_status_options_reply_markup,
+    student_edit_enrollment_status_reply_markup,
     student_edit_field_confirmation_reply_markup,
+    student_edit_is_exempt_reply_markup,
     student_edit_menu_reply_markup,
     student_edit_modalities_reply_markup,
     student_edit_monthly_fee_reply_markup,
@@ -47,6 +50,7 @@ from dojoflow.services.telegram_bot.menus.students import (
 from dojoflow.services.telegram_conversation_state import (
     TelegramConversationStateService,
 )
+from dojoflow.shared.enums import EnrollmentStatus
 from dojoflow.shared.telegram_enums import TelegramFlow, TelegramStep
 
 MIN_STUDENT_NAME_LENGTH = 2
@@ -231,6 +235,14 @@ class StudentsMenuHandler:  # noqa: PLR0904
             )
 
         if callback_data.startswith('students:edit:responsibles:'):
+            return await self._process_student_edit_callback(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+                context=context,
+            )
+
+        if callback_data.startswith('students:edit:status:'):
             return await self._process_student_edit_callback(
                 chat_id=chat_id,
                 telegram_user_id=telegram_user_id,
@@ -815,6 +827,26 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         return {'status': 'waiting_student_edit_monthly_fee_menu'}
 
+    async def _show_student_edit_enrollment_status_menu(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        await self._update_student_edit_state(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_ENROLLMENT_STATUS_MENU,
+            context_data=self._clear_student_edit_pending(context_data),
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=('📌 Status da matrícula\n\nEscolha o que deseja editar:'),
+            reply_markup=student_edit_enrollment_status_reply_markup(),
+        )
+
+        return {'status': 'waiting_student_edit_enrollment_status_menu'}
+
     async def _process_student_edit_callback(  # noqa: PLR0911, PLR0912
         self,
         chat_id: int,
@@ -882,6 +914,16 @@ class StudentsMenuHandler:  # noqa: PLR0904
                     state_id=state['id'],
                     context_data=context_data,
                     context=context,
+                )
+
+            if self._should_show_student_edit_enrollment_status_menu(
+                state['current_step'],
+                context_data,
+            ):
+                return await self._show_student_edit_enrollment_status_menu(
+                    chat_id=chat_id,
+                    state_id=state['id'],
+                    context_data=context_data,
                 )
 
             if self._should_show_student_edit_monthly_fee_menu(
@@ -969,8 +1011,23 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 context_data=context_data,
             )
 
+        if callback_data == 'students:edit:section:status':
+            return await self._show_student_edit_enrollment_status_menu(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+            )
+
         if callback_data.startswith('students:edit:responsibles:'):
             return await self._process_student_edit_responsibles_callback(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+                context=context,
+            )
+
+        if callback_data.startswith('students:edit:status:'):
+            return await self._process_student_edit_enrollment_status_callback(
                 chat_id=chat_id,
                 telegram_user_id=telegram_user_id,
                 callback_data=callback_data,
@@ -1201,6 +1258,159 @@ class StudentsMenuHandler:  # noqa: PLR0904
         await self.send_menu(chat_id)
 
         return {'status': 'invalid_student_edit_monthly_fee_field'}
+
+    async def _process_student_edit_enrollment_status_callback(  # noqa: PLR0911
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        state = await self._get_student_edit_state(
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+        )
+
+        if state is None:
+            return {'status': 'student_edit_state_not_found'}
+
+        student_id = self._get_student_id_from_state(state)
+
+        if student_id is None:
+            await self.send_menu(chat_id)
+            return {'status': 'student_edit_student_not_found'}
+
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=student_id,
+        )
+        enrollment = self._get_student_current_enrollment(details)
+        context_data = self._clear_student_edit_pending(
+            dict(state['context_data'])
+        )
+
+        if callback_data == 'students:edit:status:is_exempt':
+            await self._update_student_edit_state(
+                state_id=state['id'],
+                next_step=TelegramStep.WAITING_STUDENT_EDIT_IS_EXEMPT,
+                context_data=context_data,
+            )
+
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Isenção atual:\n'
+                    f'{self._format_bool_text(enrollment.get("is_exempt"))}\n\n'
+                    'Deseja alterar para:'
+                ),
+                reply_markup=student_edit_is_exempt_reply_markup(),
+            )
+
+            return {'status': 'waiting_student_edit_is_exempt'}
+
+        if callback_data in {
+            'students:edit:status:is_exempt:yes',
+            'students:edit:status:is_exempt:no',
+        }:
+            is_exempt = callback_data.endswith(':yes')
+            current_display = self._format_bool_text(
+                enrollment.get('is_exempt')
+            )
+            new_display = self._format_bool_text(is_exempt)
+
+            return await self._request_student_edit_enrollment_confirmation(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                source_step=TelegramStep.WAITING_STUDENT_EDIT_IS_EXEMPT,
+                field='is_exempt',
+                value=is_exempt,
+                prompt_text=(
+                    'Isenção atual:\n'
+                    f'{current_display}\n\n'
+                    'Deseja alterar para:'
+                ),
+                prompt_reply_markup=student_edit_is_exempt_reply_markup(),
+                confirmation_text=(
+                    'Confirmar alteração de isenção?\n\n'
+                    'De:\n'
+                    f'{current_display}\n\n'
+                    'Para:\n'
+                    f'{new_display}'
+                ),
+            )
+
+        if callback_data == 'students:edit:status:status':
+            current_status = self._format_enrollment_status(
+                enrollment.get('status')
+            )
+
+            await self._update_student_edit_state(
+                state_id=state['id'],
+                next_step=TelegramStep.WAITING_STUDENT_EDIT_ENROLLMENT_STATUS,
+                context_data=context_data,
+            )
+
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Status atual:\n'
+                    f'{current_status}\n\n'
+                    'Escolha o novo status da matrícula.'
+                ),
+                reply_markup=(
+                    student_edit_enrollment_status_options_reply_markup()
+                ),
+            )
+
+            return {'status': 'waiting_student_edit_enrollment_status'}
+
+        if callback_data.startswith('students:edit:status:enrollment:'):
+            status_value = callback_data.removeprefix(
+                'students:edit:status:enrollment:'
+            )
+
+            if status_value not in {
+                EnrollmentStatus.ACTIVE.value,
+                EnrollmentStatus.INACTIVE.value,
+            }:
+                await self.send_menu(chat_id)
+                return {'status': 'invalid_student_edit_enrollment_status'}
+
+            current_status = self._format_enrollment_status(
+                enrollment.get('status')
+            )
+            new_status = self._format_enrollment_status(status_value)
+
+            return await self._request_student_edit_enrollment_confirmation(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                source_step=(
+                    TelegramStep.WAITING_STUDENT_EDIT_ENROLLMENT_STATUS
+                ),
+                field='status',
+                value=status_value,
+                prompt_text=(
+                    'Status atual:\n'
+                    f'{current_status}\n\n'
+                    'Escolha o novo status da matrícula.'
+                ),
+                prompt_reply_markup=(
+                    student_edit_enrollment_status_options_reply_markup()
+                ),
+                confirmation_text=(
+                    'Confirmar alteração de status?\n\n'
+                    'De:\n'
+                    f'{current_status}\n\n'
+                    'Para:\n'
+                    f'{new_status}'
+                ),
+            )
+
+        await self.send_menu(chat_id)
+
+        return {'status': 'invalid_student_edit_enrollment_status_action'}
 
     async def _process_student_edit_address_callback(  # noqa: PLR0911
         self,
@@ -3528,6 +3738,44 @@ class StudentsMenuHandler:  # noqa: PLR0904
             rewrite_label='✏️ Reescrever endereço',
         )
 
+    async def _request_student_edit_enrollment_confirmation(  # noqa: PLR0913, PLR0917
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        source_step: TelegramStep,
+        field: str,
+        value: Any,
+        prompt_text: str,
+        prompt_reply_markup: dict[str, Any],
+        confirmation_text: str,
+    ) -> dict[str, str]:
+        updated_context_data = dict(context_data)
+        updated_context_data[STUDENT_EDIT_PENDING_KEY] = {
+            'action': 'update_enrollment',
+            'source_step': source_step.value,
+            'field': field,
+            'value': value,
+            'prompt_text': prompt_text,
+            'prompt_reply_markup': prompt_reply_markup,
+            'confirmation_text': confirmation_text,
+            'include_rewrite': False,
+            'confirm_label': '✅ Confirmar alteração',
+        }
+
+        await self._update_student_edit_state(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data=updated_context_data,
+        )
+
+        await self._send_student_edit_confirmation_message(
+            chat_id=chat_id,
+            pending_edit=updated_context_data[STUDENT_EDIT_PENDING_KEY],
+        )
+
+        return {'status': 'waiting_student_edit_confirmation'}
+
     async def _request_student_edit_custom_confirmation(  # noqa: PLR0913, PLR0917
         self,
         chat_id: int,
@@ -3923,6 +4171,14 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 student_responsible_id=int(
                     responsible_to_remove['student_responsible_id']
                 ),
+            )
+        elif action == 'update_enrollment':
+            await self.student_service.update_enrollment(
+                academy_id=context.academy_id,
+                student_id=student_id,
+                data={
+                    field: pending_edit.get('value'),
+                },
             )
         elif field == 'modality':
             await self.student_service.update_modality(
@@ -4407,6 +4663,15 @@ class StudentsMenuHandler:  # noqa: PLR0904
             TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_EMAIL: (
                 'waiting_student_edit_responsible_email'
             ),
+            TelegramStep.WAITING_STUDENT_EDIT_ENROLLMENT_STATUS_MENU: (
+                'waiting_student_edit_enrollment_status_menu'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_IS_EXEMPT: (
+                'waiting_student_edit_is_exempt'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_ENROLLMENT_STATUS: (
+                'waiting_student_edit_enrollment_status'
+            ),
             TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE: (
                 'waiting_student_edit_monthly_fee'
             ),
@@ -4476,6 +4741,31 @@ class StudentsMenuHandler:  # noqa: PLR0904
             TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE,
             TelegramStep.WAITING_STUDENT_EDIT_DUE_DAY,
         }
+
+    @staticmethod
+    def _should_show_student_edit_enrollment_status_menu(
+        current_step: TelegramStep,
+        context_data: dict[str, Any],
+    ) -> bool:
+        if current_step in {
+            TelegramStep.WAITING_STUDENT_EDIT_ENROLLMENT_STATUS_MENU,
+            TelegramStep.WAITING_STUDENT_EDIT_IS_EXEMPT,
+            TelegramStep.WAITING_STUDENT_EDIT_ENROLLMENT_STATUS,
+        }:
+            return True
+
+        if current_step != TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION:
+            return False
+
+        pending_edit = context_data.get(STUDENT_EDIT_PENDING_KEY)
+
+        if not isinstance(pending_edit, dict):
+            return False
+
+        if str(pending_edit.get('action')) != 'update_enrollment':
+            return False
+
+        return str(pending_edit.get('field')) in {'is_exempt', 'status'}
 
     @staticmethod
     def _should_show_student_edit_address_menu(
@@ -7969,7 +8259,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
         lines = ['🥋 Matrícula']
 
         for enrollment in enrollments:
-            status = StudentsMenuHandler._format_enum_value(
+            status = StudentsMenuHandler._format_enrollment_status(
                 enrollment['status'],
             )
             monthly_fee = enrollment.get('monthly_fee')
@@ -8052,6 +8342,20 @@ class StudentsMenuHandler:  # noqa: PLR0904
             return 'Não'
 
         return 'Não informado'
+
+    @staticmethod
+    def _format_enrollment_status(
+        value: Any,
+    ) -> str:
+        raw_value = getattr(value, 'value', value)
+        labels = {
+            EnrollmentStatus.ACTIVE.value: 'Ativa',
+            EnrollmentStatus.INACTIVE.value: 'Inativa',
+        }
+
+        return labels.get(
+            str(raw_value), StudentsMenuHandler._format_enum_value(value)
+        )
 
     @staticmethod
     def _format_enum_value(
