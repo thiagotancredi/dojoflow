@@ -7,7 +7,7 @@ import pytest
 from dojoflow.services.telegram_bot.handlers.students import (
     StudentsMenuHandler,
 )
-from dojoflow.shared.telegram_enums import TelegramStep
+from dojoflow.shared.telegram_enums import TelegramFlow, TelegramStep
 
 CHAT_ID = 123
 STATE_ID = 10
@@ -15,6 +15,7 @@ DUE_DAY = 7
 ACADEMY_ID = 99
 TELEGRAM_USER_ID = 321
 EXPECTED_ADDRESS_REUSE_MESSAGES = 2
+NAME_EDIT_PROMPT = 'Nome atual:\nThiago\n\nDigite o novo nome do aluno.'
 
 
 def extract_button_texts(
@@ -33,6 +34,60 @@ def extract_pending_field_confirmation(
     return state_service.update_student_creation_context.await_args.kwargs[
         'context_data'
     ]['pending_field_confirmation']
+
+
+def make_student_details(  # noqa: PLR0913
+    *,
+    student_id: int = 1,
+    name: str = 'Thiago',
+    modality_name: str = 'Taekwondo',
+    sex: str = 'male',
+    cpf: str | None = '12345678911',
+    instagram: str | None = 'thiago',
+    birth_date: str | None = '1990-01-24',
+    email: str | None = 'thiago@example.com',
+) -> dict[str, Any]:
+    return {
+        'student': {
+            'id': student_id,
+            'name': name,
+            'sex': sex,
+            'cpf': cpf,
+            'instagram': instagram,
+            'birth_date': birth_date,
+            'email': email,
+            'phone': None,
+            'phone_is_whatsapp': None,
+        },
+        'enrollments': [
+            {
+                'enrollment_id': 10,
+                'status': 'active',
+                'monthly_fee': '250.00',
+                'due_day': 7,
+                'is_exempt': False,
+                'modality_name': modality_name,
+            }
+        ],
+        'address': None,
+        'responsibles': [],
+    }
+
+
+def make_student_edit_state(
+    *,
+    step: TelegramStep,
+    context_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        'id': STATE_ID,
+        'current_flow': TelegramFlow.STUDENT_EDIT,
+        'current_step': step,
+        'context_data': {
+            'student_id': 1,
+            **(context_data or {}),
+        },
+    }
 
 
 @pytest.mark.parametrize(
@@ -223,13 +278,11 @@ async def test_manual_fields_enter_intermediate_confirmation(  # noqa: PLR0912
             context_data={'address': {'city': 'Goiânia', 'state': 'GO'}},
         )
     elif runner == 'address_neighborhood':
-        result = await (
-            handler.process_student_address_neighborhood_message(
-                chat_id=CHAT_ID,
-                neighborhood='Alto da Glória',
-                state_id=STATE_ID,
-                context_data={'address': {'street': 'Rua Natal'}},
-            )
+        result = await handler.process_student_address_neighborhood_message(
+            chat_id=CHAT_ID,
+            neighborhood='Alto da Glória',
+            state_id=STATE_ID,
+            context_data={'address': {'street': 'Rua Natal'}},
         )
     elif runner == 'address_number':
         result = await handler.process_student_address_number_message(
@@ -265,8 +318,7 @@ async def test_manual_fields_enter_intermediate_confirmation(  # noqa: PLR0912
     assert pending_field_confirmation['source_step'] == expected_step
     assert pending_field_confirmation['value'] == expected_value
     assert (
-        pending_field_confirmation['display_value']
-        == expected_display_value
+        pending_field_confirmation['display_value'] == expected_display_value
     )
 
 
@@ -569,9 +621,7 @@ async def test_student_name_confirmation_confirm() -> None:
     )
     assert update_kwargs['next_step'] == TelegramStep.WAITING_STUDENT_MODALITY
     assert update_kwargs['context_data']['student_name'] == 'Naruto Uzumaki'
-    assert (
-        'pending_field_confirmation' not in update_kwargs['context_data']
-    )
+    assert 'pending_field_confirmation' not in update_kwargs['context_data']
 
     send_kwargs = telegram_service.send_message.await_args.kwargs
     assert 'Agora escolha a modalidade do aluno:' in send_kwargs['text']
@@ -624,8 +674,9 @@ async def test_student_name_confirmation_cancel() -> None:
 
 
 @pytest.mark.asyncio
-async def test_address_reference_search_without_results_shows_actions(
-) -> None:
+async def test_address_reference_search_without_results_shows_actions() -> (
+    None
+):
     telegram_service = AsyncMock()
     state_service = AsyncMock()
     student_service = AsyncMock()
@@ -650,8 +701,9 @@ async def test_address_reference_search_without_results_shows_actions(
     assert result == {'status': 'student_address_reference_search_empty'}
 
     send_kwargs = telegram_service.send_message.await_args.kwargs
-    assert 'Não encontrei nenhum aluno com o nome "Aluno Inexistente".' in (
-        send_kwargs['text']
+    assert (
+        'Não encontrei nenhum aluno com o nome "Aluno Inexistente".'
+        in (send_kwargs['text'])
     )
     assert 'O que deseja fazer?' in send_kwargs['text']
     assert extract_button_texts(send_kwargs['reply_markup']) == [
@@ -699,7 +751,7 @@ async def test_address_reference_search_with_results_shows_actions() -> None:
 
 
 @pytest.mark.asyncio
-async def test_address_reference_search_again_keeps_prompt_and_clears_context(
+async def test_address_reference_search_again_keeps_prompt_and_clears_context(  # noqa: E501
 ) -> None:
     telegram_service = AsyncMock()
     state_service = AsyncMock()
@@ -738,16 +790,16 @@ async def test_address_reference_search_again_keeps_prompt_and_clears_context(
         state_service.update_student_creation_context.await_args.kwargs
     )
     assert (
-        'address_reference_student_name'
-        not in update_kwargs['context_data']
+        'address_reference_student_name' not in update_kwargs['context_data']
     )
     assert 'address_reference_student_id' not in update_kwargs['context_data']
     assert 'address_reference' not in update_kwargs['context_data']
     assert 'address' not in update_kwargs['context_data']
 
     send_kwargs = telegram_service.send_message.await_args.kwargs
-    assert 'Digite o nome do aluno que já possui o endereço' in (
-        send_kwargs['text']
+    assert (
+        'Digite o nome do aluno que já possui o endereço'
+        in (send_kwargs['text'])
     )
 
 
@@ -791,7 +843,7 @@ async def test_address_reference_back_returns_to_address_options() -> None:
 
 
 @pytest.mark.asyncio
-async def test_responsible_reference_search_without_results_shows_actions(
+async def test_responsible_reference_search_without_results_shows_actions(  # noqa: E501
 ) -> None:
     telegram_service = AsyncMock()
     state_service = AsyncMock()
@@ -827,8 +879,9 @@ async def test_responsible_reference_search_without_results_shows_actions(
 
 
 @pytest.mark.asyncio
-async def test_responsible_reference_search_with_results_shows_actions(
-) -> None:
+async def test_responsible_reference_search_with_results_shows_actions() -> (
+    None
+):
     telegram_service = AsyncMock()
     state_service = AsyncMock()
     student_service = AsyncMock()
@@ -900,8 +953,9 @@ async def test_responsible_reference_search_again_keeps_prompt() -> None:
     assert result == {'status': 'waiting_student_responsible_reference_search'}
 
     send_kwargs = telegram_service.send_message.await_args.kwargs
-    assert 'Digite o nome do aluno que já possui esse mesmo responsável.' in (
-        send_kwargs['text']
+    assert (
+        'Digite o nome do aluno que já possui esse mesmo responsável.'
+        in (send_kwargs['text'])
     )
 
 
@@ -941,8 +995,7 @@ async def test_responsible_reference_back_returns_to_options() -> None:
 
     send_kwargs = telegram_service.send_message.await_args.kwargs
     assert (
-        send_kwargs['text']
-        == 'Como deseja informar o responsável do aluno?'
+        send_kwargs['text'] == 'Como deseja informar o responsável do aluno?'
     )
     assert extract_button_texts(send_kwargs['reply_markup']) == [
         '👤 Cadastrar novo responsável',
@@ -952,8 +1005,9 @@ async def test_responsible_reference_back_returns_to_options() -> None:
 
 
 @pytest.mark.asyncio
-async def test_address_reference_selected_without_address_shows_actions(
-) -> None:
+async def test_address_reference_selected_without_address_shows_actions() -> (
+    None
+):
     telegram_service = AsyncMock()
     state_service = AsyncMock()
     student_service = AsyncMock()
@@ -1266,3 +1320,716 @@ async def test_student_search_sends_result_as_buttons() -> None:
             ],
         ],
     }
+
+
+@pytest.mark.asyncio
+async def test_student_details_show_edit_button() -> None:
+    telegram_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.return_value = make_student_details()
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=AsyncMock(),
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    result = await handler._process_student_details(
+        chat_id=CHAT_ID,
+        callback_data='students:details:1',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert result == {'status': 'student_details_sent'}
+    buttons = extract_button_texts(
+        telegram_service.send_message.await_args.kwargs['reply_markup']
+    )
+    assert '✏️ Editar' in buttons
+
+
+@pytest.mark.asyncio
+async def test_open_student_edit_menu_from_details() -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.return_value = make_student_details()
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:1',
+        context=SimpleNamespace(
+            academy_id=ACADEMY_ID,
+            master_id=22,
+        ),
+    )
+
+    assert result == {'status': 'waiting_student_edit_menu'}
+    state_service.start_student_edit.assert_awaited_once_with(
+        telegram_user_id=TELEGRAM_USER_ID,
+        academy_id=ACADEMY_ID,
+        master_id=22,
+        student_id=1,
+    )
+
+    send_kwargs = telegram_service.send_message.await_args.kwargs
+    assert send_kwargs['text'] == '✏️ Editar aluno\n\nO que deseja editar?'
+    assert extract_button_texts(send_kwargs['reply_markup']) == [
+        '👤 Dados do aluno',
+        '🏠 Endereço',
+        '👥 Responsáveis',
+        '💰 Mensalidade',
+        '📌 Status da matrícula',
+        '🔙 Voltar aos detalhes',
+    ]
+
+
+@pytest.mark.asyncio
+async def test_student_edit_basic_data_menu_lists_editable_fields() -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(step=TelegramStep.WAITING_STUDENT_EDIT_MENU)
+    )
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=AsyncMock(),
+        cep_service=AsyncMock(),
+    )
+
+    result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:section:basic',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert result == {'status': 'waiting_student_edit_basic_data'}
+    assert extract_button_texts(
+        telegram_service.send_message.await_args.kwargs['reply_markup']
+    ) == [
+        'Nome',
+        'Modalidade',
+        'Sexo',
+        'CPF',
+        'Instagram',
+        'Data de nascimento',
+        'E-mail',
+        '🔙 Voltar para edição',
+        '❌ Cancelar edição',
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'callback_data',
+    [
+        'students:edit:section:address',
+        'students:edit:section:responsibles',
+        'students:edit:section:monthly_fee',
+        'students:edit:section:status',
+    ],
+)
+async def test_student_edit_future_sections_show_placeholder(
+    callback_data: str,
+) -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(step=TelegramStep.WAITING_STUDENT_EDIT_MENU)
+    )
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=AsyncMock(),
+        cep_service=AsyncMock(),
+    )
+
+    result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data=callback_data,
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert result == {'status': 'student_edit_future_flow'}
+    assert telegram_service.send_message.await_args.kwargs['text'] == (
+        'Esse fluxo será implementado em seguida.'
+    )
+
+
+@pytest.mark.asyncio
+async def test_student_edit_name_confirm_updates_student_and_returns_details(  # noqa: E501
+) -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.side_effect = [
+        make_student_details(name='Thiago'),
+        make_student_details(name='Thiago'),
+        make_student_details(name='Tiago'),
+    ]
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_BASIC_DATA,
+        )
+    )
+
+    prompt_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:field:name',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert prompt_result == {'status': 'waiting_student_edit_name'}
+
+    confirm_result = await handler.process_student_edit_name_message(
+        chat_id=CHAT_ID,
+        student_name='Tiago',
+        state_id=STATE_ID,
+        context_data={'student_id': 1},
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert confirm_result == {'status': 'waiting_student_edit_confirmation'}
+
+    pending_edit = state_service.update_student_edit_context.await_args.kwargs[
+        'context_data'
+    ]['pending_student_edit']
+    assert pending_edit['current_display'] == 'Thiago'
+    assert pending_edit['new_display'] == 'Tiago'
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data={
+                'pending_student_edit': pending_edit,
+            },
+        )
+    )
+
+    saved_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:confirm',
+        context=SimpleNamespace(
+            academy_id=ACADEMY_ID,
+            master_id=22,
+        ),
+    )
+
+    assert saved_result == {'status': 'student_edit_saved'}
+    student_service.update_basic_data.assert_awaited_once_with(
+        academy_id=ACADEMY_ID,
+        student_id=1,
+        data={'name': 'Tiago'},
+    )
+    assert telegram_service.send_message.await_args_list[2].kwargs['text'] == (
+        'Alteração salva com sucesso! ✅'
+    )
+    assert (
+        'Nome: Tiago'
+        in (telegram_service.send_message.await_args_list[3].kwargs['text'])
+    )
+
+
+@pytest.mark.asyncio
+async def test_student_edit_name_rewrite_keeps_same_field_and_uses_second_value(  # noqa: E501
+) -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.side_effect = [
+        make_student_details(name='Thiago'),
+        make_student_details(name='Thiago'),
+        make_student_details(name='Thiago'),
+        make_student_details(name='Thiagoo'),
+    ]
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    first_confirmation = await handler.process_student_edit_name_message(
+        chat_id=CHAT_ID,
+        student_name='Tiago',
+        state_id=STATE_ID,
+        context_data={'student_id': 1},
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert first_confirmation == {
+        'status': 'waiting_student_edit_confirmation'
+    }
+
+    pending_edit = state_service.update_student_edit_context.await_args.kwargs[
+        'context_data'
+    ]['pending_student_edit']
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data={
+                'pending_student_edit': pending_edit,
+            },
+        )
+    )
+
+    rewrite_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:rewrite',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert rewrite_result == {'status': 'waiting_student_edit_name'}
+
+    second_confirmation = await handler.process_student_edit_name_message(
+        chat_id=CHAT_ID,
+        student_name='Thiagoo',
+        state_id=STATE_ID,
+        context_data={'student_id': 1},
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert second_confirmation == {
+        'status': 'waiting_student_edit_confirmation'
+    }
+
+    second_pending = (
+        state_service.update_student_edit_context.await_args.kwargs[
+            'context_data'
+        ]['pending_student_edit']
+    )
+    assert second_pending['new_display'] == 'Thiagoo'
+
+
+@pytest.mark.asyncio
+async def test_student_edit_cancel_returns_to_details_without_changes() -> (
+    None
+):
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.return_value = make_student_details(
+        name='Thiago'
+    )
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data={
+                'pending_student_edit': {
+                    'action': 'update',
+                    'source_step': (
+                        TelegramStep.WAITING_STUDENT_EDIT_NAME.value
+                    ),
+                    'field': 'name',
+                    'field_label': 'Nome',
+                    'current_display': 'Thiago',
+                    'value': 'Tiago',
+                    'new_display': 'Tiago',
+                    'prompt_text': NAME_EDIT_PROMPT,
+                    'prompt_reply_markup': {'inline_keyboard': []},
+                },
+            },
+        )
+    )
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:cancel',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert result == {'status': 'student_edit_cancelled'}
+    student_service.update_basic_data.assert_not_awaited()
+    state_service.complete_current_flow.assert_awaited_once_with(STATE_ID)
+    assert (
+        'Nome: Thiago'
+        in (telegram_service.send_message.await_args.kwargs['text'])
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ('step', 'callback_data', 'expected_text'),
+    [
+        (
+            TelegramStep.WAITING_STUDENT_EDIT_NAME,
+            'students:edit:back',
+            '👤 Dados do aluno',
+        ),
+        (
+            TelegramStep.WAITING_STUDENT_EDIT_BASIC_DATA,
+            'students:edit:back:menu',
+            '✏️ Editar aluno',
+        ),
+    ],
+)
+async def test_student_edit_back_returns_to_previous_menu(
+    step: TelegramStep,
+    callback_data: str,
+    expected_text: str,
+) -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(step=step)
+    )
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=AsyncMock(),
+        cep_service=AsyncMock(),
+    )
+
+    await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data=callback_data,
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert (
+        expected_text
+        in telegram_service.send_message.await_args.kwargs['text']
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    (
+        'field',
+        'step',
+        'message_value',
+        'expected_value',
+        'expected_display',
+        'remove_callback',
+        'prompt_fragment',
+    ),
+    [
+        (
+            'cpf',
+            TelegramStep.WAITING_STUDENT_EDIT_CPF,
+            '12345678911',
+            '12345678911',
+            '123.***.***-11',
+            'students:edit:remove:cpf',
+            'Digite o novo CPF do aluno.',
+        ),
+        (
+            'instagram',
+            TelegramStep.WAITING_STUDENT_EDIT_INSTAGRAM,
+            '@thiago',
+            'thiago',
+            '@thiago',
+            'students:edit:remove:instagram',
+            'Digite o novo Instagram do aluno.',
+        ),
+        (
+            'birth_date',
+            TelegramStep.WAITING_STUDENT_EDIT_BIRTH_DATE,
+            '24/01/1994',
+            '1994-01-24',
+            '24/01/1994',
+            'students:edit:remove:birth_date',
+            'Digite a nova data de nascimento do aluno.',
+        ),
+        (
+            'email',
+            TelegramStep.WAITING_STUDENT_EDIT_EMAIL,
+            'novo@example.com',
+            'novo@example.com',
+            'novo@example.com',
+            'students:edit:remove:email',
+            'Digite o novo e-mail do aluno.',
+        ),
+    ],
+)
+async def test_student_edit_optional_fields_update_and_remove(  # noqa: PLR0913, PLR0917
+    field: str,
+    step: TelegramStep,
+    message_value: str,
+    expected_value: str,
+    expected_display: str,
+    remove_callback: str,
+    prompt_fragment: str,
+) -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.side_effect = [
+        make_student_details(),
+        make_student_details(),
+        make_student_details(),
+    ]
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    message_handlers = {
+        'cpf': handler.process_student_edit_cpf_message,
+        'instagram': handler.process_student_edit_instagram_message,
+        'birth_date': handler.process_student_edit_birth_date_message,
+        'email': handler.process_student_edit_email_message,
+    }
+
+    kwargs_by_field = {
+        'cpf': {'cpf': message_value},
+        'instagram': {'instagram': message_value},
+        'birth_date': {'birth_date_text': message_value},
+        'email': {'email': message_value},
+    }
+
+    confirm_result = await message_handlers[field](
+        chat_id=CHAT_ID,
+        state_id=STATE_ID,
+        context_data={'student_id': 1},
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+        **kwargs_by_field[field],
+    )
+
+    assert confirm_result == {'status': 'waiting_student_edit_confirmation'}
+    pending_edit = state_service.update_student_edit_context.await_args.kwargs[
+        'context_data'
+    ]['pending_student_edit']
+    assert pending_edit['value'] == expected_value
+    assert pending_edit['new_display'] == expected_display
+    assert prompt_fragment in pending_edit['prompt_text']
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=step,
+        )
+    )
+
+    remove_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data=remove_callback,
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert remove_result == {'status': 'waiting_student_edit_confirmation'}
+
+    removal_pending = (
+        state_service.update_student_edit_context.await_args.kwargs[
+            'context_data'
+        ]['pending_student_edit']
+    )
+    assert removal_pending['action'] == 'remove'
+    assert removal_pending['field'] == field
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data={
+                'pending_student_edit': removal_pending,
+            },
+        )
+    )
+
+    saved_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:confirm',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert saved_result == {'status': 'student_edit_saved'}
+    student_service.update_basic_data.assert_awaited()
+    assert student_service.update_basic_data.await_args.kwargs['data'] == {
+        field: None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_student_edit_modality_flow_confirms_before_saving() -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    modality_service = AsyncMock()
+    student_service.get_details.side_effect = [
+        make_student_details(modality_name='Taekwondo'),
+        make_student_details(modality_name='Taekwondo'),
+        make_student_details(modality_name='Jiu-jitsu'),
+    ]
+    modality_service.list_selected_by_academy.return_value = [
+        SimpleNamespace(id=1, name='Taekwondo'),
+        SimpleNamespace(id=2, name='Jiu-jitsu'),
+    ]
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=modality_service,
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_BASIC_DATA,
+        )
+    )
+
+    prompt_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:field:modality',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert prompt_result == {'status': 'waiting_student_edit_modality'}
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_MODALITY,
+        )
+    )
+
+    confirm_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:modality:2',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert confirm_result == {'status': 'waiting_student_edit_confirmation'}
+
+    pending_edit = state_service.update_student_edit_context.await_args.kwargs[
+        'context_data'
+    ]['pending_student_edit']
+    assert pending_edit['current_display'] == 'Taekwondo'
+    assert pending_edit['new_display'] == 'Jiu-jitsu'
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data={
+                'pending_student_edit': pending_edit,
+            },
+        )
+    )
+
+    saved_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:confirm',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert saved_result == {'status': 'student_edit_saved'}
+    student_service.update_modality.assert_awaited_once_with(
+        academy_id=ACADEMY_ID,
+        student_id=1,
+        modality_id=2,
+    )
+
+
+@pytest.mark.asyncio
+async def test_student_edit_sex_flow_confirms_before_saving() -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.side_effect = [
+        make_student_details(sex='male'),
+        make_student_details(sex='female'),
+    ]
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_SEX,
+        )
+    )
+
+    confirm_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:sex:female',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert confirm_result == {'status': 'waiting_student_edit_confirmation'}
+
+    pending_edit = state_service.update_student_edit_context.await_args.kwargs[
+        'context_data'
+    ]['pending_student_edit']
+    assert pending_edit['current_display'] == 'Masculino'
+    assert pending_edit['new_display'] == 'Feminino'
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data={
+                'pending_student_edit': pending_edit,
+            },
+        )
+    )
+
+    saved_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:confirm',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert saved_result == {'status': 'student_edit_saved'}
+    student_service.update_basic_data.assert_awaited_once_with(
+        academy_id=ACADEMY_ID,
+        student_id=1,
+        data={'sex': 'female'},
+    )

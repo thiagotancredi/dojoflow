@@ -172,6 +172,85 @@ class StudentService:
             'responsibles': responsibles,
         }
 
+    @transactional
+    async def update_basic_data(
+        self,
+        academy_id: int,
+        student_id: int,
+        data: dict[str, Any],
+    ) -> None:
+        student = await self.student_repository.get_one(
+            filters=[
+                Student.id == student_id,
+                Student.academy_id == academy_id,
+            ],
+        )
+
+        if student is None:
+            raise NotFoundError(
+                f'Could not find Student with id {student_id}.'
+            )
+
+        update_data = dict(data)
+        birth_date = update_data.get('birth_date')
+
+        if birth_date is not None:
+            update_data['birth_date'] = date.fromisoformat(str(birth_date))
+
+        sex = update_data.get('sex')
+
+        if sex is not None:
+            update_data['sex'] = self._parse_student_sex({
+                'sex': sex,
+            })
+
+        await self.student_repository.update_by_id(
+            record_id=student_id,
+            data=update_data,
+        )
+
+    @transactional
+    async def update_modality(
+        self,
+        academy_id: int,
+        student_id: int,
+        modality_id: int,
+    ) -> None:
+        await self._ensure_modality_belongs_to_academy(
+            academy_id=academy_id,
+            modality_id=modality_id,
+        )
+
+        enrollments = await self.enrollment_repository.list(
+            fields=[
+                Enrollment.id,
+                Enrollment.modality_id,
+            ],
+            filters=[
+                Enrollment.academy_id == academy_id,
+                Enrollment.student_id == student_id,
+            ],
+            order_by=[Enrollment.id],
+            limit=1,
+        )
+
+        if not enrollments:
+            raise NotFoundError(
+                f'Could not find Enrollment for student id {student_id}.'
+            )
+
+        enrollment = enrollments[0]
+
+        if enrollment['modality_id'] == modality_id:
+            return
+
+        await self.enrollment_repository.update_by_id(
+            record_id=enrollment['id'],
+            data={
+                'modality_id': modality_id,
+            },
+        )
+
     async def _get_student_address(
         self,
         academy_id: int,

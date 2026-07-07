@@ -14,6 +14,13 @@ from dojoflow.services.telegram_bot.menus.students import (
     student_address_reference_search_actions_rows,
     student_confirmation_reply_markup,
     student_creation_cancel_reply_markup,
+    student_details_reply_markup,
+    student_edit_basic_data_reply_markup,
+    student_edit_confirmation_reply_markup,
+    student_edit_menu_reply_markup,
+    student_edit_modalities_reply_markup,
+    student_edit_prompt_reply_markup,
+    student_edit_sex_reply_markup,
     student_field_confirmation_reply_markup,
     student_modalities_reply_markup,
     student_responsible_choice_reply_markup,
@@ -46,12 +53,17 @@ RESPONSIBLE_REFERENCE_CALLBACK_PARTS = 3
 FIELD_CONFIRM_CALLBACK_DATA = 'students:create:field:confirm'
 FIELD_REWRITE_CALLBACK_DATA = 'students:create:field:rewrite'
 PENDING_FIELD_CONFIRMATION_KEY = 'pending_field_confirmation'
+STUDENT_EDIT_PENDING_KEY = 'pending_student_edit'
 ADDRESS_SEARCH_AGAIN_CALLBACK_DATA = 'students:create:address:search_again'
 ADDRESS_BACK_CALLBACK_DATA = 'students:create:address:back'
 RESPONSIBLE_SEARCH_AGAIN_CALLBACK_DATA = (
     'students:create:responsible:search_again'
 )
 RESPONSIBLE_BACK_CALLBACK_DATA = 'students:create:responsible:back'
+STUDENT_EDIT_CONFIRM_CALLBACK_DATA = 'students:edit:confirm'
+STUDENT_EDIT_REWRITE_CALLBACK_DATA = 'students:edit:rewrite'
+STUDENT_EDIT_BACK_CALLBACK_DATA = 'students:edit:back'
+STUDENT_EDIT_CANCEL_CALLBACK_DATA = 'students:edit:cancel'
 
 
 class StudentsMenuHandler:  # noqa: PLR0904
@@ -112,6 +124,69 @@ class StudentsMenuHandler:  # noqa: PLR0904
         if callback_data.startswith('students:details:'):
             return await self._process_student_details(
                 chat_id=chat_id,
+                callback_data=callback_data,
+                context=context,
+            )
+
+        if callback_data in {
+            'students:edit:section:basic',
+            'students:edit:section:address',
+            'students:edit:section:responsibles',
+            'students:edit:section:monthly_fee',
+            'students:edit:section:status',
+            'students:edit:back:details',
+            'students:edit:back:menu',
+            STUDENT_EDIT_BACK_CALLBACK_DATA,
+            STUDENT_EDIT_CANCEL_CALLBACK_DATA,
+            STUDENT_EDIT_CONFIRM_CALLBACK_DATA,
+            STUDENT_EDIT_REWRITE_CALLBACK_DATA,
+        }:
+            return await self._process_student_edit_callback(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+                context=context,
+            )
+
+        if callback_data.startswith('students:edit:field:'):
+            return await self._process_student_edit_field_selection(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+                context=context,
+            )
+
+        if callback_data.startswith('students:edit:remove:'):
+            return await self._process_student_edit_remove_selection(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+                context=context,
+            )
+
+        if callback_data.startswith('students:edit:modality:'):
+            return await self._process_student_edit_modality_choice(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+                context=context,
+            )
+
+        if callback_data.startswith('students:edit:sex:'):
+            return await self._process_student_edit_sex_choice(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+                context=context,
+            )
+
+        if (
+            callback_data.startswith('students:edit:')
+            and self._get_id_from_callback(callback_data) is not None
+        ):
+            return await self._start_student_edit(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
                 callback_data=callback_data,
                 context=context,
             )
@@ -494,33 +569,1153 @@ class StudentsMenuHandler:  # noqa: PLR0904
         await self.telegram_service.send_message(
             chat_id=chat_id,
             text=self._build_student_details_message(details),
-            reply_markup={
-                'inline_keyboard': [
-                    [
-                        {
-                            'text': '💰 Ver mensalidades',
-                            'callback_data': (
-                                f'students:payments:{student_id}'
-                            ),
-                        },
-                    ],
-                    [
-                        {
-                            'text': '✏️ Editar aluno',
-                            'callback_data': f'students:edit:{student_id}',
-                        },
-                    ],
-                    [
-                        {
-                            'text': '🔙 Voltar ao menu',
-                            'callback_data': 'menu:students',
-                        },
-                    ],
-                ],
-            },
+            reply_markup=student_details_reply_markup(student_id),
         )
 
         return {'status': 'student_details_sent'}
+
+    async def _start_student_edit(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        student_id = self._get_id_from_callback(callback_data)
+
+        if student_id is None:
+            await self.send_menu(chat_id)
+
+            return {'status': 'invalid_student_edit'}
+
+        await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=student_id,
+        )
+
+        await self.telegram_conversation_state_service.start_student_edit(
+            telegram_user_id=telegram_user_id,
+            academy_id=context.academy_id,
+            master_id=context.master_id,
+            student_id=student_id,
+        )
+
+        await self._show_student_edit_menu(chat_id)
+
+        return {'status': 'waiting_student_edit_menu'}
+
+    async def _show_student_edit_menu(
+        self,
+        chat_id: int,
+    ) -> None:
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text='✏️ Editar aluno\n\nO que deseja editar?',
+            reply_markup=student_edit_menu_reply_markup(),
+        )
+
+    async def _show_student_edit_basic_data_menu(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_edit_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_BASIC_DATA,
+            context_data=self._clear_student_edit_pending(context_data),
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=('👤 Dados do aluno\n\nEscolha o campo que deseja editar:'),
+            reply_markup=student_edit_basic_data_reply_markup(),
+        )
+
+        return {'status': 'waiting_student_edit_basic_data'}
+
+    async def _process_student_edit_callback(  # noqa: PLR0911
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        state = await self._get_student_edit_state(
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+        )
+
+        if state is None:
+            return {'status': 'student_edit_state_not_found'}
+
+        context_data = dict(state['context_data'])
+        student_id = self._get_student_id_from_state(state)
+
+        if student_id is None:
+            await self.send_menu(chat_id)
+
+            return {'status': 'student_edit_student_not_found'}
+
+        if callback_data == 'students:edit:back:details':
+            await (
+                self.telegram_conversation_state_service.complete_current_flow(
+                    state['id']
+                )
+            )
+            return await self._send_student_details(
+                chat_id=chat_id,
+                context=context,
+                student_id=student_id,
+            )
+
+        if callback_data == 'students:edit:back:menu':
+            state_service = self.telegram_conversation_state_service
+
+            await state_service.update_student_edit_context(
+                state_id=state['id'],
+                next_step=TelegramStep.WAITING_STUDENT_EDIT_MENU,
+                context_data=self._clear_student_edit_pending(context_data),
+            )
+            await self._show_student_edit_menu(chat_id)
+            return {'status': 'waiting_student_edit_menu'}
+
+        if callback_data == STUDENT_EDIT_BACK_CALLBACK_DATA:
+            return await self._show_student_edit_basic_data_menu(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+            )
+
+        if callback_data == STUDENT_EDIT_CANCEL_CALLBACK_DATA:
+            return await self._cancel_student_edit(
+                chat_id=chat_id,
+                state_id=state['id'],
+                student_id=student_id,
+                context=context,
+            )
+
+        if callback_data == STUDENT_EDIT_CONFIRM_CALLBACK_DATA:
+            return await self._confirm_student_edit(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                context=context,
+                student_id=student_id,
+            )
+
+        if callback_data == STUDENT_EDIT_REWRITE_CALLBACK_DATA:
+            return await self._rewrite_student_edit(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+            )
+
+        if callback_data == 'students:edit:section:basic':
+            return await self._show_student_edit_basic_data_menu(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+            )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text='Esse fluxo será implementado em seguida.',
+        )
+
+        return {'status': 'student_edit_future_flow'}
+
+    async def _process_student_edit_field_selection(  # noqa: PLR0911
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        field = callback_data.removeprefix('students:edit:field:')
+        state = await self._get_student_edit_state(
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+        )
+
+        if state is None:
+            return {'status': 'student_edit_state_not_found'}
+
+        student_id = self._get_student_id_from_state(state)
+
+        if student_id is None:
+            await self.send_menu(chat_id)
+
+            return {'status': 'student_edit_student_not_found'}
+
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=student_id,
+        )
+        context_data = self._clear_student_edit_pending(
+            dict(state['context_data'])
+        )
+
+        if field == 'name':
+            return await self._ask_student_edit_text_field(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                next_step=TelegramStep.WAITING_STUDENT_EDIT_NAME,
+                text=(
+                    'Nome atual:\n'
+                    f'{details["student"]["name"]}\n\n'
+                    'Digite o novo nome do aluno.'
+                ),
+            )
+
+        if field == 'cpf':
+            return await self._ask_student_edit_text_field(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                next_step=TelegramStep.WAITING_STUDENT_EDIT_CPF,
+                text=(
+                    'CPF atual:\n'
+                    f'{self._format_edit_cpf(details["student"].get("cpf"))}\n\n'
+                    'Digite o novo CPF do aluno.\n\n'
+                    'Digite apenas os números, sem pontos ou traços.\n\n'
+                    'Exemplo:\n12345678911'
+                ),
+                remove_callback_data='students:edit:remove:cpf',
+            )
+
+        if field == 'instagram':
+            return await self._ask_student_edit_text_field(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                next_step=TelegramStep.WAITING_STUDENT_EDIT_INSTAGRAM,
+                text=(
+                    'Instagram atual:\n'
+                    f'{self._format_edit_instagram(details["student"].get("instagram"))}\n\n'
+                    'Digite o novo Instagram do aluno.'
+                ),
+                remove_callback_data='students:edit:remove:instagram',
+            )
+
+        if field == 'birth_date':
+            return await self._ask_student_edit_text_field(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                next_step=TelegramStep.WAITING_STUDENT_EDIT_BIRTH_DATE,
+                text=(
+                    'Data de nascimento atual:\n'
+                    f'{self._format_birth_date_for_display(details["student"].get("birth_date"))}\n\n'
+                    'Digite a nova data de nascimento do aluno.\n\n'
+                    'Formato: DD/MM/AAAA'
+                ),
+                remove_callback_data='students:edit:remove:birth_date',
+            )
+
+        if field == 'email':
+            return await self._ask_student_edit_text_field(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                next_step=TelegramStep.WAITING_STUDENT_EDIT_EMAIL,
+                text=(
+                    'E-mail atual:\n'
+                    f'{details["student"].get("email") or "Não informado"}\n\n'
+                    'Digite o novo e-mail do aluno.'
+                ),
+                remove_callback_data='students:edit:remove:email',
+            )
+
+        if field == 'modality':
+            modalities = await self.modality_service.list_selected_by_academy(
+                context.academy_id
+            )
+            state_service = self.telegram_conversation_state_service
+
+            await state_service.update_student_edit_context(
+                state_id=state['id'],
+                next_step=TelegramStep.WAITING_STUDENT_EDIT_MODALITY,
+                context_data=context_data,
+            )
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Modalidade atual:\n'
+                    f'{self._get_student_current_modality_name(details)}\n\n'
+                    'Escolha a nova modalidade do aluno.'
+                ),
+                reply_markup=student_edit_modalities_reply_markup(modalities),
+            )
+            return {'status': 'waiting_student_edit_modality'}
+
+        if field == 'sex':
+            state_service = self.telegram_conversation_state_service
+
+            await state_service.update_student_edit_context(
+                state_id=state['id'],
+                next_step=TelegramStep.WAITING_STUDENT_EDIT_SEX,
+                context_data=context_data,
+            )
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Sexo atual:\n'
+                    f'{self._format_sex(details["student"].get("sex"))}\n\n'
+                    'Escolha o novo sexo do aluno.'
+                ),
+                reply_markup=student_edit_sex_reply_markup(),
+            )
+            return {'status': 'waiting_student_edit_sex'}
+
+        await self.send_menu(chat_id)
+
+        return {'status': 'invalid_student_edit_field'}
+
+    async def _ask_student_edit_text_field(  # noqa: PLR0913, PLR0917
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        next_step: TelegramStep,
+        text: str,
+        remove_callback_data: str | None = None,
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_edit_context(
+            state_id=state_id,
+            next_step=next_step,
+            context_data=context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=text,
+            reply_markup=student_edit_prompt_reply_markup(
+                remove_callback_data=remove_callback_data
+            ),
+        )
+
+        return {'status': self._get_student_edit_waiting_status(next_step)}
+
+    async def process_student_edit_name_message(
+        self,
+        chat_id: int,
+        student_name: str,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        normalized_student_name = ' '.join(student_name.strip().split())
+
+        if len(normalized_student_name) < MIN_STUDENT_NAME_LENGTH:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'O nome do aluno precisa ter pelo menos 2 caracteres.\n\n'
+                    'Digite o novo nome do aluno novamente.'
+                ),
+                reply_markup=student_edit_prompt_reply_markup(),
+            )
+
+            return {'status': 'invalid_student_edit_name'}
+
+        student = await self._get_student_for_edit(context, context_data)
+
+        return await self._request_student_edit_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_EDIT_NAME,
+            field='name',
+            field_label='Nome',
+            current_display=student['name'],
+            value=normalized_student_name,
+            new_display=normalized_student_name,
+            prompt_text=(
+                'Nome atual:\n'
+                f'{student["name"]}\n\n'
+                'Digite o novo nome do aluno.'
+            ),
+            prompt_reply_markup=student_edit_prompt_reply_markup(),
+        )
+
+    async def process_student_edit_cpf_message(
+        self,
+        chat_id: int,
+        cpf: str,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        normalized_cpf = ''.join(
+            character for character in cpf if character.isdigit()
+        )
+
+        if len(normalized_cpf) != CPF_LENGTH:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'CPF inválido.\n\n'
+                    'Digite apenas os números, sem pontos ou traços.'
+                ),
+                reply_markup=student_edit_prompt_reply_markup(
+                    remove_callback_data='students:edit:remove:cpf'
+                ),
+            )
+
+            return {'status': 'invalid_student_edit_cpf'}
+
+        student = await self._get_student_for_edit(context, context_data)
+
+        return await self._request_student_edit_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_EDIT_CPF,
+            field='cpf',
+            field_label='CPF',
+            current_display=self._format_edit_cpf(student.get('cpf')),
+            value=normalized_cpf,
+            new_display=self._format_edit_cpf(normalized_cpf),
+            prompt_text=(
+                'CPF atual:\n'
+                f'{self._format_edit_cpf(student.get("cpf"))}\n\n'
+                'Digite o novo CPF do aluno.\n\n'
+                'Digite apenas os números, sem pontos ou traços.\n\n'
+                'Exemplo:\n12345678911'
+            ),
+            prompt_reply_markup=student_edit_prompt_reply_markup(
+                remove_callback_data='students:edit:remove:cpf'
+            ),
+        )
+
+    async def process_student_edit_instagram_message(
+        self,
+        chat_id: int,
+        instagram: str,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        normalized_instagram = instagram.strip().lstrip('@').strip()
+
+        if len(normalized_instagram) < MIN_INSTAGRAM_LENGTH:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Instagram inválido.\n\n'
+                    'Digite o novo Instagram do aluno novamente.'
+                ),
+                reply_markup=student_edit_prompt_reply_markup(
+                    remove_callback_data='students:edit:remove:instagram'
+                ),
+            )
+
+            return {'status': 'invalid_student_edit_instagram'}
+
+        student = await self._get_student_for_edit(context, context_data)
+
+        return await self._request_student_edit_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_EDIT_INSTAGRAM,
+            field='instagram',
+            field_label='Instagram',
+            current_display=self._format_edit_instagram(
+                student.get('instagram')
+            ),
+            value=normalized_instagram,
+            new_display=self._format_edit_instagram(normalized_instagram),
+            prompt_text=(
+                'Instagram atual:\n'
+                f'{self._format_edit_instagram(student.get("instagram"))}\n\n'
+                'Digite o novo Instagram do aluno.'
+            ),
+            prompt_reply_markup=student_edit_prompt_reply_markup(
+                remove_callback_data='students:edit:remove:instagram'
+            ),
+        )
+
+    async def process_student_edit_birth_date_message(
+        self,
+        chat_id: int,
+        birth_date_text: str,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        try:
+            birth_date = datetime.strptime(
+                birth_date_text.strip(),
+                BIRTH_DATE_FORMAT,
+            ).date()
+        except ValueError:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Data de nascimento inválida.\n\nUse o formato DD/MM/AAAA.'
+                ),
+                reply_markup=student_edit_prompt_reply_markup(
+                    remove_callback_data='students:edit:remove:birth_date'
+                ),
+            )
+
+            return {'status': 'invalid_student_edit_birth_date'}
+
+        student = await self._get_student_for_edit(context, context_data)
+
+        return await self._request_student_edit_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_EDIT_BIRTH_DATE,
+            field='birth_date',
+            field_label='Data de nascimento',
+            current_display=self._format_birth_date_for_display(
+                student.get('birth_date')
+            ),
+            value=birth_date.isoformat(),
+            new_display=birth_date.strftime(BIRTH_DATE_FORMAT),
+            prompt_text=(
+                'Data de nascimento atual:\n'
+                f'{self._format_birth_date_for_display(student.get("birth_date"))}\n\n'
+                'Digite a nova data de nascimento do aluno.\n\n'
+                'Formato: DD/MM/AAAA'
+            ),
+            prompt_reply_markup=student_edit_prompt_reply_markup(
+                remove_callback_data='students:edit:remove:birth_date'
+            ),
+        )
+
+    async def process_student_edit_email_message(
+        self,
+        chat_id: int,
+        email: str,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        normalized_email = email.strip().lower()
+
+        if not self._is_valid_email(normalized_email):
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'E-mail inválido.\n\n'
+                    'Digite o novo e-mail do aluno novamente.'
+                ),
+                reply_markup=student_edit_prompt_reply_markup(
+                    remove_callback_data='students:edit:remove:email'
+                ),
+            )
+
+            return {'status': 'invalid_student_edit_email'}
+
+        student = await self._get_student_for_edit(context, context_data)
+
+        return await self._request_student_edit_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_EDIT_EMAIL,
+            field='email',
+            field_label='E-mail',
+            current_display=student.get('email') or 'Não informado',
+            value=normalized_email,
+            new_display=normalized_email,
+            prompt_text=(
+                'E-mail atual:\n'
+                f'{student.get("email") or "Não informado"}\n\n'
+                'Digite o novo e-mail do aluno.'
+            ),
+            prompt_reply_markup=student_edit_prompt_reply_markup(
+                remove_callback_data='students:edit:remove:email'
+            ),
+        )
+
+    async def _request_student_edit_confirmation(  # noqa: PLR0913, PLR0917
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        source_step: TelegramStep,
+        field: str,
+        field_label: str,
+        current_display: str,
+        value: Any,
+        new_display: str,
+        prompt_text: str,
+        prompt_reply_markup: dict[str, Any],
+    ) -> dict[str, str]:
+        updated_context_data = dict(context_data)
+        updated_context_data[STUDENT_EDIT_PENDING_KEY] = {
+            'action': 'update',
+            'source_step': source_step.value,
+            'field': field,
+            'field_label': field_label,
+            'current_display': current_display,
+            'value': value,
+            'new_display': new_display,
+            'prompt_text': prompt_text,
+            'prompt_reply_markup': prompt_reply_markup,
+        }
+
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_edit_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data=updated_context_data,
+        )
+
+        await self._send_student_edit_confirmation_message(
+            chat_id=chat_id,
+            pending_edit=updated_context_data[STUDENT_EDIT_PENDING_KEY],
+        )
+
+        return {'status': 'waiting_student_edit_confirmation'}
+
+    async def _process_student_edit_remove_selection(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        field = callback_data.removeprefix('students:edit:remove:')
+        state = await self._get_student_edit_state(
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+        )
+
+        if state is None:
+            return {'status': 'student_edit_state_not_found'}
+
+        student = await self._get_student_for_edit(
+            context=context,
+            context_data=state['context_data'],
+        )
+
+        field_label = self._get_student_edit_field_label(field)
+        current_display = self._get_student_edit_current_display(
+            field=field,
+            student=student,
+        )
+
+        updated_context_data = dict(state['context_data'])
+        updated_context_data[STUDENT_EDIT_PENDING_KEY] = {
+            'action': 'remove',
+            'field': field,
+            'field_label': field_label,
+            'current_display': current_display,
+        }
+
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_edit_context(
+            state_id=state['id'],
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data=updated_context_data,
+        )
+
+        await self._send_student_edit_confirmation_message(
+            chat_id=chat_id,
+            pending_edit=updated_context_data[STUDENT_EDIT_PENDING_KEY],
+        )
+
+        return {'status': 'waiting_student_edit_confirmation'}
+
+    async def _process_student_edit_modality_choice(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        modality_id = self._get_id_from_callback(callback_data)
+
+        if modality_id is None:
+            await self.send_menu(chat_id)
+
+            return {'status': 'invalid_student_edit_modality'}
+
+        state = await self._get_student_edit_state(
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+        )
+
+        if state is None:
+            return {'status': 'student_edit_state_not_found'}
+
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=int(state['context_data']['student_id']),
+        )
+        selected_modality = await self._get_selected_modality(
+            academy_id=context.academy_id,
+            modality_id=modality_id,
+        )
+
+        if selected_modality is None:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text='Escolha uma modalidade válida.',
+            )
+
+            return {'status': 'invalid_student_edit_modality'}
+
+        return await self._request_student_edit_confirmation(
+            chat_id=chat_id,
+            state_id=state['id'],
+            context_data=state['context_data'],
+            source_step=TelegramStep.WAITING_STUDENT_EDIT_MODALITY,
+            field='modality',
+            field_label='Modalidade',
+            current_display=self._get_student_current_modality_name(details),
+            value=selected_modality.id,
+            new_display=selected_modality.name,
+            prompt_text=(
+                'Modalidade atual:\n'
+                f'{self._get_student_current_modality_name(details)}\n\n'
+                'Escolha a nova modalidade do aluno.'
+            ),
+            prompt_reply_markup=student_edit_modalities_reply_markup(
+                await self.modality_service.list_selected_by_academy(
+                    context.academy_id
+                )
+            ),
+        )
+
+    async def _process_student_edit_sex_choice(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        sex_options = {
+            'students:edit:sex:male': 'male',
+            'students:edit:sex:female': 'female',
+            'students:edit:sex:other': 'other',
+        }
+        selected_sex = sex_options.get(callback_data)
+
+        if selected_sex is None:
+            await self.send_menu(chat_id)
+
+            return {'status': 'invalid_student_edit_sex'}
+
+        state = await self._get_student_edit_state(
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+        )
+
+        if state is None:
+            return {'status': 'student_edit_state_not_found'}
+
+        student = await self._get_student_for_edit(
+            context=context,
+            context_data=state['context_data'],
+        )
+
+        return await self._request_student_edit_confirmation(
+            chat_id=chat_id,
+            state_id=state['id'],
+            context_data=state['context_data'],
+            source_step=TelegramStep.WAITING_STUDENT_EDIT_SEX,
+            field='sex',
+            field_label='Sexo',
+            current_display=self._format_sex(student.get('sex')),
+            value=selected_sex,
+            new_display=self._format_sex(selected_sex),
+            prompt_text=(
+                'Sexo atual:\n'
+                f'{self._format_sex(student.get("sex"))}\n\n'
+                'Escolha o novo sexo do aluno.'
+            ),
+            prompt_reply_markup=student_edit_sex_reply_markup(),
+        )
+
+    async def _send_student_edit_confirmation_message(
+        self,
+        chat_id: int,
+        pending_edit: dict[str, Any],
+    ) -> None:
+        action = pending_edit.get('action')
+
+        if action == 'remove':
+            text = self._build_student_edit_remove_confirmation_text(
+                field_label=str(pending_edit['field_label']),
+                current_display=str(pending_edit['current_display']),
+            )
+            reply_markup = student_edit_confirmation_reply_markup(
+                include_rewrite=False
+            )
+        else:
+            text = self._build_student_edit_update_confirmation_text(
+                current_display=str(pending_edit['current_display']),
+                new_display=str(pending_edit['new_display']),
+                field_label=str(pending_edit['field_label']),
+            )
+            reply_markup = student_edit_confirmation_reply_markup()
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=text,
+            reply_markup=reply_markup,
+        )
+
+    async def _resend_student_edit_confirmation_message(
+        self,
+        chat_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        pending_edit = context_data.get(STUDENT_EDIT_PENDING_KEY)
+
+        if not isinstance(pending_edit, dict):
+            await self.send_menu(chat_id)
+
+            return {'status': 'student_edit_pending_not_found'}
+
+        await self._send_student_edit_confirmation_message(
+            chat_id=chat_id,
+            pending_edit=pending_edit,
+        )
+
+        return {'status': 'waiting_student_edit_confirmation'}
+
+    async def _confirm_student_edit(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+        student_id: int,
+    ) -> dict[str, str]:
+        pending_edit = context_data.get(STUDENT_EDIT_PENDING_KEY)
+
+        if not isinstance(pending_edit, dict):
+            await self.send_menu(chat_id)
+
+            return {'status': 'student_edit_pending_not_found'}
+
+        action = pending_edit.get('action')
+        field = str(pending_edit.get('field'))
+
+        if action == 'remove':
+            await self.student_service.update_basic_data(
+                academy_id=context.academy_id,
+                student_id=student_id,
+                data={field: None},
+            )
+        elif field == 'modality':
+            await self.student_service.update_modality(
+                academy_id=context.academy_id,
+                student_id=student_id,
+                modality_id=int(pending_edit['value']),
+            )
+        else:
+            await self.student_service.update_basic_data(
+                academy_id=context.academy_id,
+                student_id=student_id,
+                data={
+                    field: pending_edit.get('value'),
+                },
+            )
+
+        await self.telegram_conversation_state_service.complete_current_flow(
+            state_id
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text='Alteração salva com sucesso! ✅',
+        )
+
+        return await self._send_student_details(
+            chat_id=chat_id,
+            context=context,
+            student_id=student_id,
+            status='student_edit_saved',
+        )
+
+    async def _rewrite_student_edit(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        pending_edit = context_data.get(STUDENT_EDIT_PENDING_KEY)
+
+        if not isinstance(pending_edit, dict):
+            await self.send_menu(chat_id)
+
+            return {'status': 'student_edit_pending_not_found'}
+
+        source_step = self._get_student_edit_source_step(pending_edit)
+
+        if source_step is None:
+            await self.send_menu(chat_id)
+
+            return {'status': 'student_edit_invalid_source'}
+
+        updated_context_data = self._clear_student_edit_pending(context_data)
+
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_edit_context(
+            state_id=state_id,
+            next_step=source_step,
+            context_data=updated_context_data,
+        )
+
+        send_kwargs: dict[str, Any] = {
+            'chat_id': chat_id,
+            'text': str(pending_edit['prompt_text']),
+        }
+
+        prompt_reply_markup = pending_edit.get('prompt_reply_markup')
+
+        if isinstance(prompt_reply_markup, dict):
+            send_kwargs['reply_markup'] = prompt_reply_markup
+
+        await self.telegram_service.send_message(**send_kwargs)
+
+        return {'status': self._get_student_edit_waiting_status(source_step)}
+
+    async def _cancel_student_edit(
+        self,
+        chat_id: int,
+        state_id: int,
+        student_id: int,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        await self.telegram_conversation_state_service.complete_current_flow(
+            state_id
+        )
+
+        return await self._send_student_details(
+            chat_id=chat_id,
+            context=context,
+            student_id=student_id,
+            status='student_edit_cancelled',
+        )
+
+    async def _send_student_details(
+        self,
+        chat_id: int,
+        context: MasterContextRead,
+        student_id: int,
+        status: str = 'student_details_sent',
+    ) -> dict[str, str]:
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=student_id,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=self._build_student_details_message(details),
+            reply_markup=student_details_reply_markup(student_id),
+        )
+
+        return {'status': status}
+
+    async def _get_student_edit_state(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+    ) -> dict[str, Any] | None:
+        state = await (
+            self.telegram_conversation_state_service.get_by_telegram_user_id(
+                telegram_user_id
+            )
+        )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+        ):
+            return state
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Não encontrei uma edição de aluno em andamento.\n\n'
+                'Abra os detalhes do aluno e toque em "✏️ Editar".'
+            ),
+            reply_markup=students_menu_reply_markup(),
+        )
+
+        return None
+
+    async def _get_student_for_edit(
+        self,
+        context: MasterContextRead,
+        context_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=int(context_data['student_id']),
+        )
+
+        return details['student']
+
+    @staticmethod
+    def _get_student_id_from_state(
+        state: dict[str, Any],
+    ) -> int | None:
+        student_id = state['context_data'].get('student_id')
+
+        if isinstance(student_id, int):
+            return student_id
+
+        if isinstance(student_id, str) and student_id.isdigit():
+            return int(student_id)
+
+        return None
+
+    @staticmethod
+    def _clear_student_edit_pending(
+        context_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        updated_context_data = dict(context_data)
+        updated_context_data.pop(STUDENT_EDIT_PENDING_KEY, None)
+
+        return updated_context_data
+
+    @staticmethod
+    def _format_edit_cpf(
+        cpf: Any,
+    ) -> str:
+        if not cpf:
+            return 'Não informado'
+
+        cpf_text = str(cpf)
+        return f'{cpf_text[:3]}.***.***-{cpf_text[-2:]}'
+
+    @staticmethod
+    def _format_edit_instagram(
+        instagram: Any,
+    ) -> str:
+        if not instagram:
+            return 'Não informado'
+
+        return f'@{str(instagram).lstrip("@")}'
+
+    @staticmethod
+    def _build_student_edit_update_confirmation_text(
+        *,
+        field_label: str,
+        current_display: str,
+        new_display: str,
+    ) -> str:
+        return (
+            f'Confirmar alteração de {field_label.lower()}?\n\n'
+            f'De:\n{current_display}\n\n'
+            f'Para:\n{new_display}'
+        )
+
+    @staticmethod
+    def _build_student_edit_remove_confirmation_text(
+        *,
+        field_label: str,
+        current_display: str,
+    ) -> str:
+        return (
+            'Confirmar remoção?\n\n'
+            f'Campo:\n{field_label}\n\n'
+            f'Valor atual:\n{current_display}'
+        )
+
+    @staticmethod
+    def _get_student_current_modality_name(
+        details: dict[str, Any],
+    ) -> str:
+        enrollments = details.get('enrollments', [])
+
+        if not enrollments:
+            return 'Não informado'
+
+        return str(enrollments[0].get('modality_name') or 'Não informado')
+
+    @staticmethod
+    def _get_student_edit_source_step(
+        pending_edit: dict[str, Any],
+    ) -> TelegramStep | None:
+        source_step = pending_edit.get('source_step')
+
+        try:
+            return TelegramStep(str(source_step))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _get_student_edit_waiting_status(
+        step: TelegramStep,
+    ) -> str:
+        statuses = {
+            TelegramStep.WAITING_STUDENT_EDIT_NAME: (
+                'waiting_student_edit_name'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_MODALITY: (
+                'waiting_student_edit_modality'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_SEX: (
+                'waiting_student_edit_sex'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_CPF: (
+                'waiting_student_edit_cpf'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_INSTAGRAM: (
+                'waiting_student_edit_instagram'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_BIRTH_DATE: (
+                'waiting_student_edit_birth_date'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_EMAIL: (
+                'waiting_student_edit_email'
+            ),
+        }
+
+        return statuses.get(step, 'waiting_student_edit')
+
+    @staticmethod
+    def _get_student_edit_field_label(
+        field: str,
+    ) -> str:
+        labels = {
+            'cpf': 'CPF',
+            'instagram': 'Instagram',
+            'birth_date': 'Data de nascimento',
+            'email': 'E-mail',
+        }
+
+        return labels.get(field, field)
+
+    def _get_student_edit_current_display(
+        self,
+        field: str,
+        student: dict[str, Any],
+    ) -> str:
+        if field == 'cpf':
+            return self._format_edit_cpf(student.get('cpf'))
+
+        if field == 'instagram':
+            return self._format_edit_instagram(student.get('instagram'))
+
+        if field == 'birth_date':
+            return self._format_birth_date_for_display(
+                student.get('birth_date')
+            )
+
+        return str(student.get(field) or 'Não informado')
 
     async def _request_field_confirmation(  # noqa: PLR0913, PLR0917
         self,
@@ -1561,8 +2756,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
             await self.telegram_service.send_message(
                 chat_id=chat_id,
                 text=(
-                    'Não encontrei esse aluno. '
-                    'Digite outro nome para buscar.'
+                    'Não encontrei esse aluno. Digite outro nome para buscar.'
                 ),
             )
 
@@ -1692,8 +2886,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
             await self.telegram_service.send_message(
                 chat_id=chat_id,
                 text=(
-                    'Não encontrei esse aluno. '
-                    'Digite outro nome para buscar.'
+                    'Não encontrei esse aluno. Digite outro nome para buscar.'
                 ),
             )
 
@@ -1756,9 +2949,9 @@ class StudentsMenuHandler:  # noqa: PLR0904
         context_data['responsible_reference_details'] = (
             responsible_reference_details
         )
-        context_data['responsible_reference_student_name'] = (
-            details['student']['name']
-        )
+        context_data['responsible_reference_student_name'] = details[
+            'student'
+        ]['name']
 
         await state_service.update_student_creation_context(
             state_id=state['id'],
@@ -1900,8 +3093,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
         await self.telegram_service.send_message(
             chat_id=chat_id,
             text=(
-                '👨‍👩‍👧 Responsável\n\n'
-                'Digite o nome completo do responsável.'
+                '👨‍👩‍👧 Responsável\n\nDigite o nome completo do responsável.'
             ),
             reply_markup=student_creation_cancel_reply_markup(),
         )
@@ -2300,8 +3492,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
             await self.telegram_service.send_message(
                 chat_id=chat_id,
                 text=(
-                    'Não encontrei esse aluno. '
-                    'Digite outro nome para buscar.'
+                    'Não encontrei esse aluno. Digite outro nome para buscar.'
                 ),
             )
 
@@ -2327,9 +3518,9 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         context_data = self._clear_address_context(state['context_data'])
         context_data['address_reference_student_id'] = reference_student_id
-        context_data['address_reference_student_name'] = (
-            reference_student['student']['name']
-        )
+        context_data['address_reference_student_name'] = reference_student[
+            'student'
+        ]['name']
         context_data['address_reference'] = {
             'zip_code': address_reference.get('zip_code'),
             'street': address_reference.get('street'),
@@ -2679,11 +3870,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
             value=normalized_number,
             display_value=normalized_number,
             prompt_text=(
-                'Digite o número do endereço.\n\n'
-                'Exemplos:\n'
-                '123\n'
-                '3B\n'
-                'S/N'
+                'Digite o número do endereço.\n\nExemplos:\n123\n3B\nS/N'
             ),
             prompt_reply_markup=student_address_number_reply_markup(),
         )
@@ -3509,8 +4696,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
         await self.telegram_service.send_message(
             chat_id=chat_id,
             text=(
-                'Digite o nome do aluno que já possui esse mesmo '
-                'responsável.'
+                'Digite o nome do aluno que já possui esse mesmo responsável.'
             ),
         )
 

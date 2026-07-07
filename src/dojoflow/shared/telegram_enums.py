@@ -5,6 +5,7 @@ class TelegramFlow(StrEnum):
     ONBOARDING = 'onboarding'
     STUDENT_CREATION = 'student_creation'
     STUDENT_SEARCH = 'student_search'
+    STUDENT_EDIT = 'student_edit'
 
 
 class TelegramStep(StrEnum):
@@ -63,5 +64,18 @@ class TelegramStep(StrEnum):
     WAITING_STUDENT_CONFIRMATION = 'waiting_student_confirmation'
 
     WAITING_STUDENT_SEARCH_NAME = 'waiting_student_search_name'
+
+    WAITING_STUDENT_EDIT_MENU = 'waiting_student_edit_menu'
+    WAITING_STUDENT_EDIT_BASIC_DATA = 'waiting_student_edit_basic_data'
+    WAITING_STUDENT_EDIT_NAME = 'waiting_student_edit_name'
+    WAITING_STUDENT_EDIT_MODALITY = 'waiting_student_edit_modality'
+    WAITING_STUDENT_EDIT_SEX = 'waiting_student_edit_sex'
+    WAITING_STUDENT_EDIT_CPF = 'waiting_student_edit_cpf'
+    WAITING_STUDENT_EDIT_INSTAGRAM = 'waiting_student_edit_instagram'
+    WAITING_STUDENT_EDIT_BIRTH_DATE = 'waiting_student_edit_birth_date'
+    WAITING_STUDENT_EDIT_EMAIL = 'waiting_student_edit_email'
+    WAITING_STUDENT_EDIT_CONFIRMATION = (
+        'waiting_student_edit_confirmation'
+    )
 
     COMPLETED = 'completed'

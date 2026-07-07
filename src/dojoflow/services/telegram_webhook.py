@@ -102,7 +102,7 @@ class TelegramWebhookService:
             context=context,
         )
 
-    async def _process_registered_master_message(  # noqa: PLR0911, PLR0912
+    async def _process_registered_master_message(  # noqa: PLR0911, PLR0912, PLR0915
         self,
         chat_id: int,
         telegram_user_id: int,
@@ -130,6 +130,103 @@ class TelegramWebhookService:
                 search_text=text,
                 state_id=state['id'],
                 context=context,
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step'] == TelegramStep.WAITING_STUDENT_EDIT_NAME
+        ):
+            students_handler = self.students_menu_handler
+
+            return await students_handler.process_student_edit_name_message(
+                chat_id=chat_id,
+                student_name=text,
+                state_id=state['id'],
+                context_data=state['context_data'],
+                context=context,
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step'] == TelegramStep.WAITING_STUDENT_EDIT_CPF
+        ):
+            students_handler = self.students_menu_handler
+
+            return await students_handler.process_student_edit_cpf_message(
+                chat_id=chat_id,
+                cpf=text,
+                state_id=state['id'],
+                context_data=state['context_data'],
+                context=context,
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_INSTAGRAM
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_edit_instagram_message(
+                    chat_id=chat_id,
+                    instagram=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                    context=context,
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_BIRTH_DATE
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_edit_birth_date_message(
+                    chat_id=chat_id,
+                    birth_date_text=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                    context=context,
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_EMAIL
+        ):
+            students_handler = self.students_menu_handler
+
+            return await students_handler.process_student_edit_email_message(
+                chat_id=chat_id,
+                email=text,
+                state_id=state['id'],
+                context_data=state['context_data'],
+                context=context,
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler._resend_student_edit_confirmation_message(
+                    chat_id=chat_id,
+                    context_data=state['context_data'],
+                )
             )
 
         if (
@@ -233,7 +330,7 @@ class TelegramWebhookService:
         ):
             students_handler = self.students_menu_handler
 
-            return await (
+            responsible_search_result = await (
                 students_handler.process_student_responsible_reference_search_message(
                     chat_id=chat_id,
                     search_text=text,
@@ -243,6 +340,8 @@ class TelegramWebhookService:
                 )
             )
 
+            return responsible_search_result
+
         if (
             state is not None
             and state['current_flow'] == TelegramFlow.STUDENT_CREATION
@@ -251,7 +350,7 @@ class TelegramWebhookService:
         ):
             students_handler = self.students_menu_handler
 
-            return await (
+            address_search_result = await (
                 students_handler.process_student_address_reference_search_message(
                     chat_id=chat_id,
                     search_text=text,
@@ -260,6 +359,8 @@ class TelegramWebhookService:
                     context=context,
                 )
             )
+
+            return address_search_result
 
         if (
             state is not None

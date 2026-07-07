@@ -47,6 +47,276 @@ def student_creation_cancel_reply_markup() -> dict[str, Any]:
     }
 
 
+def student_details_reply_markup(
+    student_id: int,
+) -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '💰 Ver mensalidades',
+                    'callback_data': f'students:payments:{student_id}',
+                },
+            ],
+            [
+                {
+                    'text': '✏️ Editar',
+                    'callback_data': f'students:edit:{student_id}',
+                },
+            ],
+            [
+                {
+                    'text': '🔙 Voltar ao menu',
+                    'callback_data': 'menu:students',
+                },
+            ],
+        ],
+    }
+
+
+def student_edit_menu_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '👤 Dados do aluno',
+                    'callback_data': 'students:edit:section:basic',
+                },
+            ],
+            [
+                {
+                    'text': '🏠 Endereço',
+                    'callback_data': 'students:edit:section:address',
+                },
+            ],
+            [
+                {
+                    'text': '👥 Responsáveis',
+                    'callback_data': 'students:edit:section:responsibles',
+                },
+            ],
+            [
+                {
+                    'text': '💰 Mensalidade',
+                    'callback_data': 'students:edit:section:monthly_fee',
+                },
+            ],
+            [
+                {
+                    'text': '📌 Status da matrícula',
+                    'callback_data': 'students:edit:section:status',
+                },
+            ],
+            [
+                {
+                    'text': '🔙 Voltar aos detalhes',
+                    'callback_data': 'students:edit:back:details',
+                },
+            ],
+        ],
+    }
+
+
+def student_edit_basic_data_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': 'Nome',
+                    'callback_data': 'students:edit:field:name',
+                },
+            ],
+            [
+                {
+                    'text': 'Modalidade',
+                    'callback_data': 'students:edit:field:modality',
+                },
+            ],
+            [
+                {
+                    'text': 'Sexo',
+                    'callback_data': 'students:edit:field:sex',
+                },
+            ],
+            [
+                {
+                    'text': 'CPF',
+                    'callback_data': 'students:edit:field:cpf',
+                },
+            ],
+            [
+                {
+                    'text': 'Instagram',
+                    'callback_data': 'students:edit:field:instagram',
+                },
+            ],
+            [
+                {
+                    'text': 'Data de nascimento',
+                    'callback_data': 'students:edit:field:birth_date',
+                },
+            ],
+            [
+                {
+                    'text': 'E-mail',
+                    'callback_data': 'students:edit:field:email',
+                },
+            ],
+            [
+                {
+                    'text': '🔙 Voltar para edição',
+                    'callback_data': 'students:edit:back:menu',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar edição',
+                    'callback_data': 'students:edit:cancel',
+                },
+            ],
+        ],
+    }
+
+
+def student_edit_prompt_reply_markup(
+    *,
+    remove_callback_data: str | None = None,
+) -> dict[str, Any]:
+    inline_keyboard: list[list[dict[str, str]]] = []
+
+    if remove_callback_data is not None:
+        inline_keyboard.append([
+            {
+                'text': '🧹 Remover informação',
+                'callback_data': remove_callback_data,
+            },
+        ])
+
+    inline_keyboard.append([
+        {
+            'text': '🔙 Voltar',
+            'callback_data': 'students:edit:back',
+        },
+    ])
+    inline_keyboard.append([
+        {
+            'text': '❌ Cancelar edição',
+            'callback_data': 'students:edit:cancel',
+        },
+    ])
+
+    return {
+        'inline_keyboard': inline_keyboard,
+    }
+
+
+def student_edit_confirmation_reply_markup(
+    *,
+    include_rewrite: bool = True,
+) -> dict[str, Any]:
+    inline_keyboard: list[list[dict[str, str]]] = [
+        [
+            {
+                'text': '✅ Confirmar alteração',
+                'callback_data': 'students:edit:confirm',
+            },
+        ],
+    ]
+
+    if include_rewrite:
+        inline_keyboard.append([
+            {
+                'text': '✏️ Reescrever',
+                'callback_data': 'students:edit:rewrite',
+            },
+        ])
+
+    inline_keyboard.append([
+        {
+            'text': '🔙 Voltar',
+            'callback_data': 'students:edit:back',
+        },
+    ])
+    inline_keyboard.append([
+        {
+            'text': '❌ Cancelar edição',
+            'callback_data': 'students:edit:cancel',
+        },
+    ])
+
+    return {
+        'inline_keyboard': inline_keyboard,
+    }
+
+
+def student_edit_modalities_reply_markup(
+    modalities: list[ModalityRead],
+) -> dict[str, Any]:
+    inline_keyboard: list[list[dict[str, str]]] = []
+
+    for modality in modalities:
+        inline_keyboard.append([
+            {
+                'text': modality.name,
+                'callback_data': f'students:edit:modality:{modality.id}',
+            },
+        ])
+
+    inline_keyboard.append([
+        {
+            'text': '🔙 Voltar',
+            'callback_data': 'students:edit:back',
+        },
+    ])
+    inline_keyboard.append([
+        {
+            'text': '❌ Cancelar edição',
+            'callback_data': 'students:edit:cancel',
+        },
+    ])
+
+    return {
+        'inline_keyboard': inline_keyboard,
+    }
+
+
+def student_edit_sex_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': 'Masculino',
+                    'callback_data': 'students:edit:sex:male',
+                },
+            ],
+            [
+                {
+                    'text': 'Feminino',
+                    'callback_data': 'students:edit:sex:female',
+                },
+            ],
+            [
+                {
+                    'text': 'Outros',
+                    'callback_data': 'students:edit:sex:other',
+                },
+            ],
+            [
+                {
+                    'text': '🔙 Voltar',
+                    'callback_data': 'students:edit:back',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar edição',
+                    'callback_data': 'students:edit:cancel',
+                },
+            ],
+        ]
+    }
+
+
 def student_modalities_reply_markup(
     modalities: list[ModalityRead],
 ) -> dict[str, Any]:
