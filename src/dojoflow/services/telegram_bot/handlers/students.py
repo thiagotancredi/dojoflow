@@ -19,6 +19,7 @@ from dojoflow.services.telegram_bot.menus.students import (
     student_edit_confirmation_reply_markup,
     student_edit_menu_reply_markup,
     student_edit_modalities_reply_markup,
+    student_edit_monthly_fee_reply_markup,
     student_edit_prompt_reply_markup,
     student_edit_sex_reply_markup,
     student_field_confirmation_reply_markup,
@@ -150,6 +151,14 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         if callback_data.startswith('students:edit:field:'):
             return await self._process_student_edit_field_selection(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+                context=context,
+            )
+
+        if callback_data.startswith('students:edit:monthly_fee:'):
+            return await self._process_student_edit_monthly_fee_selection(
                 chat_id=chat_id,
                 telegram_user_id=telegram_user_id,
                 callback_data=callback_data,
@@ -636,6 +645,28 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         return {'status': 'waiting_student_edit_basic_data'}
 
+    async def _show_student_edit_monthly_fee_menu(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_edit_context(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE_MENU,
+            context_data=self._clear_student_edit_pending(context_data),
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text='💰 Mensalidade\n\nEscolha o campo que deseja editar:',
+            reply_markup=student_edit_monthly_fee_reply_markup(),
+        )
+
+        return {'status': 'waiting_student_edit_monthly_fee_menu'}
+
     async def _process_student_edit_callback(  # noqa: PLR0911
         self,
         chat_id: int,
@@ -683,6 +714,16 @@ class StudentsMenuHandler:  # noqa: PLR0904
             return {'status': 'waiting_student_edit_menu'}
 
         if callback_data == STUDENT_EDIT_BACK_CALLBACK_DATA:
+            if self._should_show_student_edit_monthly_fee_menu(
+                state['current_step'],
+                context_data,
+            ):
+                return await self._show_student_edit_monthly_fee_menu(
+                    chat_id=chat_id,
+                    state_id=state['id'],
+                    context_data=context_data,
+                )
+
             return await self._show_student_edit_basic_data_menu(
                 chat_id=chat_id,
                 state_id=state['id'],
@@ -715,6 +756,13 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         if callback_data == 'students:edit:section:basic':
             return await self._show_student_edit_basic_data_menu(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+            )
+
+        if callback_data == 'students:edit:section:monthly_fee':
+            return await self._show_student_edit_monthly_fee_menu(
                 chat_id=chat_id,
                 state_id=state['id'],
                 context_data=context_data,
@@ -874,6 +922,68 @@ class StudentsMenuHandler:  # noqa: PLR0904
         await self.send_menu(chat_id)
 
         return {'status': 'invalid_student_edit_field'}
+
+    async def _process_student_edit_monthly_fee_selection(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        field = callback_data.removeprefix('students:edit:monthly_fee:')
+        state = await self._get_student_edit_state(
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+        )
+
+        if state is None:
+            return {'status': 'student_edit_state_not_found'}
+
+        student_id = self._get_student_id_from_state(state)
+
+        if student_id is None:
+            await self.send_menu(chat_id)
+
+            return {'status': 'student_edit_student_not_found'}
+
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=student_id,
+        )
+        enrollment = self._get_student_current_enrollment(details)
+        context_data = self._clear_student_edit_pending(
+            dict(state['context_data'])
+        )
+
+        if field == 'monthly_fee':
+            return await self._ask_student_edit_text_field(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                next_step=TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE,
+                text=(
+                    'Valor atual:\n'
+                    f'{self._format_edit_monthly_fee(enrollment.get("monthly_fee"))}\n\n'
+                    'Digite o novo valor da mensalidade.'
+                ),
+            )
+
+        if field == 'due_day':
+            return await self._ask_student_edit_text_field(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                next_step=TelegramStep.WAITING_STUDENT_EDIT_DUE_DAY,
+                text=(
+                    'Dia de vencimento atual:\n'
+                    f'{self._format_edit_due_day(enrollment.get("due_day"))}\n\n'
+                    'Digite o novo dia de vencimento.'
+                ),
+            )
+
+        await self.send_menu(chat_id)
+
+        return {'status': 'invalid_student_edit_monthly_fee_field'}
 
     async def _ask_student_edit_text_field(  # noqa: PLR0913, PLR0917
         self,
@@ -1137,6 +1247,108 @@ class StudentsMenuHandler:  # noqa: PLR0904
             prompt_reply_markup=student_edit_prompt_reply_markup(
                 remove_callback_data='students:edit:remove:email'
             ),
+        )
+
+    async def process_student_edit_monthly_fee_message(
+        self,
+        chat_id: int,
+        monthly_fee_text: str,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        monthly_fee = self._parse_monthly_fee(monthly_fee_text)
+
+        if monthly_fee is None:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Valor de mensalidade inválido.\n\n'
+                    'Digite apenas o valor.\n\n'
+                    'Exemplo:\n'
+                    '125\n'
+                    'ou\n'
+                    '100,50'
+                ),
+                reply_markup=student_edit_prompt_reply_markup(),
+            )
+
+            return {'status': 'invalid_student_edit_monthly_fee'}
+
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=int(context_data['student_id']),
+        )
+        enrollment = self._get_student_current_enrollment(details)
+
+        return await self._request_student_edit_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE,
+            field='monthly_fee',
+            field_label='Valor da mensalidade',
+            current_display=self._format_edit_monthly_fee(
+                enrollment.get('monthly_fee')
+            ),
+            value=str(monthly_fee),
+            new_display=self._format_edit_monthly_fee(monthly_fee),
+            prompt_text=(
+                'Valor atual:\n'
+                f'{self._format_edit_monthly_fee(enrollment.get("monthly_fee"))}\n\n'
+                'Digite o novo valor da mensalidade.'
+            ),
+            prompt_reply_markup=student_edit_prompt_reply_markup(),
+        )
+
+    async def process_student_edit_due_day_message(
+        self,
+        chat_id: int,
+        due_day_text: str,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        due_day = self._parse_due_day(due_day_text)
+
+        if due_day is None:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Dia de vencimento inválido.\n\n'
+                    'Digite um dia entre 1 e 28.\n\n'
+                    'Exemplo:\n'
+                    '10'
+                ),
+                reply_markup=student_edit_prompt_reply_markup(),
+            )
+
+            return {'status': 'invalid_student_edit_due_day'}
+
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=int(context_data['student_id']),
+        )
+        enrollment = self._get_student_current_enrollment(details)
+
+        return await self._request_student_edit_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_EDIT_DUE_DAY,
+            field='due_day',
+            field_label='Dia de vencimento',
+            current_display=self._format_edit_due_day(
+                enrollment.get('due_day')
+            ),
+            value=due_day,
+            new_display=str(due_day),
+            prompt_text=(
+                'Dia de vencimento atual:\n'
+                f'{self._format_edit_due_day(enrollment.get("due_day"))}\n\n'
+                'Digite o novo dia de vencimento.'
+            ),
+            prompt_reply_markup=student_edit_prompt_reply_markup(),
         )
 
     async def _request_student_edit_confirmation(  # noqa: PLR0913, PLR0917
@@ -1420,6 +1632,14 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 student_id=student_id,
                 modality_id=int(pending_edit['value']),
             )
+        elif field in {'monthly_fee', 'due_day'}:
+            await self.student_service.update_enrollment(
+                academy_id=context.academy_id,
+                student_id=student_id,
+                data={
+                    field: pending_edit.get('value'),
+                },
+            )
         else:
             await self.student_service.update_basic_data(
                 academy_id=context.academy_id,
@@ -1610,6 +1830,28 @@ class StudentsMenuHandler:  # noqa: PLR0904
         return f'@{str(instagram).lstrip("@")}'
 
     @staticmethod
+    def _format_edit_monthly_fee(
+        monthly_fee: Any,
+    ) -> str:
+        if monthly_fee in {None, ''}:
+            return 'Não informado'
+
+        normalized_monthly_fee = Decimal(str(monthly_fee)).quantize(
+            MONEY_DECIMAL_PLACES
+        )
+
+        return f'R$ {normalized_monthly_fee}'.replace('.', ',')
+
+    @staticmethod
+    def _format_edit_due_day(
+        due_day: Any,
+    ) -> str:
+        if due_day in {None, ''}:
+            return 'Não informado'
+
+        return str(due_day)
+
+    @staticmethod
     def _build_student_edit_update_confirmation_text(
         *,
         field_label: str,
@@ -1682,6 +1924,12 @@ class StudentsMenuHandler:  # noqa: PLR0904
             TelegramStep.WAITING_STUDENT_EDIT_EMAIL: (
                 'waiting_student_edit_email'
             ),
+            TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE: (
+                'waiting_student_edit_monthly_fee'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_DUE_DAY: (
+                'waiting_student_edit_due_day'
+            ),
         }
 
         return statuses.get(step, 'waiting_student_edit')
@@ -1716,6 +1964,76 @@ class StudentsMenuHandler:  # noqa: PLR0904
             )
 
         return str(student.get(field) or 'Não informado')
+
+    @staticmethod
+    def _should_show_student_edit_monthly_fee_menu(
+        current_step: TelegramStep,
+        context_data: dict[str, Any],
+    ) -> bool:
+        if current_step in {
+            TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE_MENU,
+            TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE,
+            TelegramStep.WAITING_STUDENT_EDIT_DUE_DAY,
+        }:
+            return True
+
+        if current_step != TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION:
+            return False
+
+        pending_edit = context_data.get(STUDENT_EDIT_PENDING_KEY)
+
+        if not isinstance(pending_edit, dict):
+            return False
+
+        source_step = StudentsMenuHandler._get_student_edit_source_step(
+            pending_edit
+        )
+
+        return source_step in {
+            TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE,
+            TelegramStep.WAITING_STUDENT_EDIT_DUE_DAY,
+        }
+
+    @staticmethod
+    def _get_student_current_enrollment(
+        details: dict[str, Any],
+    ) -> dict[str, Any]:
+        enrollments = details.get('enrollments', [])
+
+        if not enrollments:
+            return {}
+
+        return dict(enrollments[0])
+
+    @staticmethod
+    def _parse_monthly_fee(
+        monthly_fee_text: str,
+    ) -> Decimal | None:
+        normalized_monthly_fee = monthly_fee_text.strip().replace(',', '.')
+
+        try:
+            monthly_fee = Decimal(normalized_monthly_fee)
+        except InvalidOperation:
+            return None
+
+        if monthly_fee <= MIN_MONTHLY_FEE:
+            return None
+
+        return monthly_fee.quantize(MONEY_DECIMAL_PLACES)
+
+    @staticmethod
+    def _parse_due_day(
+        due_day_text: str,
+    ) -> int | None:
+        try:
+            due_day = int(due_day_text.strip())
+        except ValueError:
+            return None
+
+        if not MIN_DUE_DAY <= due_day <= MAX_DUE_DAY:
+            return None
+
+        return due_day
 
     async def _request_field_confirmation(  # noqa: PLR0913, PLR0917
         self,
@@ -4320,21 +4638,12 @@ class StudentsMenuHandler:  # noqa: PLR0904
         state_id: int,
         context_data: dict[str, Any],
     ) -> dict[str, str]:
-        normalized_monthly_fee = monthly_fee_text.strip().replace(',', '.')
+        monthly_fee = self._parse_monthly_fee(monthly_fee_text)
 
-        try:
-            monthly_fee = Decimal(normalized_monthly_fee)
-        except InvalidOperation:
+        if monthly_fee is None:
             await self._send_invalid_monthly_fee_message(chat_id)
 
             return {'status': 'invalid_student_monthly_fee'}
-
-        if monthly_fee <= MIN_MONTHLY_FEE:
-            await self._send_invalid_monthly_fee_message(chat_id)
-
-            return {'status': 'invalid_student_monthly_fee'}
-
-        monthly_fee = monthly_fee.quantize(MONEY_DECIMAL_PLACES)
 
         return await self._request_field_confirmation(
             chat_id=chat_id,
@@ -4406,14 +4715,9 @@ class StudentsMenuHandler:  # noqa: PLR0904
         state_id: int,
         context_data: dict[str, Any],
     ) -> dict[str, str]:
-        try:
-            due_day = int(due_day_text.strip())
-        except ValueError:
-            await self._send_invalid_due_day_message(chat_id)
+        due_day = self._parse_due_day(due_day_text)
 
-            return {'status': 'invalid_student_due_day'}
-
-        if not MIN_DUE_DAY <= due_day <= MAX_DUE_DAY:
+        if due_day is None:
             await self._send_invalid_due_day_message(chat_id)
 
             return {'status': 'invalid_student_due_day'}

@@ -15,7 +15,14 @@ DUE_DAY = 7
 ACADEMY_ID = 99
 TELEGRAM_USER_ID = 321
 EXPECTED_ADDRESS_REUSE_MESSAGES = 2
+UPDATED_DUE_DAY = 15
 NAME_EDIT_PROMPT = 'Nome atual:\nThiago\n\nDigite o novo nome do aluno.'
+MONTHLY_FEE_EDIT_PROMPT = (
+    'Valor atual:\nR$ 250,00\n\nDigite o novo valor da mensalidade.'
+)
+DUE_DAY_EDIT_PROMPT = (
+    'Dia de vencimento atual:\n7\n\nDigite o novo dia de vencimento.'
+)
 
 
 def extract_button_texts(
@@ -46,6 +53,8 @@ def make_student_details(  # noqa: PLR0913
     instagram: str | None = 'thiago',
     birth_date: str | None = '1990-01-24',
     email: str | None = 'thiago@example.com',
+    monthly_fee: str = '250.00',
+    due_day: int = 7,
 ) -> dict[str, Any]:
     return {
         'student': {
@@ -63,8 +72,8 @@ def make_student_details(  # noqa: PLR0913
             {
                 'enrollment_id': 10,
                 'status': 'active',
-                'monthly_fee': '250.00',
-                'due_day': 7,
+                'monthly_fee': monthly_fee,
+                'due_day': due_day,
                 'is_exempt': False,
                 'modality_name': modality_name,
             }
@@ -1434,12 +1443,45 @@ async def test_student_edit_basic_data_menu_lists_editable_fields() -> None:
 
 
 @pytest.mark.asyncio
+async def test_student_edit_monthly_fee_menu_lists_editable_fields() -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(step=TelegramStep.WAITING_STUDENT_EDIT_MENU)
+    )
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=AsyncMock(),
+        cep_service=AsyncMock(),
+    )
+
+    result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:section:monthly_fee',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert result == {'status': 'waiting_student_edit_monthly_fee_menu'}
+    assert extract_button_texts(
+        telegram_service.send_message.await_args.kwargs['reply_markup']
+    ) == [
+        'Valor da mensalidade',
+        'Dia de vencimento',
+        '🔙 Voltar para edição',
+        '❌ Cancelar edição',
+    ]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     'callback_data',
     [
         'students:edit:section:address',
         'students:edit:section:responsibles',
-        'students:edit:section:monthly_fee',
         'students:edit:section:status',
     ],
 )
@@ -1634,6 +1676,353 @@ async def test_student_edit_name_rewrite_keeps_same_field_and_uses_second_value(
 
 
 @pytest.mark.asyncio
+async def test_student_edit_monthly_fee_confirm_updates_enrollment_and_returns_details(  # noqa: E501
+) -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.side_effect = [
+        make_student_details(monthly_fee='250.00'),
+        make_student_details(monthly_fee='250.00'),
+        make_student_details(monthly_fee='180.00'),
+    ]
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE_MENU,
+        )
+    )
+
+    prompt_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:monthly_fee:monthly_fee',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert prompt_result == {'status': 'waiting_student_edit_monthly_fee'}
+
+    confirm_result = await handler.process_student_edit_monthly_fee_message(
+        chat_id=CHAT_ID,
+        monthly_fee_text='180,00',
+        state_id=STATE_ID,
+        context_data={'student_id': 1},
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert confirm_result == {'status': 'waiting_student_edit_confirmation'}
+
+    pending_edit = state_service.update_student_edit_context.await_args.kwargs[
+        'context_data'
+    ]['pending_student_edit']
+    assert pending_edit['value'] == '180.00'
+    assert pending_edit['current_display'] == 'R$ 250,00'
+    assert pending_edit['new_display'] == 'R$ 180,00'
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data={
+                'pending_student_edit': pending_edit,
+            },
+        )
+    )
+
+    saved_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:confirm',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert saved_result == {'status': 'student_edit_saved'}
+    student_service.update_enrollment.assert_awaited_once_with(
+        academy_id=ACADEMY_ID,
+        student_id=1,
+        data={'monthly_fee': '180.00'},
+    )
+    assert telegram_service.send_message.await_args_list[2].kwargs['text'] == (
+        'Alteração salva com sucesso! ✅'
+    )
+    assert (
+        'Valor: R$ 180.00'
+        in telegram_service.send_message.await_args_list[3].kwargs['text']
+    )
+
+
+@pytest.mark.asyncio
+async def test_student_edit_monthly_fee_rewrite_keeps_same_field_and_uses_second_value(  # noqa: E501
+) -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.side_effect = [
+        make_student_details(monthly_fee='250.00'),
+        make_student_details(monthly_fee='250.00'),
+        make_student_details(monthly_fee='250.00'),
+    ]
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    first_confirmation = (
+        await handler.process_student_edit_monthly_fee_message(
+            chat_id=CHAT_ID,
+            monthly_fee_text='180',
+            state_id=STATE_ID,
+            context_data={'student_id': 1},
+            context=SimpleNamespace(academy_id=ACADEMY_ID),
+        )
+    )
+
+    assert first_confirmation == {
+        'status': 'waiting_student_edit_confirmation'
+    }
+
+    pending_edit = state_service.update_student_edit_context.await_args.kwargs[
+        'context_data'
+    ]['pending_student_edit']
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data={
+                'pending_student_edit': pending_edit,
+            },
+        )
+    )
+
+    rewrite_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:rewrite',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert rewrite_result == {'status': 'waiting_student_edit_monthly_fee'}
+    assert telegram_service.send_message.await_args.kwargs['text'] == (
+        MONTHLY_FEE_EDIT_PROMPT
+    )
+
+    second_confirmation = (
+        await handler.process_student_edit_monthly_fee_message(
+            chat_id=CHAT_ID,
+            monthly_fee_text='190.50',
+            state_id=STATE_ID,
+            context_data={'student_id': 1},
+            context=SimpleNamespace(academy_id=ACADEMY_ID),
+        )
+    )
+
+    assert second_confirmation == {
+        'status': 'waiting_student_edit_confirmation'
+    }
+
+    second_pending = (
+        state_service.update_student_edit_context.await_args.kwargs[
+            'context_data'
+        ]['pending_student_edit']
+    )
+    assert second_pending['new_display'] == 'R$ 190,50'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('monthly_fee_text', ['abc', '0'])
+async def test_student_edit_monthly_fee_invalid_value_keeps_same_field(
+    monthly_fee_text: str,
+) -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    result = await handler.process_student_edit_monthly_fee_message(
+        chat_id=CHAT_ID,
+        monthly_fee_text=monthly_fee_text,
+        state_id=STATE_ID,
+        context_data={'student_id': 1},
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert result == {'status': 'invalid_student_edit_monthly_fee'}
+    state_service.update_student_edit_context.assert_not_awaited()
+    student_service.update_enrollment.assert_not_awaited()
+    assert 'Valor de mensalidade inválido.' in (
+        telegram_service.send_message.await_args.kwargs['text']
+    )
+
+
+@pytest.mark.asyncio
+async def test_student_edit_due_day_confirm_updates_enrollment_and_returns_details(  # noqa: E501
+) -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.side_effect = [
+        make_student_details(due_day=7),
+        make_student_details(due_day=UPDATED_DUE_DAY),
+    ]
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    confirm_result = await handler.process_student_edit_due_day_message(
+        chat_id=CHAT_ID,
+        due_day_text=str(UPDATED_DUE_DAY),
+        state_id=STATE_ID,
+        context_data={'student_id': 1},
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert confirm_result == {'status': 'waiting_student_edit_confirmation'}
+
+    pending_edit = state_service.update_student_edit_context.await_args.kwargs[
+        'context_data'
+    ]['pending_student_edit']
+    assert pending_edit['value'] == UPDATED_DUE_DAY
+    assert pending_edit['current_display'] == '7'
+    assert pending_edit['new_display'] == str(UPDATED_DUE_DAY)
+
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data={
+                'pending_student_edit': pending_edit,
+            },
+        )
+    )
+
+    saved_result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:confirm',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert saved_result == {'status': 'student_edit_saved'}
+    student_service.update_enrollment.assert_awaited_once_with(
+        academy_id=ACADEMY_ID,
+        student_id=1,
+        data={'due_day': UPDATED_DUE_DAY},
+    )
+    assert (
+        f'Vencimento: dia {UPDATED_DUE_DAY}'
+        in telegram_service.send_message.await_args_list[2].kwargs['text']
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('due_day_text', ['0', '29', 'abc'])
+async def test_student_edit_due_day_invalid_value_keeps_same_field(
+    due_day_text: str,
+) -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    result = await handler.process_student_edit_due_day_message(
+        chat_id=CHAT_ID,
+        due_day_text=due_day_text,
+        state_id=STATE_ID,
+        context_data={'student_id': 1},
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert result == {'status': 'invalid_student_edit_due_day'}
+    state_service.update_student_edit_context.assert_not_awaited()
+    student_service.update_enrollment.assert_not_awaited()
+    assert 'Dia de vencimento inválido.' in (
+        telegram_service.send_message.await_args.kwargs['text']
+    )
+
+
+@pytest.mark.asyncio
+async def test_student_edit_monthly_fee_cancel_returns_to_details_without_changes(  # noqa: E501
+) -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.return_value = make_student_details(
+        monthly_fee='250.00'
+    )
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data={
+                'pending_student_edit': {
+                    'action': 'update',
+                    'source_step': (
+                        TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE.value
+                    ),
+                    'field': 'monthly_fee',
+                    'field_label': 'Valor da mensalidade',
+                    'current_display': 'R$ 250,00',
+                    'value': '180.00',
+                    'new_display': 'R$ 180,00',
+                    'prompt_text': MONTHLY_FEE_EDIT_PROMPT,
+                    'prompt_reply_markup': {'inline_keyboard': []},
+                },
+            },
+        )
+    )
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+
+    result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:cancel',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert result == {'status': 'student_edit_cancelled'}
+    student_service.update_enrollment.assert_not_awaited()
+    assert (
+        'Valor: R$ 250.00'
+        in telegram_service.send_message.await_args.kwargs['text']
+    )
+
+
+@pytest.mark.asyncio
 async def test_student_edit_cancel_returns_to_details_without_changes() -> (
     None
 ):
@@ -1698,7 +2087,17 @@ async def test_student_edit_cancel_returns_to_details_without_changes() -> (
             '👤 Dados do aluno',
         ),
         (
+            TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE,
+            'students:edit:back',
+            '💰 Mensalidade',
+        ),
+        (
             TelegramStep.WAITING_STUDENT_EDIT_BASIC_DATA,
+            'students:edit:back:menu',
+            '✏️ Editar aluno',
+        ),
+        (
+            TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE_MENU,
             'students:edit:back:menu',
             '✏️ Editar aluno',
         ),
@@ -1733,6 +2132,53 @@ async def test_student_edit_back_returns_to_previous_menu(
     assert (
         expected_text
         in telegram_service.send_message.await_args.kwargs['text']
+    )
+
+
+@pytest.mark.asyncio
+async def test_student_edit_back_from_monthly_fee_confirmation_returns_to_monthly_fee_menu(  # noqa: E501
+) -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data={
+                'pending_student_edit': {
+                    'action': 'update',
+                    'source_step': (
+                        TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE.value
+                    ),
+                    'field': 'monthly_fee',
+                    'field_label': 'Valor da mensalidade',
+                    'current_display': 'R$ 250,00',
+                    'value': '180.00',
+                    'new_display': 'R$ 180,00',
+                    'prompt_text': MONTHLY_FEE_EDIT_PROMPT,
+                    'prompt_reply_markup': {'inline_keyboard': []},
+                },
+            },
+        )
+    )
+
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=AsyncMock(),
+        cep_service=AsyncMock(),
+    )
+
+    result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:back',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert result == {'status': 'waiting_student_edit_monthly_fee_menu'}
+    assert telegram_service.send_message.await_args.kwargs['text'] == (
+        '💰 Mensalidade\n\nEscolha o campo que deseja editar:'
     )
 
 

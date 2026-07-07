@@ -218,6 +218,40 @@ class TelegramWebhookService:
             state is not None
             and state['current_flow'] == TelegramFlow.STUDENT_EDIT
             and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE
+        ):
+            students_handler = self.students_menu_handler
+
+            return await (
+                students_handler.process_student_edit_monthly_fee_message(
+                    chat_id=chat_id,
+                    monthly_fee_text=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                    context=context,
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_DUE_DAY
+        ):
+            students_handler = self.students_menu_handler
+
+            return await students_handler.process_student_edit_due_day_message(
+                chat_id=chat_id,
+                due_day_text=text,
+                state_id=state['id'],
+                context_data=state['context_data'],
+                context=context,
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
             == TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION
         ):
             students_handler = self.students_menu_handler

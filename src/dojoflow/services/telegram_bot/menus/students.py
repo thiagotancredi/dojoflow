@@ -178,6 +178,37 @@ def student_edit_basic_data_reply_markup() -> dict[str, Any]:
     }
 
 
+def student_edit_monthly_fee_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': 'Valor da mensalidade',
+                    'callback_data': 'students:edit:monthly_fee:monthly_fee',
+                },
+            ],
+            [
+                {
+                    'text': 'Dia de vencimento',
+                    'callback_data': 'students:edit:monthly_fee:due_day',
+                },
+            ],
+            [
+                {
+                    'text': '🔙 Voltar para edição',
+                    'callback_data': 'students:edit:back:menu',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar edição',
+                    'callback_data': 'students:edit:cancel',
+                },
+            ],
+        ],
+    }
+
+
 def student_edit_prompt_reply_markup(
     *,
     remove_callback_data: str | None = None,

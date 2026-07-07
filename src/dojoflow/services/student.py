@@ -251,6 +251,39 @@ class StudentService:
             },
         )
 
+    @transactional
+    async def update_enrollment(
+        self,
+        academy_id: int,
+        student_id: int,
+        data: dict[str, Any],
+    ) -> None:
+        enrollments = await self.enrollment_repository.list(
+            fields=[Enrollment.id],
+            filters=[
+                Enrollment.academy_id == academy_id,
+                Enrollment.student_id == student_id,
+            ],
+            order_by=[Enrollment.id],
+            limit=1,
+        )
+
+        if not enrollments:
+            raise NotFoundError(
+                f'Could not find Enrollment for student id {student_id}.'
+            )
+
+        update_data = dict(data)
+        monthly_fee = update_data.get('monthly_fee')
+
+        if monthly_fee is not None:
+            update_data['monthly_fee'] = Decimal(str(monthly_fee))
+
+        await self.enrollment_repository.update_by_id(
+            record_id=enrollments[0]['id'],
+            data=update_data,
+        )
+
     async def _get_student_address(
         self,
         academy_id: int,

@@ -67,6 +67,9 @@ class TelegramStep(StrEnum):
 
     WAITING_STUDENT_EDIT_MENU = 'waiting_student_edit_menu'
     WAITING_STUDENT_EDIT_BASIC_DATA = 'waiting_student_edit_basic_data'
+    WAITING_STUDENT_EDIT_MONTHLY_FEE_MENU = (
+        'waiting_student_edit_monthly_fee_menu'
+    )
     WAITING_STUDENT_EDIT_NAME = 'waiting_student_edit_name'
     WAITING_STUDENT_EDIT_MODALITY = 'waiting_student_edit_modality'
     WAITING_STUDENT_EDIT_SEX = 'waiting_student_edit_sex'
@@ -74,6 +77,10 @@ class TelegramStep(StrEnum):
     WAITING_STUDENT_EDIT_INSTAGRAM = 'waiting_student_edit_instagram'
     WAITING_STUDENT_EDIT_BIRTH_DATE = 'waiting_student_edit_birth_date'
     WAITING_STUDENT_EDIT_EMAIL = 'waiting_student_edit_email'
+    WAITING_STUDENT_EDIT_MONTHLY_FEE = (
+        'waiting_student_edit_monthly_fee'
+    )
+    WAITING_STUDENT_EDIT_DUE_DAY = 'waiting_student_edit_due_day'
     WAITING_STUDENT_EDIT_CONFIRMATION = (
         'waiting_student_edit_confirmation'
     )
