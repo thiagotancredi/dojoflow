@@ -26,7 +26,12 @@ from dojoflow.services.telegram_bot.menus.students import (
     student_edit_monthly_fee_reply_markup,
     student_edit_optional_field_reply_markup,
     student_edit_prompt_reply_markup,
+    student_edit_responsible_reference_search_actions_rows,
+    student_edit_responsible_relationship_reply_markup,
+    student_edit_responsible_whatsapp_reply_markup,
+    student_edit_responsibles_reply_markup,
     student_edit_sex_reply_markup,
+    student_edit_skip_field_reply_markup,
     student_field_confirmation_reply_markup,
     student_modalities_reply_markup,
     student_responsible_choice_reply_markup,
@@ -72,9 +77,18 @@ STUDENT_EDIT_BACK_CALLBACK_DATA = 'students:edit:back'
 STUDENT_EDIT_CANCEL_CALLBACK_DATA = 'students:edit:cancel'
 STUDENT_EDIT_FIELD_CONFIRM_CALLBACK_DATA = 'students:edit:field:confirm'
 STUDENT_EDIT_FIELD_REWRITE_CALLBACK_DATA = 'students:edit:field:rewrite'
-STUDENT_EDIT_FIELD_CONFIRMATION_KEY = (
-    'pending_student_edit_field_confirmation'
+STUDENT_EDIT_FIELD_CONFIRMATION_KEY = 'pending_student_edit_field_confirmation'
+STUDENT_EDIT_RESPONSIBLE_KEY = 'edit_responsible'
+STUDENT_EDIT_RESPONSIBLE_REFERENCE_STUDENT_ID_KEY = (
+    'edit_responsible_reference_student_id'
 )
+STUDENT_EDIT_RESPONSIBLE_REFERENCE_STUDENT_NAME_KEY = (
+    'edit_responsible_reference_student_name'
+)
+STUDENT_EDIT_RESPONSIBLE_REFERENCE_DETAILS_KEY = (
+    'edit_responsible_reference_details'
+)
+STUDENT_EDIT_RESPONSIBLE_REMOVE_KEY = 'edit_responsible_to_remove'
 
 
 class StudentsMenuHandler:  # noqa: PLR0904
@@ -210,6 +224,14 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         if callback_data.startswith('students:edit:sex:'):
             return await self._process_student_edit_sex_choice(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+                context=context,
+            )
+
+        if callback_data.startswith('students:edit:responsibles:'):
+            return await self._process_student_edit_callback(
                 chat_id=chat_id,
                 telegram_user_id=telegram_user_id,
                 callback_data=callback_data,
@@ -722,6 +744,55 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         return {'status': 'waiting_student_edit_address_menu'}
 
+    async def _show_student_edit_responsibles_menu(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        student_id = int(context_data['student_id'])
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=student_id,
+        )
+        responsibles = details.get('responsibles', [])
+
+        updated_context_data = self._clear_student_edit_pending(context_data)
+        updated_context_data = self._clear_student_edit_responsible_context(
+            updated_context_data
+        )
+
+        await self._update_student_edit_state(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLES_MENU,
+            context_data=updated_context_data,
+        )
+
+        if responsibles:
+            text = (
+                '👥 Responsáveis\n\n'
+                'Responsáveis atuais:\n'
+                f'{self._format_responsibles_for_edit_menu(responsibles)}\n\n'
+                'O que deseja fazer?'
+            )
+        else:
+            text = (
+                '👥 Responsáveis\n\n'
+                'Este aluno ainda não possui responsável informado.\n\n'
+                'O que deseja fazer?'
+            )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=text,
+            reply_markup=student_edit_responsibles_reply_markup(
+                has_responsibles=bool(responsibles)
+            ),
+        )
+
+        return {'status': 'waiting_student_edit_responsibles_menu'}
+
     async def _show_student_edit_monthly_fee_menu(
         self,
         chat_id: int,
@@ -802,6 +873,17 @@ class StudentsMenuHandler:  # noqa: PLR0904
                     context=context,
                 )
 
+            if self._should_show_student_edit_responsibles_menu(
+                state['current_step'],
+                context_data,
+            ):
+                return await self._show_student_edit_responsibles_menu(
+                    chat_id=chat_id,
+                    state_id=state['id'],
+                    context_data=context_data,
+                    context=context,
+                )
+
             if self._should_show_student_edit_monthly_fee_menu(
                 state['current_step'],
                 context_data,
@@ -847,6 +929,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 chat_id=chat_id,
                 state_id=state['id'],
                 context_data=context_data,
+                context=context,
             )
 
         if callback_data == STUDENT_EDIT_FIELD_REWRITE_CALLBACK_DATA:
@@ -871,11 +954,27 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 context=context,
             )
 
+        if callback_data == 'students:edit:section:responsibles':
+            return await self._show_student_edit_responsibles_menu(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                context=context,
+            )
+
         if callback_data == 'students:edit:section:monthly_fee':
             return await self._show_student_edit_monthly_fee_menu(
                 chat_id=chat_id,
                 state_id=state['id'],
                 context_data=context_data,
+            )
+
+        if callback_data.startswith('students:edit:responsibles:'):
+            return await self._process_student_edit_responsibles_callback(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                callback_data=callback_data,
+                context=context,
             )
 
         if callback_data.startswith('students:edit:address:'):
@@ -1232,6 +1331,901 @@ class StudentsMenuHandler:  # noqa: PLR0904
         await self.send_menu(chat_id)
 
         return {'status': 'invalid_student_edit_address_action'}
+
+    async def _process_student_edit_responsibles_callback(  # noqa: PLR0911, PLR0912
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        state = await self._get_student_edit_state(
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+        )
+
+        if state is None:
+            return {'status': 'student_edit_state_not_found'}
+
+        context_data = dict(state['context_data'])
+
+        if callback_data == 'students:edit:responsibles:new':
+            updated_context_data = (
+                self._clear_student_edit_responsible_context(context_data)
+            )
+
+            await self._update_student_edit_state(
+                state_id=state['id'],
+                next_step=(
+                    TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_RELATIONSHIP
+                ),
+                context_data=updated_context_data,
+            )
+
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    '👥 Responsável\n\n'
+                    'Qual é o parentesco do responsável com o aluno?'
+                ),
+                reply_markup=(
+                    student_edit_responsible_relationship_reply_markup()
+                ),
+            )
+
+            return {'status': 'waiting_student_edit_responsible_relationship'}
+
+        if callback_data == 'students:edit:responsibles:reuse':
+            updated_context_data = (
+                self._clear_student_edit_responsible_context(context_data)
+            )
+
+            return (
+                await self._prompt_student_edit_responsible_reference_search(
+                    chat_id=chat_id,
+                    state_id=state['id'],
+                    context_data=updated_context_data,
+                )
+            )
+
+        if callback_data == 'students:edit:responsibles:search_again':
+            updated_context_data = (
+                self._clear_student_edit_responsible_context(context_data)
+            )
+
+            return (
+                await self._prompt_student_edit_responsible_reference_search(
+                    chat_id=chat_id,
+                    state_id=state['id'],
+                    context_data=updated_context_data,
+                )
+            )
+
+        if callback_data == 'students:edit:responsibles:back':
+            return await self._show_student_edit_responsibles_menu(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                context=context,
+            )
+
+        if callback_data == 'students:edit:responsibles:remove':
+            student_id = self._get_student_id_from_state(state)
+
+            if student_id is None:
+                await self.send_menu(chat_id)
+                return {'status': 'student_edit_student_not_found'}
+
+            details = await self.student_service.get_details(
+                academy_id=context.academy_id,
+                student_id=student_id,
+            )
+            responsibles = details.get('responsibles', [])
+
+            if not responsibles:
+                return await self._show_student_edit_responsibles_menu(
+                    chat_id=chat_id,
+                    state_id=state['id'],
+                    context_data=context_data,
+                    context=context,
+                )
+
+            updated_context_data = (
+                self._clear_student_edit_responsible_context(context_data)
+            )
+
+            await self._update_student_edit_state(
+                state_id=state['id'],
+                next_step=(
+                    TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_REMOVE_SELECTION
+                ),
+                context_data=updated_context_data,
+            )
+
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text='Escolha o responsável que deseja remover.',
+                reply_markup={
+                    'inline_keyboard': (
+                        self._build_student_edit_responsible_remove_keyboard(
+                            responsibles
+                        )
+                    ),
+                },
+            )
+
+            return {
+                'status': 'waiting_student_edit_responsible_remove_selection'
+            }
+
+        if callback_data == 'students:edit:responsibles:skip_email':
+            return await self._skip_student_edit_responsible_email(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                context=context,
+            )
+
+        if callback_data.startswith(
+            'students:edit:responsibles:relationship:'
+        ):
+            return await (
+                self._process_student_edit_responsible_relationship_choice(
+                    chat_id=chat_id,
+                    state_id=state['id'],
+                    context_data=context_data,
+                    callback_data=callback_data,
+                )
+            )
+
+        if callback_data.startswith('students:edit:responsibles:whatsapp:'):
+            return (
+                await self._process_student_edit_responsible_whatsapp_choice(
+                    chat_id=chat_id,
+                    state_id=state['id'],
+                    context_data=context_data,
+                    callback_data=callback_data,
+                )
+            )
+
+        if callback_data.startswith(
+            'students:edit:responsibles:reference_student:'
+        ):
+            process_reference_student = self._process_student_edit_responsible_reference_student_selected  # noqa: E501
+
+            return await process_reference_student(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=context_data,
+                callback_data=callback_data,
+                context=context,
+            )
+
+        if callback_data.startswith(
+            'students:edit:responsibles:reference_responsible:'
+        ):
+            return await (
+                self._process_student_edit_responsible_reference_selected(
+                    chat_id=chat_id,
+                    state_id=state['id'],
+                    context_data=context_data,
+                    callback_data=callback_data,
+                    context=context,
+                )
+            )
+
+        if callback_data.startswith(
+            'students:edit:responsibles:remove_select:'
+        ):
+            return (
+                await self._process_student_edit_responsible_remove_selected(
+                    chat_id=chat_id,
+                    state_id=state['id'],
+                    context_data=context_data,
+                    callback_data=callback_data,
+                    context=context,
+                )
+            )
+
+        await self.send_menu(chat_id)
+
+        return {'status': 'invalid_student_edit_responsibles_action'}
+
+    async def _process_student_edit_responsible_relationship_choice(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        callback_data: str,
+    ) -> dict[str, str]:
+        relationship = callback_data.removeprefix(
+            'students:edit:responsibles:relationship:'
+        )
+        updated_context_data = dict(context_data)
+        updated_context_data[STUDENT_EDIT_RESPONSIBLE_KEY] = {
+            'relationship': relationship,
+        }
+
+        await self._update_student_edit_state(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_NAME,
+            context_data=updated_context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text='👥 Responsável\n\nDigite o nome completo do responsável.',
+            reply_markup=student_edit_prompt_reply_markup(),
+        )
+
+        return {'status': 'waiting_student_edit_responsible_name'}
+
+    async def process_student_edit_responsible_name_message(
+        self,
+        chat_id: int,
+        responsible_name: str,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        normalized_responsible_name = ' '.join(
+            responsible_name.strip().split()
+        )
+
+        if len(normalized_responsible_name) < MIN_STUDENT_NAME_LENGTH:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'O nome do responsável precisa ter pelo menos '
+                    '2 caracteres.\n\n'
+                    'Digite o nome do responsável novamente.'
+                ),
+                reply_markup=student_edit_prompt_reply_markup(),
+            )
+
+            return {'status': 'invalid_student_edit_responsible_name'}
+
+        return await self._request_student_edit_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_NAME,
+            field_label='o nome do responsável',
+            value=normalized_responsible_name,
+            display_value=normalized_responsible_name,
+            prompt_text=(
+                '👥 Responsável\n\nDigite o nome completo do responsável.'
+            ),
+            prompt_reply_markup=student_edit_prompt_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_edit_responsible_name(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        responsible_name: str,
+    ) -> dict[str, str]:
+        updated_context_data = dict(context_data)
+        current_responsible = dict(
+            updated_context_data.get(STUDENT_EDIT_RESPONSIBLE_KEY, {})
+        )
+        current_responsible['name'] = responsible_name
+        updated_context_data[STUDENT_EDIT_RESPONSIBLE_KEY] = (
+            current_responsible
+        )
+
+        await self._update_student_edit_state(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_PHONE,
+            context_data=updated_context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Qual é o telefone do responsável?\n\n'
+                'Digite apenas os números, com DDD.\n\n'
+                'Exemplo:\n'
+                '62999999999'
+            ),
+            reply_markup=student_edit_prompt_reply_markup(),
+        )
+
+        return {'status': 'waiting_student_edit_responsible_phone'}
+
+    async def process_student_edit_responsible_phone_message(
+        self,
+        chat_id: int,
+        phone: str,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        normalized_phone = ''.join(
+            character for character in phone if character.isdigit()
+        )
+
+        if not (MIN_PHONE_LENGTH <= len(normalized_phone) <= MAX_PHONE_LENGTH):
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Telefone inválido.\n\n'
+                    'Digite apenas os números, com DDD.\n\n'
+                    'Exemplo:\n'
+                    '62999999999'
+                ),
+                reply_markup=student_edit_prompt_reply_markup(),
+            )
+
+            return {'status': 'invalid_student_edit_responsible_phone'}
+
+        return await self._request_student_edit_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_PHONE,
+            field_label='o telefone do responsável',
+            value=normalized_phone,
+            display_value=normalized_phone,
+            prompt_text=(
+                'Qual é o telefone do responsável?\n\n'
+                'Digite apenas os números, com DDD.\n\n'
+                'Exemplo:\n'
+                '62999999999'
+            ),
+            prompt_reply_markup=student_edit_prompt_reply_markup(),
+        )
+
+    async def _apply_confirmed_student_edit_responsible_phone(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        phone: str,
+    ) -> dict[str, str]:
+        updated_context_data = dict(context_data)
+        current_responsible = dict(
+            updated_context_data.get(STUDENT_EDIT_RESPONSIBLE_KEY, {})
+        )
+        current_responsible['phone'] = phone
+        updated_context_data[STUDENT_EDIT_RESPONSIBLE_KEY] = (
+            current_responsible
+        )
+
+        await self._update_student_edit_state(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_IS_WHATSAPP,
+            context_data=updated_context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text='Esse telefone é WhatsApp?',
+            reply_markup=student_edit_responsible_whatsapp_reply_markup(),
+        )
+
+        return {'status': 'waiting_student_edit_responsible_is_whatsapp'}
+
+    async def _process_student_edit_responsible_whatsapp_choice(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        callback_data: str,
+    ) -> dict[str, str]:
+        whatsapp_options = {
+            'students:edit:responsibles:whatsapp:yes': True,
+            'students:edit:responsibles:whatsapp:no': False,
+        }
+        is_whatsapp = whatsapp_options.get(callback_data)
+
+        if is_whatsapp is None:
+            await self.send_menu(chat_id)
+            return {'status': 'invalid_student_edit_responsible_whatsapp'}
+
+        updated_context_data = dict(context_data)
+        current_responsible = dict(
+            updated_context_data.get(STUDENT_EDIT_RESPONSIBLE_KEY, {})
+        )
+        current_responsible['phone_is_whatsapp'] = is_whatsapp
+        updated_context_data[STUDENT_EDIT_RESPONSIBLE_KEY] = (
+            current_responsible
+        )
+
+        await self._update_student_edit_state(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_EMAIL,
+            context_data=updated_context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Qual é o e-mail do responsável?\n\n'
+                'Se não quiser informar agora, toque em "⏭️ Pular".'
+            ),
+            reply_markup=student_edit_skip_field_reply_markup(
+                'students:edit:responsibles:skip_email'
+            ),
+        )
+
+        return {'status': 'waiting_student_edit_responsible_email'}
+
+    async def process_student_edit_responsible_email_message(
+        self,
+        chat_id: int,
+        email: str,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        normalized_email = email.strip().lower()
+
+        if not self._is_valid_email(normalized_email):
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'E-mail inválido.\n\n'
+                    'Digite um e-mail válido ou toque em "⏭️ Pular".'
+                ),
+                reply_markup=student_edit_skip_field_reply_markup(
+                    'students:edit:responsibles:skip_email'
+                ),
+            )
+
+            return {'status': 'invalid_student_edit_responsible_email'}
+
+        return await self._request_student_edit_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_EMAIL,
+            field_label='o e-mail do responsável',
+            value=normalized_email,
+            display_value=normalized_email,
+            prompt_text=(
+                'Qual é o e-mail do responsável?\n\n'
+                'Se não quiser informar agora, toque em "⏭️ Pular".'
+            ),
+            prompt_reply_markup=student_edit_skip_field_reply_markup(
+                'students:edit:responsibles:skip_email'
+            ),
+        )
+
+    async def _apply_confirmed_student_edit_responsible_email(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        email: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        updated_context_data = dict(context_data)
+        current_responsible = dict(
+            updated_context_data.get(STUDENT_EDIT_RESPONSIBLE_KEY, {})
+        )
+        current_responsible['email'] = email
+        updated_context_data[STUDENT_EDIT_RESPONSIBLE_KEY] = (
+            current_responsible
+        )
+
+        return await self._finish_student_edit_responsible(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=updated_context_data,
+            context=context,
+        )
+
+    async def _skip_student_edit_responsible_email(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        updated_context_data = dict(context_data)
+        current_responsible = dict(
+            updated_context_data.get(STUDENT_EDIT_RESPONSIBLE_KEY, {})
+        )
+        current_responsible['email'] = None
+        updated_context_data[STUDENT_EDIT_RESPONSIBLE_KEY] = (
+            current_responsible
+        )
+
+        return await self._finish_student_edit_responsible(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=updated_context_data,
+            context=context,
+        )
+
+    async def _finish_student_edit_responsible(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        responsible = context_data.get(STUDENT_EDIT_RESPONSIBLE_KEY)
+
+        if not isinstance(responsible, dict):
+            await self.send_menu(chat_id)
+            return {'status': 'student_edit_responsible_not_found'}
+
+        student = await self._get_student_for_edit(context, context_data)
+
+        return await self._request_student_edit_custom_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            action='add_responsible',
+            source_step=(
+                TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_RELATIONSHIP
+            ),
+            prompt_text=(
+                '👥 Responsável\n\n'
+                'Qual é o parentesco do responsável com o aluno?'
+            ),
+            prompt_reply_markup=(
+                student_edit_responsible_relationship_reply_markup()
+            ),
+            confirmation_text=(
+                'Confirmar novo responsável?\n\n'
+                'Aluno:\n'
+                f'{student["name"]}\n\n'
+                'Responsável:\n'
+                f'{self._format_single_responsible_for_confirmation(responsible)}'
+            ),
+            include_rewrite=True,
+            rewrite_label='✏️ Reescrever responsável',
+        )
+
+    async def _prompt_student_edit_responsible_reference_search(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        await self._update_student_edit_state(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_REFERENCE_SEARCH,
+            context_data=context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Digite o nome do aluno que já possui esse mesmo responsável.'
+            ),
+        )
+
+        return {'status': 'waiting_student_edit_responsible_reference_search'}
+
+    async def process_student_edit_responsible_reference_search_message(
+        self,
+        chat_id: int,
+        search_text: str,
+        state_id: int,
+        context_data: dict[str, Any],
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        normalized_search_text = ' '.join(search_text.strip().split())
+
+        if len(normalized_search_text) < MIN_STUDENT_NAME_LENGTH:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Digite pelo menos 2 caracteres para pesquisar.\n\n'
+                    'Exemplo:\n'
+                    'João'
+                ),
+            )
+
+            return {
+                'status': (
+                    'invalid_student_edit_responsible_reference_search_text'
+                )
+            }
+
+        students = await self.student_service.search_by_name(
+            academy_id=context.academy_id,
+            search_text=normalized_search_text,
+        )
+
+        if not students:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não encontrei nenhum aluno com o nome '
+                    f'"{normalized_search_text}".\n\n'
+                    'O que deseja fazer?'
+                ),
+                reply_markup={
+                    'inline_keyboard': (
+                        student_edit_responsible_reference_search_actions_rows()
+                    ),
+                },
+            )
+
+            return {
+                'status': 'student_edit_responsible_reference_search_empty'
+            }
+
+        await self._update_student_edit_state(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_REFERENCE_SEARCH,
+            context_data=context_data,
+        )
+
+        inline_keyboard: list[list[dict[str, str]]] = []
+
+        for student in students:
+            inline_keyboard.append([
+                {
+                    'text': f'🔁 {student.name}',
+                    'callback_data': (
+                        'students:edit:responsibles:reference_student:'
+                        f'{student.id}'
+                    ),
+                },
+            ])
+
+        inline_keyboard.extend(
+            student_edit_responsible_reference_search_actions_rows()
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Encontrei estes alunos.\n\n'
+                'Toque no aluno que já possui o responsável desejado.'
+            ),
+            reply_markup={'inline_keyboard': inline_keyboard},
+        )
+
+        return {'status': 'student_edit_responsible_reference_search_sent'}
+
+    async def _process_student_edit_responsible_reference_student_selected(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        reference_student_id = self._get_id_from_callback(callback_data)
+
+        if reference_student_id is None:
+            await self.send_menu(chat_id)
+            return {'status': 'student_edit_responsible_reference_invalid_id'}
+
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=reference_student_id,
+        )
+        responsibles = details.get('responsibles', [])
+
+        if not responsibles:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Esse aluno não possui responsável cadastrado.\n\n'
+                    'O que deseja fazer?'
+                ),
+                reply_markup={
+                    'inline_keyboard': (
+                        student_edit_responsible_reference_search_actions_rows()
+                    ),
+                },
+            )
+
+            return {
+                'status': 'student_edit_responsible_reference_without_data'
+            }
+
+        updated_context_data = self._clear_student_edit_responsible_context(
+            context_data
+        )
+        updated_context_data[
+            STUDENT_EDIT_RESPONSIBLE_REFERENCE_STUDENT_ID_KEY
+        ] = reference_student_id
+        updated_context_data[
+            STUDENT_EDIT_RESPONSIBLE_REFERENCE_STUDENT_NAME_KEY
+        ] = details['student']['name']
+        updated_context_data[
+            STUDENT_EDIT_RESPONSIBLE_REFERENCE_DETAILS_KEY
+        ] = responsibles
+
+        await self._update_student_edit_state(
+            state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_REFERENCE_SEARCH,
+            context_data=updated_context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                f'Aluno referência: {details["student"]["name"]}\n\n'
+                'Qual responsável deseja reutilizar?'
+            ),
+            reply_markup={
+                'inline_keyboard': (
+                    self._build_student_edit_responsible_reference_keyboard(
+                        reference_student_id=reference_student_id,
+                        responsibles=responsibles,
+                    )
+                ),
+            },
+        )
+
+        return {'status': 'student_edit_responsible_reference_options_sent'}
+
+    async def _process_student_edit_responsible_reference_selected(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        ids = callback_data.rsplit(':', maxsplit=2)
+
+        if (
+            len(ids) != RESPONSIBLE_REFERENCE_CALLBACK_PARTS
+            or not ids[-2].isdigit()
+            or not ids[-1].isdigit()
+        ):
+            await self.send_menu(chat_id)
+            return {'status': 'student_edit_responsible_reference_invalid_id'}
+
+        reference_student_id = int(ids[-2])
+        selected_responsible_id = int(ids[-1])
+        responsibles = context_data.get(
+            STUDENT_EDIT_RESPONSIBLE_REFERENCE_DETAILS_KEY,
+            [],
+        )
+
+        selected_responsible = next(
+            (
+                responsible
+                for responsible in responsibles
+                if self._get_responsible_id(responsible)
+                == selected_responsible_id
+            ),
+            None,
+        )
+
+        if not isinstance(selected_responsible, dict):
+            details = await self.student_service.get_details(
+                academy_id=context.academy_id,
+                student_id=reference_student_id,
+            )
+            selected_responsible = next(
+                (
+                    responsible
+                    for responsible in details.get('responsibles', [])
+                    if self._get_responsible_id(responsible)
+                    == selected_responsible_id
+                ),
+                None,
+            )
+
+        if not isinstance(selected_responsible, dict):
+            await self.send_menu(chat_id)
+            return {'status': 'student_edit_responsible_reference_not_found'}
+
+        updated_context_data = self._clear_student_edit_responsible_context(
+            context_data
+        )
+        updated_context_data[
+            STUDENT_EDIT_RESPONSIBLE_REFERENCE_STUDENT_ID_KEY
+        ] = reference_student_id
+        updated_context_data[
+            STUDENT_EDIT_RESPONSIBLE_REFERENCE_STUDENT_NAME_KEY
+        ] = (
+            context_data.get(
+                STUDENT_EDIT_RESPONSIBLE_REFERENCE_STUDENT_NAME_KEY,
+            )
+            or ''
+        )
+        updated_context_data[
+            STUDENT_EDIT_RESPONSIBLE_REFERENCE_DETAILS_KEY
+        ] = selected_responsible
+
+        current_student = await self._get_student_for_edit(
+            context, context_data
+        )
+        reference_student_name = str(
+            updated_context_data.get(
+                STUDENT_EDIT_RESPONSIBLE_REFERENCE_STUDENT_NAME_KEY,
+            )
+            or 'Não informado'
+        )
+
+        return await self._request_student_edit_custom_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=updated_context_data,
+            action='reuse_responsible',
+            source_step=(
+                TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_REFERENCE_SEARCH
+            ),
+            prompt_text=(
+                'Digite o nome do aluno que já possui esse mesmo responsável.'
+            ),
+            prompt_reply_markup={},
+            confirmation_text=(
+                'Confirmar uso deste responsável?\n\n'
+                'Aluno selecionado:\n'
+                f'{reference_student_name}\n\n'
+                'Responsável:\n'
+                f'Nome: {selected_responsible["name"]}\n'
+                'Parentesco atual no aluno origem: '
+                f'{self._get_relationship_label(selected_responsible["relationship"])}\n\n'
+                'Aluno que será editado:\n'
+                f'{current_student["name"]}'
+            ),
+            include_rewrite=False,
+        )
+
+    async def _process_student_edit_responsible_remove_selected(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        callback_data: str,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        student_responsible_id = self._get_id_from_callback(callback_data)
+
+        if student_responsible_id is None:
+            await self.send_menu(chat_id)
+            return {'status': 'student_edit_responsible_remove_invalid_id'}
+
+        student_id = int(context_data['student_id'])
+        details = await self.student_service.get_details(
+            academy_id=context.academy_id,
+            student_id=student_id,
+        )
+        selected_responsible = next(
+            (
+                responsible
+                for responsible in details.get('responsibles', [])
+                if int(responsible['id']) == student_responsible_id
+            ),
+            None,
+        )
+
+        if not isinstance(selected_responsible, dict):
+            await self.send_menu(chat_id)
+            return {'status': 'student_edit_responsible_remove_not_found'}
+
+        updated_context_data = self._clear_student_edit_responsible_context(
+            context_data
+        )
+        updated_context_data[STUDENT_EDIT_RESPONSIBLE_REMOVE_KEY] = {
+            'student_responsible_id': student_responsible_id,
+            'name': selected_responsible['name'],
+        }
+
+        return await self._request_student_edit_custom_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=updated_context_data,
+            action='remove_responsible',
+            source_step=(
+                TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_REMOVE_SELECTION
+            ),
+            prompt_text='Escolha o responsável que deseja remover.',
+            prompt_reply_markup={},
+            confirmation_text=(
+                'Confirmar remoção do responsável?\n\n'
+                'Aluno:\n'
+                f'{details["student"]["name"]}\n\n'
+                'Responsável:\n'
+                f'{selected_responsible["name"]}'
+            ),
+            include_rewrite=False,
+            confirm_label='✅ Confirmar remoção',
+        )
 
     async def _process_student_edit_address_reference_selected(
         self,
@@ -1737,12 +2731,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
             context_data
         )
 
-        await (
-            self.telegram_conversation_state_service.update_student_edit_context(
+        await self._update_student_edit_state(
             state_id=state_id,
             next_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_REFERENCE_SEARCH,
             context_data=updated_context_data,
-            )
         )
 
         inline_keyboard: list[list[dict[str, str]]] = []
@@ -1958,12 +2950,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
             'prompt_reply_markup': prompt_reply_markup,
         }
 
-        await (
-            self.telegram_conversation_state_service.update_student_edit_context(
+        await self._update_student_edit_state(
             state_id=state_id,
             next_step=TelegramStep.WAITING_STUDENT_EDIT_FIELD_CONFIRMATION,
             context_data=updated_context_data,
-            )
         )
 
         await self._send_student_edit_field_confirmation_message(
@@ -2014,6 +3004,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
         chat_id: int,
         state_id: int,
         context_data: dict[str, Any],
+        context: MasterContextRead,
     ) -> dict[str, str]:
         pending_field_confirmation = context_data.get(
             STUDENT_EDIT_FIELD_CONFIRMATION_KEY
@@ -2023,9 +3014,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
             await self.send_menu(chat_id)
             return {'status': 'student_edit_field_confirmation_not_found'}
 
-        source_step = self._get_pending_source_step(
-            pending_field_confirmation
-        )
+        source_step = self._get_pending_source_step(pending_field_confirmation)
 
         if source_step is None:
             await self.send_menu(chat_id)
@@ -2080,6 +3069,31 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 complement=str(value),
             )
 
+        if source_step == TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_NAME:
+            return await self._apply_confirmed_student_edit_responsible_name(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                responsible_name=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_PHONE:
+            return await self._apply_confirmed_student_edit_responsible_phone(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                phone=str(value),
+            )
+
+        if source_step == TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_EMAIL:
+            return await self._apply_confirmed_student_edit_responsible_email(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                email=str(value),
+                context=context,
+            )
+
         await self.send_menu(chat_id)
 
         return {'status': 'student_edit_field_confirmation_invalid_source'}
@@ -2098,9 +3112,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
             await self.send_menu(chat_id)
             return {'status': 'student_edit_field_confirmation_not_found'}
 
-        source_step = self._get_pending_source_step(
-            pending_field_confirmation
-        )
+        source_step = self._get_pending_source_step(pending_field_confirmation)
 
         if source_step is None:
             await self.send_menu(chat_id)
@@ -2109,12 +3121,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
         updated_context_data = dict(context_data)
         updated_context_data.pop(STUDENT_EDIT_FIELD_CONFIRMATION_KEY, None)
 
-        await (
-            self.telegram_conversation_state_service.update_student_edit_context(
+        await self._update_student_edit_state(
             state_id=state_id,
             next_step=source_step,
             context_data=updated_context_data,
-            )
         )
 
         send_kwargs: dict[str, Any] = {
@@ -2142,12 +3152,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
             context_data
         )
 
-        await (
-            self.telegram_conversation_state_service.update_student_edit_context(
+        await self._update_student_edit_state(
             state_id=state_id,
             next_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_ZIP_CODE,
             context_data=updated_context_data,
-            )
         )
 
         await self.telegram_service.send_message(
@@ -2169,12 +3177,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
         state_id: int,
         context_data: dict[str, Any],
     ) -> dict[str, str]:
-        await (
-            self.telegram_conversation_state_service.update_student_edit_context(
+        await self._update_student_edit_state(
             state_id=state_id,
             next_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_REFERENCE_SEARCH,
             context_data=context_data,
-            )
         )
 
         await self.telegram_service.send_message(
@@ -2218,12 +3224,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
         }
 
         if not cep_address.street:
-            await (
-                self.telegram_conversation_state_service.update_student_edit_context(
+            await self._update_student_edit_state(
                 state_id=state_id,
                 next_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_STREET,
                 context_data=updated_context_data,
-                )
             )
 
             missing_fields_text = 'o logradouro'
@@ -2246,12 +3250,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
             return {'status': 'waiting_student_edit_address_street'}
 
         if not cep_address.neighborhood:
-            await (
-                self.telegram_conversation_state_service.update_student_edit_context(
+            await self._update_student_edit_state(
                 state_id=state_id,
                 next_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_NEIGHBORHOOD,
                 context_data=updated_context_data,
-                )
             )
 
             await self.telegram_service.send_message(
@@ -2269,12 +3271,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'waiting_student_edit_address_neighborhood'}
 
-        await (
-            self.telegram_conversation_state_service.update_student_edit_context(
+        await self._update_student_edit_state(
             state_id=state_id,
             next_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_NUMBER,
             context_data=updated_context_data,
-            )
         )
 
         await self.telegram_service.send_message(
@@ -2309,12 +3309,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
         updated_context_data['edit_address'] = address
 
         if not address.get('neighborhood'):
-            await (
-                self.telegram_conversation_state_service.update_student_edit_context(
+            await self._update_student_edit_state(
                 state_id=state_id,
                 next_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_NEIGHBORHOOD,
                 context_data=updated_context_data,
-                )
             )
 
             await self.telegram_service.send_message(
@@ -2328,12 +3326,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
             return {'status': 'waiting_student_edit_address_neighborhood'}
 
-        await (
-            self.telegram_conversation_state_service.update_student_edit_context(
+        await self._update_student_edit_state(
             state_id=state_id,
             next_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_NUMBER,
             context_data=updated_context_data,
-            )
         )
 
         await self.telegram_service.send_message(
@@ -2358,12 +3354,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
         address['neighborhood'] = neighborhood
         updated_context_data['edit_address'] = address
 
-        await (
-            self.telegram_conversation_state_service.update_student_edit_context(
+        await self._update_student_edit_state(
             state_id=state_id,
             next_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_NUMBER,
             context_data=updated_context_data,
-            )
         )
 
         await self.telegram_service.send_message(
@@ -2388,12 +3382,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
         address['number'] = number
         updated_context_data['edit_address'] = address
 
-        await (
-            self.telegram_conversation_state_service.update_student_edit_context(
+        await self._update_student_edit_state(
             state_id=state_id,
             next_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_COMPLEMENT,
             context_data=updated_context_data,
-            )
         )
 
         await self.telegram_service.send_message(
@@ -2441,12 +3433,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
             address['street'] = None
             updated_context_data['edit_address'] = address
 
-            await (
-                self.telegram_conversation_state_service.update_student_edit_context(
+            await self._update_student_edit_state(
                 state_id=state_id,
                 next_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_NEIGHBORHOOD,
                 context_data=updated_context_data,
-                )
             )
 
             await self.telegram_service.send_message(
@@ -2467,12 +3457,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
             address['neighborhood'] = None
             updated_context_data['edit_address'] = address
 
-            await (
-                self.telegram_conversation_state_service.update_student_edit_context(
+            await self._update_student_edit_state(
                 state_id=state_id,
                 next_step=TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_NUMBER,
                 context_data=updated_context_data,
-                )
             )
 
             await self.telegram_service.send_message(
@@ -2566,12 +3554,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
             'rewrite_label': rewrite_label,
         }
 
-        await (
-            self.telegram_conversation_state_service.update_student_edit_context(
+        await self._update_student_edit_state(
             state_id=state_id,
             next_step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
             context_data=updated_context_data,
-            )
         )
 
         await self._send_student_edit_confirmation_message(
@@ -2846,7 +3832,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         return {'status': 'waiting_student_edit_confirmation'}
 
-    async def _confirm_student_edit(
+    async def _confirm_student_edit(  # noqa: PLR0912
         self,
         chat_id: int,
         state_id: int,
@@ -2888,6 +3874,55 @@ class StudentsMenuHandler:  # noqa: PLR0904
             await self.student_service.remove_address(
                 academy_id=context.academy_id,
                 student_id=student_id,
+            )
+        elif action == 'add_responsible':
+            await self.student_service.add_responsible(
+                academy_id=context.academy_id,
+                student_id=student_id,
+                responsible_data=dict(
+                    context_data.get(STUDENT_EDIT_RESPONSIBLE_KEY, {})
+                ),
+            )
+        elif action == 'reuse_responsible':
+            responsible_details = context_data.get(
+                STUDENT_EDIT_RESPONSIBLE_REFERENCE_DETAILS_KEY,
+            )
+
+            if not isinstance(responsible_details, dict):
+                await self.send_menu(chat_id)
+                return {
+                    'status': 'student_edit_responsible_reference_not_found'
+                }
+
+            responsible_id = self._get_responsible_id(responsible_details)
+
+            if responsible_id is None:
+                await self.send_menu(chat_id)
+                return {
+                    'status': 'student_edit_responsible_reference_not_found'
+                }
+
+            await self.student_service.reuse_responsible(
+                academy_id=context.academy_id,
+                student_id=student_id,
+                responsible_id=responsible_id,
+                relationship=str(responsible_details['relationship']),
+            )
+        elif action == 'remove_responsible':
+            responsible_to_remove = context_data.get(
+                STUDENT_EDIT_RESPONSIBLE_REMOVE_KEY,
+            )
+
+            if not isinstance(responsible_to_remove, dict):
+                await self.send_menu(chat_id)
+                return {'status': 'student_edit_responsible_remove_not_found'}
+
+            await self.student_service.remove_responsible_link(
+                academy_id=context.academy_id,
+                student_id=student_id,
+                student_responsible_id=int(
+                    responsible_to_remove['student_responsible_id']
+                ),
             )
         elif field == 'modality':
             await self.student_service.update_modality(
@@ -2952,6 +3987,10 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         if pending_edit.get('action') == 'update_address':
             updated_context_data = self._clear_student_edit_address_draft(
+                updated_context_data
+            )
+        elif pending_edit.get('action') == 'add_responsible':
+            updated_context_data = self._clear_student_edit_responsible_draft(
                 updated_context_data
             )
 
@@ -3043,6 +4082,20 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         return None
 
+    async def _update_student_edit_state(
+        self,
+        state_id: int,
+        next_step: TelegramStep,
+        context_data: dict[str, Any],
+    ) -> None:
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_edit_context(
+            state_id=state_id,
+            next_step=next_step,
+            context_data=context_data,
+        )
+
     async def _get_student_for_edit(
         self,
         context: MasterContextRead,
@@ -3103,6 +4156,38 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         for key in (
             'edit_address',
+            STUDENT_EDIT_FIELD_CONFIRMATION_KEY,
+        ):
+            updated_context_data.pop(key, None)
+
+        return updated_context_data
+
+    @staticmethod
+    def _clear_student_edit_responsible_context(
+        context_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        updated_context_data = dict(context_data)
+
+        for key in (
+            STUDENT_EDIT_RESPONSIBLE_KEY,
+            STUDENT_EDIT_RESPONSIBLE_REFERENCE_STUDENT_ID_KEY,
+            STUDENT_EDIT_RESPONSIBLE_REFERENCE_STUDENT_NAME_KEY,
+            STUDENT_EDIT_RESPONSIBLE_REFERENCE_DETAILS_KEY,
+            STUDENT_EDIT_RESPONSIBLE_REMOVE_KEY,
+            STUDENT_EDIT_FIELD_CONFIRMATION_KEY,
+        ):
+            updated_context_data.pop(key, None)
+
+        return updated_context_data
+
+    @staticmethod
+    def _clear_student_edit_responsible_draft(
+        context_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        updated_context_data = dict(context_data)
+
+        for key in (
+            STUDENT_EDIT_RESPONSIBLE_KEY,
             STUDENT_EDIT_FIELD_CONFIRMATION_KEY,
         ):
             updated_context_data.pop(key, None)
@@ -3173,6 +4258,54 @@ class StudentsMenuHandler:  # noqa: PLR0904
             f'CEP: {zip_code}\n'
             f'Complemento: {complement}'
         )
+
+    @staticmethod
+    def _format_single_responsible_for_confirmation(
+        responsible: dict[str, Any] | None,
+    ) -> str:
+        if not isinstance(responsible, dict):
+            return 'Não informado'
+
+        relationship = StudentsMenuHandler._get_relationship_label(
+            str(responsible.get('relationship', '')),
+        )
+        whatsapp = (
+            'Sim' if bool(responsible.get('phone_is_whatsapp')) else 'Não'
+        )
+        email = responsible.get('email') or 'Não informado'
+
+        return (
+            f'Nome: {responsible.get("name") or "Não informado"}\n'
+            f'Parentesco: {relationship}\n'
+            f'Telefone: {responsible.get("phone") or "Não informado"}\n'
+            f'WhatsApp: {whatsapp}\n'
+            f'E-mail: {email}'
+        )
+
+    @staticmethod
+    def _format_responsibles_for_edit_menu(
+        responsibles: list[dict[str, Any]],
+    ) -> str:
+        lines: list[str] = []
+
+        for index, responsible in enumerate(responsibles, start=1):
+            relationship = StudentsMenuHandler._get_relationship_label(
+                str(responsible['relationship'])
+            )
+            whatsapp = 'Sim' if responsible.get('phone_is_whatsapp') else 'Não'
+
+            lines.extend([
+                f'{index}. {responsible["name"]}',
+                f'   Parentesco: {relationship}',
+                f'   Telefone: {responsible["phone"]}',
+                f'   WhatsApp: {whatsapp}',
+                f'   E-mail: {responsible.get("email") or "Não informado"}',
+            ])
+
+            if index < len(responsibles):
+                lines.append('')
+
+        return '\n'.join(lines)
 
     @staticmethod
     def _build_student_edit_update_confirmation_text(
@@ -3261,6 +4394,18 @@ class StudentsMenuHandler:  # noqa: PLR0904
             ),
             TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_COMPLEMENT: (
                 'waiting_student_edit_address_complement'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_RELATIONSHIP: (
+                'waiting_student_edit_responsible_relationship'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_NAME: (
+                'waiting_student_edit_responsible_name'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_PHONE: (
+                'waiting_student_edit_responsible_phone'
+            ),
+            TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_EMAIL: (
+                'waiting_student_edit_responsible_email'
             ),
             TelegramStep.WAITING_STUDENT_EDIT_MONTHLY_FEE: (
                 'waiting_student_edit_monthly_fee'
@@ -3383,6 +4528,58 @@ class StudentsMenuHandler:  # noqa: PLR0904
             'update_address',
             'reuse_address',
             'remove_address',
+        }
+
+    @staticmethod
+    def _should_show_student_edit_responsibles_menu(
+        current_step: TelegramStep,
+        context_data: dict[str, Any],
+    ) -> bool:
+        if current_step in {
+            TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLES_MENU,
+            TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_RELATIONSHIP,
+            TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_NAME,
+            TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_PHONE,
+            TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_IS_WHATSAPP,
+            TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_EMAIL,
+            TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_REFERENCE_SEARCH,
+            TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_REMOVE_SELECTION,
+        }:
+            return True
+
+        if (
+            current_step
+            == TelegramStep.WAITING_STUDENT_EDIT_FIELD_CONFIRMATION
+        ):
+            pending_field_confirmation = context_data.get(
+                STUDENT_EDIT_FIELD_CONFIRMATION_KEY
+            )
+
+            if not isinstance(pending_field_confirmation, dict):
+                return False
+
+            source_step = StudentsMenuHandler._get_pending_source_step(
+                pending_field_confirmation
+            )
+
+            return source_step in {
+                TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_NAME,
+                TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_PHONE,
+                TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_EMAIL,
+            }
+
+        if current_step != TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION:
+            return False
+
+        pending_edit = context_data.get(STUDENT_EDIT_PENDING_KEY)
+
+        if not isinstance(pending_edit, dict):
+            return False
+
+        return str(pending_edit.get('action')) in {
+            'add_responsible',
+            'reuse_responsible',
+            'remove_responsible',
         }
 
     @staticmethod
@@ -4723,6 +5920,72 @@ class StudentsMenuHandler:  # noqa: PLR0904
             {
                 'text': '❌ Cancelar cadastro',
                 'callback_data': 'students:create:cancel',
+            },
+        ])
+
+        return inline_keyboard
+
+    @staticmethod
+    def _build_student_edit_responsible_reference_keyboard(
+        reference_student_id: int,
+        responsibles: list[dict[str, Any]],
+    ) -> list[list[dict[str, str]]]:
+        inline_keyboard: list[list[dict[str, str]]] = []
+
+        for responsible in responsibles:
+            responsible_id = StudentsMenuHandler._get_responsible_id(
+                responsible,
+            )
+
+            if responsible_id is None:
+                continue
+
+            relationship = StudentsMenuHandler._get_relationship_label(
+                str(responsible['relationship']),
+            )
+            inline_keyboard.append([
+                {
+                    'text': f'{relationship}: {responsible["name"]}',
+                    'callback_data': (
+                        'students:edit:responsibles:reference_responsible:'
+                        f'{reference_student_id}:{responsible_id}'
+                    ),
+                },
+            ])
+
+        inline_keyboard.extend(
+            student_edit_responsible_reference_search_actions_rows()
+        )
+
+        return inline_keyboard
+
+    @staticmethod
+    def _build_student_edit_responsible_remove_keyboard(
+        responsibles: list[dict[str, Any]],
+    ) -> list[list[dict[str, str]]]:
+        inline_keyboard: list[list[dict[str, str]]] = []
+
+        for responsible in responsibles:
+            inline_keyboard.append([
+                {
+                    'text': f'🧹 {responsible["name"]}',
+                    'callback_data': (
+                        'students:edit:responsibles:remove_select:'
+                        f'{responsible["id"]}'
+                    ),
+                },
+            ])
+
+        inline_keyboard.append([
+            {
+                'text': '🔙 Voltar para opções de responsáveis',
+                'callback_data': 'students:edit:responsibles:back',
+            },
+        ])
+        inline_keyboard.append([
+            {
+                'text': '❌ Cancelar edição',
+                'callback_data': 'students:edit:cancel',
             },
         ])
 
@@ -6756,7 +8019,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
         responsibles: list[dict[str, Any]],
     ) -> str:
         if not responsibles:
-            return '👨‍👩‍👧 Responsáveis\nNão há responsável externo.\n'
+            return '👨‍👩‍👧 Responsáveis\nNão informado\n'
 
         lines = ['👨‍👩‍👧 Responsáveis']
 

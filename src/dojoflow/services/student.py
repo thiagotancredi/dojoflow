@@ -372,6 +372,90 @@ class StudentService:
             data={'address_id': None},
         )
 
+    @transactional
+    async def add_responsible(
+        self,
+        academy_id: int,
+        student_id: int,
+        responsible_data: dict[str, Any],
+    ) -> None:
+        await self._get_student_or_fail(
+            academy_id=academy_id,
+            student_id=student_id,
+        )
+
+        responsible_id = await self.responsible_repository.create(
+            ResponsibleCreate(
+                academy_id=academy_id,
+                name=str(responsible_data['name']),
+                phone=str(responsible_data['phone']),
+                phone_is_whatsapp=bool(
+                    responsible_data['phone_is_whatsapp']
+                ),
+                email=responsible_data.get('email'),
+            )
+        )
+
+        await self._link_responsible_if_missing(
+            academy_id=academy_id,
+            student_id=student_id,
+            responsible_id=responsible_id,
+            relationship=str(responsible_data['relationship']),
+        )
+
+    @transactional
+    async def reuse_responsible(
+        self,
+        academy_id: int,
+        student_id: int,
+        responsible_id: int,
+        relationship: str,
+    ) -> None:
+        await self._get_student_or_fail(
+            academy_id=academy_id,
+            student_id=student_id,
+        )
+
+        exists = await self.responsible_repository.exists(
+            filters=[
+                Responsible.id == responsible_id,
+                Responsible.academy_id == academy_id,
+            ],
+        )
+
+        if not exists:
+            raise NotFoundError(
+                f'Could not find Responsible with id {responsible_id}.'
+            )
+
+        await self._link_responsible_if_missing(
+            academy_id=academy_id,
+            student_id=student_id,
+            responsible_id=responsible_id,
+            relationship=relationship,
+        )
+
+    @transactional
+    async def remove_responsible_link(
+        self,
+        academy_id: int,
+        student_id: int,
+        student_responsible_id: int,
+    ) -> None:
+        student_responsible = (
+            await self.student_responsible_repository.get_one_or_fail(
+                filters=[
+                    StudentResponsible.id == student_responsible_id,
+                    StudentResponsible.academy_id == academy_id,
+                    StudentResponsible.student_id == student_id,
+                ],
+            )
+        )
+
+        await self.student_responsible_repository.delete_by_id(
+            int(student_responsible['id'])
+        )
+
     async def _get_student_address(
         self,
         academy_id: int,
@@ -617,16 +701,39 @@ class StudentService:
                     f'Could not find Responsible with id {responsible_id}.'
                 )
 
-            await self.student_responsible_repository.create(
-                StudentResponsibleCreate(
-                    academy_id=academy_id,
-                    student_id=student_id,
-                    responsible_id=responsible_id,
-                    relationship=StudentResponsibleRelationship(
-                        responsible_reference['relationship'],
-                    ),
-                )
+            await self._link_responsible_if_missing(
+                academy_id=academy_id,
+                student_id=student_id,
+                responsible_id=responsible_id,
+                relationship=str(responsible_reference['relationship']),
             )
+
+    async def _link_responsible_if_missing(
+        self,
+        academy_id: int,
+        student_id: int,
+        responsible_id: int,
+        relationship: str,
+    ) -> None:
+        already_linked = await self.student_responsible_repository.exists(
+            filters=[
+                StudentResponsible.academy_id == academy_id,
+                StudentResponsible.student_id == student_id,
+                StudentResponsible.responsible_id == responsible_id,
+            ],
+        )
+
+        if already_linked:
+            return
+
+        await self.student_responsible_repository.create(
+            StudentResponsibleCreate(
+                academy_id=academy_id,
+                student_id=student_id,
+                responsible_id=responsible_id,
+                relationship=StudentResponsibleRelationship(relationship),
+            )
+        )
 
     async def _ensure_modality_belongs_to_academy(
         self,

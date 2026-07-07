@@ -68,6 +68,30 @@ class TelegramStep(StrEnum):
     WAITING_STUDENT_EDIT_MENU = 'waiting_student_edit_menu'
     WAITING_STUDENT_EDIT_BASIC_DATA = 'waiting_student_edit_basic_data'
     WAITING_STUDENT_EDIT_ADDRESS_MENU = 'waiting_student_edit_address_menu'
+    WAITING_STUDENT_EDIT_RESPONSIBLES_MENU = (
+        'waiting_student_edit_responsibles_menu'
+    )
+    WAITING_STUDENT_EDIT_RESPONSIBLE_RELATIONSHIP = (
+        'waiting_student_edit_responsible_relationship'
+    )
+    WAITING_STUDENT_EDIT_RESPONSIBLE_NAME = (
+        'waiting_student_edit_responsible_name'
+    )
+    WAITING_STUDENT_EDIT_RESPONSIBLE_PHONE = (
+        'waiting_student_edit_responsible_phone'
+    )
+    WAITING_STUDENT_EDIT_RESPONSIBLE_IS_WHATSAPP = (
+        'waiting_student_edit_responsible_is_whatsapp'
+    )
+    WAITING_STUDENT_EDIT_RESPONSIBLE_EMAIL = (
+        'waiting_student_edit_responsible_email'
+    )
+    WAITING_STUDENT_EDIT_RESPONSIBLE_REFERENCE_SEARCH = (
+        'waiting_student_edit_responsible_reference_search'
+    )
+    WAITING_STUDENT_EDIT_RESPONSIBLE_REMOVE_SELECTION = (
+        'waiting_student_edit_responsible_remove_selection'
+    )
     WAITING_STUDENT_EDIT_ADDRESS_REFERENCE_SEARCH = (
         'waiting_student_edit_address_reference_search'
     )

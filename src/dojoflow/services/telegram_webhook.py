@@ -136,18 +136,86 @@ class TelegramWebhookService:
             state is not None
             and state['current_flow'] == TelegramFlow.STUDENT_EDIT
             and state['current_step']
-            == TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_REFERENCE_SEARCH
+            == TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_REFERENCE_SEARCH
+        ):
+            students_handler = self.students_menu_handler
+            process_reference_search = students_handler.process_student_edit_responsible_reference_search_message  # noqa: E501
+
+            return await process_reference_search(
+                chat_id=chat_id,
+                search_text=text,
+                state_id=state['id'],
+                context_data=state['context_data'],
+                context=context,
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_NAME
         ):
             students_handler = self.students_menu_handler
 
             return await (
-                students_handler.process_student_edit_address_reference_search_message(
+                students_handler.process_student_edit_responsible_name_message(
                     chat_id=chat_id,
-                    search_text=text,
+                    responsible_name=text,
                     state_id=state['id'],
                     context_data=state['context_data'],
-                    context=context,
                 )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_PHONE
+        ):
+            students_handler = self.students_menu_handler
+            process_phone = (
+                students_handler.process_student_edit_responsible_phone_message
+            )
+
+            return await process_phone(
+                chat_id=chat_id,
+                phone=text,
+                state_id=state['id'],
+                context_data=state['context_data'],
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_RESPONSIBLE_EMAIL
+        ):
+            students_handler = self.students_menu_handler
+            process_email = (
+                students_handler.process_student_edit_responsible_email_message
+            )
+
+            return await process_email(
+                chat_id=chat_id,
+                email=text,
+                state_id=state['id'],
+                context_data=state['context_data'],
+            )
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_EDIT
+            and state['current_step']
+            == TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_REFERENCE_SEARCH
+        ):
+            students_handler = self.students_menu_handler
+            process_address_search = students_handler.process_student_edit_address_reference_search_message  # noqa: E501
+
+            return await process_address_search(
+                chat_id=chat_id,
+                search_text=text,
+                state_id=state['id'],
+                context_data=state['context_data'],
+                context=context,
             )
 
         if (
@@ -191,14 +259,13 @@ class TelegramWebhookService:
             == TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_NEIGHBORHOOD
         ):
             students_handler = self.students_menu_handler
+            process_neighborhood = students_handler.process_student_edit_address_neighborhood_message  # noqa: E501
 
-            return await (
-                students_handler.process_student_edit_address_neighborhood_message(
-                    chat_id=chat_id,
-                    neighborhood=text,
-                    state_id=state['id'],
-                    context_data=state['context_data'],
-                )
+            return await process_neighborhood(
+                chat_id=chat_id,
+                neighborhood=text,
+                state_id=state['id'],
+                context_data=state['context_data'],
             )
 
         if (
@@ -225,14 +292,13 @@ class TelegramWebhookService:
             == TelegramStep.WAITING_STUDENT_EDIT_ADDRESS_COMPLEMENT
         ):
             students_handler = self.students_menu_handler
+            process_complement = students_handler.process_student_edit_address_complement_message  # noqa: E501
 
-            return await (
-                students_handler.process_student_edit_address_complement_message(
-                    chat_id=chat_id,
-                    state_id=state['id'],
-                    context_data=state['context_data'],
-                    complement=text,
-                )
+            return await process_complement(
+                chat_id=chat_id,
+                state_id=state['id'],
+                context_data=state['context_data'],
+                complement=text,
             )
 
         if (
@@ -242,12 +308,11 @@ class TelegramWebhookService:
             == TelegramStep.WAITING_STUDENT_EDIT_FIELD_CONFIRMATION
         ):
             students_handler = self.students_menu_handler
+            resend_field_confirmation = students_handler._resend_student_edit_field_confirmation_message  # noqa: E501
 
-            return await (
-                students_handler._resend_student_edit_field_confirmation_message(
-                    chat_id=chat_id,
-                    context_data=state['context_data'],
-                )
+            return await resend_field_confirmation(
+                chat_id=chat_id,
+                context_data=state['context_data'],
             )
 
         if (
@@ -481,15 +546,14 @@ class TelegramWebhookService:
             == TelegramStep.WAITING_STUDENT_RESPONSIBLE_REFERENCE_SEARCH
         ):
             students_handler = self.students_menu_handler
+            process_responsible_search = students_handler.process_student_responsible_reference_search_message  # noqa: E501
 
-            responsible_search_result = await (
-                students_handler.process_student_responsible_reference_search_message(
-                    chat_id=chat_id,
-                    search_text=text,
-                    state_id=state['id'],
-                    context_data=state['context_data'],
-                    context=context,
-                )
+            responsible_search_result = await process_responsible_search(
+                chat_id=chat_id,
+                search_text=text,
+                state_id=state['id'],
+                context_data=state['context_data'],
+                context=context,
             )
 
             return responsible_search_result
@@ -501,15 +565,14 @@ class TelegramWebhookService:
             == TelegramStep.WAITING_STUDENT_ADDRESS_REFERENCE_SEARCH
         ):
             students_handler = self.students_menu_handler
+            process_address_search = students_handler.process_student_address_reference_search_message  # noqa: E501
 
-            address_search_result = await (
-                students_handler.process_student_address_reference_search_message(
-                    chat_id=chat_id,
-                    search_text=text,
-                    state_id=state['id'],
-                    context_data=state['context_data'],
-                    context=context,
-                )
+            address_search_result = await process_address_search(
+                chat_id=chat_id,
+                search_text=text,
+                state_id=state['id'],
+                context_data=state['context_data'],
+                context=context,
             )
 
             return address_search_result

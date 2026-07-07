@@ -223,6 +223,51 @@ def student_edit_address_reply_markup(
     }
 
 
+def student_edit_responsibles_reply_markup(
+    *,
+    has_responsibles: bool,
+) -> dict[str, Any]:
+    inline_keyboard: list[list[dict[str, str]]] = [
+        [
+            {
+                'text': '➕ Adicionar responsável',
+                'callback_data': 'students:edit:responsibles:new',
+            },
+        ],
+        [
+            {
+                'text': '🔁 Usar responsável de outro aluno',
+                'callback_data': 'students:edit:responsibles:reuse',
+            },
+        ],
+    ]
+
+    if has_responsibles:
+        inline_keyboard.append([
+            {
+                'text': '🧹 Remover responsável',
+                'callback_data': 'students:edit:responsibles:remove',
+            },
+        ])
+
+    inline_keyboard.append([
+        {
+            'text': '🔙 Voltar para edição',
+            'callback_data': 'students:edit:back:menu',
+        },
+    ])
+    inline_keyboard.append([
+        {
+            'text': '❌ Cancelar edição',
+            'callback_data': 'students:edit:cancel',
+        },
+    ])
+
+    return {
+        'inline_keyboard': inline_keyboard,
+    }
+
+
 def student_edit_monthly_fee_reply_markup() -> dict[str, Any]:
     return {
         'inline_keyboard': [
@@ -280,6 +325,33 @@ def student_edit_optional_field_reply_markup() -> dict[str, Any]:
                 {
                     'text': '⏭️ Pular',
                     'callback_data': 'students:edit:address:skip',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar edição',
+                    'callback_data': 'students:edit:cancel',
+                },
+            ],
+        ]
+    }
+
+
+def student_edit_skip_field_reply_markup(
+    skip_callback_data: str,
+) -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '⏭️ Pular',
+                    'callback_data': skip_callback_data,
+                },
+            ],
+            [
+                {
+                    'text': '🔙 Voltar',
+                    'callback_data': 'students:edit:back',
                 },
             ],
             [
@@ -388,6 +460,144 @@ def student_edit_field_confirmation_reply_markup() -> dict[str, Any]:
             ],
         ]
     }
+
+
+def student_edit_responsible_relationship_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': 'Pai',
+                    'callback_data': (
+                        'students:edit:responsibles:relationship:father'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': 'Mãe',
+                    'callback_data': (
+                        'students:edit:responsibles:relationship:mother'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': 'Avó',
+                    'callback_data': (
+                        'students:edit:responsibles:relationship:grandmother'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': 'Avô',
+                    'callback_data': (
+                        'students:edit:responsibles:relationship:grandfather'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': 'Tio',
+                    'callback_data': (
+                        'students:edit:responsibles:relationship:uncle'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': 'Tia',
+                    'callback_data': (
+                        'students:edit:responsibles:relationship:aunt'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': 'Irmão',
+                    'callback_data': (
+                        'students:edit:responsibles:relationship:brother'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': 'Irmã',
+                    'callback_data': (
+                        'students:edit:responsibles:relationship:sister'
+                    ),
+                },
+            ],
+            [
+                {
+                    'text': '🔙 Voltar',
+                    'callback_data': 'students:edit:back',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar edição',
+                    'callback_data': 'students:edit:cancel',
+                },
+            ],
+        ]
+    }
+
+
+def student_edit_responsible_whatsapp_reply_markup() -> dict[str, Any]:
+    return {
+        'inline_keyboard': [
+            [
+                {
+                    'text': '✅ Sim',
+                    'callback_data': 'students:edit:responsibles:whatsapp:yes',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Não',
+                    'callback_data': 'students:edit:responsibles:whatsapp:no',
+                },
+            ],
+            [
+                {
+                    'text': '🔙 Voltar',
+                    'callback_data': 'students:edit:back',
+                },
+            ],
+            [
+                {
+                    'text': '❌ Cancelar edição',
+                    'callback_data': 'students:edit:cancel',
+                },
+            ],
+        ]
+    }
+
+
+def student_edit_responsible_reference_search_actions_rows(
+) -> list[list[dict[str, str]]]:
+    return [
+        [
+            {
+                'text': '🔎 Pesquisar novamente',
+                'callback_data': 'students:edit:responsibles:search_again',
+            },
+        ],
+        [
+            {
+                'text': '🔙 Voltar para opções de responsáveis',
+                'callback_data': 'students:edit:responsibles:back',
+            },
+        ],
+        [
+            {
+                'text': '❌ Cancelar edição',
+                'callback_data': 'students:edit:cancel',
+            },
+        ],
+    ]
 
 
 def student_edit_modalities_reply_markup(
