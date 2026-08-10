@@ -11,9 +11,18 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import StaticPool
 
 import dojoflow.models  # noqa: F401
+from dojoflow.core.settings import settings
 from dojoflow.database.base import Base
 from dojoflow.database.session import get_session
 from dojoflow.main import app
+
+
+@pytest_asyncio.fixture(autouse=True)
+def _configure_test_settings() -> None:
+    settings.INTERNAL_API_KEY = 'test-internal-key'
+    settings.JWT_SECRET = 'test-jwt-secret-with-enough-length-32b'
+    settings.TELEGRAM_BOT_USERNAME = 'dojoflow_test_bot'
+    settings.CORS_ORIGINS = 'http://localhost:5173'
 
 
 @pytest_asyncio.fixture

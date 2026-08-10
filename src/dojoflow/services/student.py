@@ -24,7 +24,15 @@ from dojoflow.repositories.student_responsible import (
 from dojoflow.schemas.address import AddressCreate
 from dojoflow.schemas.enrollment import EnrollmentCreate
 from dojoflow.schemas.responsible import ResponsibleCreate
-from dojoflow.schemas.student import StudentCreate, StudentRead
+from dojoflow.schemas.student import (
+    StudentAddressPayload,
+    StudentCreate,
+    StudentCreateRequest,
+    StudentEnrollmentPayload,
+    StudentRead,
+    StudentResponsiblePayload,
+    StudentResponsibleReferencePayload,
+)
 from dojoflow.schemas.student_responsible import StudentResponsibleCreate
 from dojoflow.shared.enums import (
     EnrollmentStatus,
@@ -54,18 +62,17 @@ class StudentService:
         self.db_session = db_session
 
     @transactional
-    async def create_from_telegram_context(
+    async def create_student(
         self,
         academy_id: int,
-        context_data: dict[str, Any],
+        data: StudentCreateRequest,
     ) -> StudentRead:
-        modality_id = int(context_data['modality_id'])
-
         await self._ensure_modality_belongs_to_academy(
             academy_id=academy_id,
-            modality_id=modality_id,
+            modality_id=data.enrollment.modality_id,
         )
 
+        context_data = self._build_context_from_create_request(data)
         address_id = await self._get_address_id_from_context(
             academy_id=academy_id,
             context_data=context_data,
@@ -75,14 +82,14 @@ class StudentService:
             StudentCreate(
                 academy_id=academy_id,
                 address_id=address_id,
-                name=context_data['student_name'],
-                phone=context_data.get('phone'),
-                phone_is_whatsapp=context_data.get('is_whatsapp'),
-                cpf=context_data.get('cpf'),
-                instagram=context_data.get('instagram'),
-                email=context_data.get('email'),
-                birth_date=self._parse_birth_date(context_data),
-                sex=self._parse_student_sex(context_data),
+                name=data.name,
+                phone=data.phone,
+                phone_is_whatsapp=data.phone_is_whatsapp,
+                cpf=data.cpf,
+                instagram=data.instagram,
+                email=data.email,
+                birth_date=data.birth_date,
+                sex=data.sex,
             )
         )
 
@@ -90,10 +97,11 @@ class StudentService:
             EnrollmentCreate(
                 academy_id=academy_id,
                 student_id=student_id,
-                modality_id=modality_id,
-                monthly_fee=Decimal(context_data['monthly_fee']),
-                due_day=int(context_data['due_day']),
-                is_exempt=bool(context_data['is_exempt']),
+                modality_id=data.enrollment.modality_id,
+                monthly_fee=data.enrollment.monthly_fee,
+                due_day=data.enrollment.due_day,
+                is_exempt=data.enrollment.is_exempt,
+                status=data.enrollment.status,
             )
         )
 
@@ -106,6 +114,41 @@ class StudentService:
         student = await self.student_repository.get_by_id_or_fail(student_id)
 
         return StudentRead(**student)
+
+    @transactional
+    async def create_from_telegram_context(
+        self,
+        academy_id: int,
+        context_data: dict[str, Any],
+    ) -> StudentRead:
+        request = StudentCreateRequest(
+            name=str(context_data['student_name']),
+            phone=context_data.get('phone'),
+            phone_is_whatsapp=context_data.get('is_whatsapp'),
+            cpf=context_data.get('cpf'),
+            instagram=context_data.get('instagram'),
+            email=context_data.get('email'),
+            birth_date=self._parse_birth_date(context_data),
+            sex=(
+                self._parse_student_sex(context_data)
+                if context_data.get('sex') is not None
+                else None
+            ),
+            enrollment=self._enrollment_from_context(context_data),
+            address=self._address_from_context(context_data),
+            address_reference_student_id=context_data.get(
+                'address_reference_student_id'
+            ),
+            responsibles=self._responsibles_from_context(context_data),
+            responsible_references=self._responsible_refs_from_context(
+                context_data
+            ),
+        )
+
+        return await self.create_student(
+            academy_id=academy_id,
+            data=request,
+        )
 
     async def list_by_academy(
         self,
@@ -786,3 +829,95 @@ class StudentService:
             return None
 
         return date.fromisoformat(birth_date)
+
+    @staticmethod
+    def _build_context_from_create_request(
+        data: StudentCreateRequest,
+    ) -> dict[str, Any]:
+        return {
+            'address': (
+                data.address.model_dump() if data.address is not None else None
+            ),
+            'address_reference_student_id': data.address_reference_student_id,
+            'responsibles': [
+                responsible.model_dump(mode='json')
+                for responsible in data.responsibles
+            ],
+            'responsible_references': [
+                reference.model_dump(mode='json')
+                for reference in data.responsible_references
+            ],
+        }
+
+    @staticmethod
+    def _enrollment_from_context(
+        context_data: dict[str, Any],
+    ) -> StudentEnrollmentPayload:
+        return StudentEnrollmentPayload(
+            modality_id=int(context_data['modality_id']),
+            monthly_fee=Decimal(str(context_data['monthly_fee'])),
+            due_day=int(context_data['due_day']),
+            is_exempt=bool(context_data['is_exempt']),
+        )
+
+    @staticmethod
+    def _address_from_context(
+        context_data: dict[str, Any],
+    ) -> StudentAddressPayload | None:
+        address = context_data.get('address')
+
+        if not isinstance(address, dict):
+            return None
+
+        has_address_data = any(
+            address.get(field)
+            for field in (
+                'zip_code',
+                'street',
+                'neighborhood',
+                'city',
+                'state',
+                'number',
+                'complement',
+            )
+        )
+
+        if not has_address_data:
+            return None
+
+        return StudentAddressPayload(**address)
+
+    @staticmethod
+    def _responsibles_from_context(
+        context_data: dict[str, Any],
+    ) -> list[StudentResponsiblePayload]:
+        responsibles = context_data.get('responsibles', [])
+
+        return [
+            StudentResponsiblePayload(
+                name=str(responsible['name']),
+                phone=str(responsible['phone']),
+                phone_is_whatsapp=bool(responsible['phone_is_whatsapp']),
+                email=responsible.get('email'),
+                relationship=StudentResponsibleRelationship(
+                    responsible['relationship']
+                ),
+            )
+            for responsible in responsibles
+        ]
+
+    @staticmethod
+    def _responsible_refs_from_context(
+        context_data: dict[str, Any],
+    ) -> list[StudentResponsibleReferencePayload]:
+        references = context_data.get('responsible_references', [])
+
+        return [
+            StudentResponsibleReferencePayload(
+                responsible_id=int(reference['responsible_id']),
+                relationship=StudentResponsibleRelationship(
+                    reference['relationship']
+                ),
+            )
+            for reference in references
+        ]

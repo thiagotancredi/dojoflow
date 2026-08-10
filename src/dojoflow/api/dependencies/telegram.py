@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
+from dojoflow.api.dependencies.auth import AuthServiceDep
 from dojoflow.api.dependencies.master import MasterServiceDep
 from dojoflow.api.dependencies.modality import ModalityServiceDep
 from dojoflow.api.dependencies.onboarding import OnboardingServiceDep
@@ -45,6 +46,7 @@ def get_telegram_webhook_service(  # noqa: PLR0913, PLR0917
     telegram_conversation_state_service_dep: (
         TelegramConversationStateServiceDep
     ),
+    auth_service_dep: AuthServiceDep,
 ) -> TelegramWebhookService:
     return TelegramWebhookService(
         telegram_service=telegram_service_dep,
@@ -56,6 +58,7 @@ def get_telegram_webhook_service(  # noqa: PLR0913, PLR0917
         telegram_conversation_state_service=(
             telegram_conversation_state_service_dep
         ),
+        auth_service=auth_service_dep,
     )
 
 

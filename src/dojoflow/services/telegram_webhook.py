@@ -4,6 +4,7 @@ from dojoflow.integrations.telegram.schemas import (
 )
 from dojoflow.integrations.telegram.service import TelegramService
 from dojoflow.schemas.master_context import MasterContextRead
+from dojoflow.services.auth import AuthService
 from dojoflow.services.cep import CepService
 from dojoflow.services.master import MasterService
 from dojoflow.services.modality import ModalityService
@@ -23,6 +24,7 @@ from dojoflow.services.telegram_conversation_state import (
     TelegramConversationStateService,
 )
 from dojoflow.shared.enums import AcademyStatus
+from dojoflow.shared.exceptions import ConflictError, UnauthorizedError
 from dojoflow.shared.telegram_enums import TelegramFlow, TelegramStep
 
 
@@ -38,6 +40,7 @@ class TelegramWebhookService:
         telegram_conversation_state_service: (
             TelegramConversationStateService
         ),
+        auth_service: AuthService,
     ) -> None:
         self.telegram_service = telegram_service
         self.master_service = master_service
@@ -47,6 +50,7 @@ class TelegramWebhookService:
         self.telegram_conversation_state_service = (
             telegram_conversation_state_service
         )
+        self.auth_service = auth_service
 
         self.main_menu_handler = MainMenuHandler(telegram_service)
         self.students_menu_handler = StudentsMenuHandler(
@@ -84,6 +88,15 @@ class TelegramWebhookService:
         telegram_user_id = payload.message.from_user.id
         text = payload.message.text or ''
 
+        link_token = self._extract_telegram_link_token(text)
+
+        if link_token is not None:
+            return await self._process_telegram_link(
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                token=link_token,
+            )
+
         context = await self.master_service.get_context_by_telegram_user_id(
             telegram_user_id
         )
@@ -102,6 +115,87 @@ class TelegramWebhookService:
             context=context,
         )
 
+    @staticmethod
+    def _extract_telegram_link_token(text: str) -> str | None:
+        normalized = text.strip()
+
+        if normalized.startswith('/start '):
+            payload = normalized.removeprefix('/start ').strip()
+        elif normalized.startswith('/start'):
+            return None
+        else:
+            payload = normalized
+
+        if payload.startswith('link_'):
+            token = payload.removeprefix('link_').strip()
+
+            if token:
+                return token
+
+        return None
+
+    async def _process_telegram_link(
+        self,
+        chat_id: int,
+        telegram_user_id: int,
+        token: str,
+    ) -> dict[str, str]:
+        try:
+            context = await self.auth_service.link_telegram_from_token(
+                token=token,
+                telegram_user_id=telegram_user_id,
+            )
+        except UnauthorizedError:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Este link de vinculação é inválido ou expirou.\n'
+                    'Gere um novo link no site e tente novamente.'
+                ),
+            )
+
+            return {'status': 'telegram_link_invalid'}
+        except ConflictError as exc:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=f'Não foi possível vincular sua conta.\n\n{exc}',
+            )
+
+            return {'status': 'telegram_link_conflict'}
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Telegram vinculado com sucesso! 🥋\n\n'
+                f'Academia: {context.academy_name}\n'
+                f'Mestre: {context.master_name}'
+            ),
+        )
+
+        return {'status': 'telegram_linked'}
+
+    async def _process_web_credentials_command(
+        self,
+        chat_id: int,
+        context: MasterContextRead,
+    ) -> dict[str, str]:
+        setup = await self.auth_service.create_telegram_setup_token_for_master(
+            context.master_id
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                'Para criar ou atualizar seu acesso ao site, use este '
+                'código no formulário de credenciais:\n\n'
+                f'`{setup.token}`\n\n'
+                'Ele expira em breve. Endpoint: '
+                'POST /api/v1/auth/set-credentials'
+            ),
+        )
+
+        return {'status': 'web_setup_token_sent'}
+
     async def _process_registered_master_message(  # noqa: PLR0911, PLR0912, PLR0915
         self,
         chat_id: int,
@@ -113,6 +207,14 @@ class TelegramWebhookService:
             await self._send_blocked_message(chat_id)
 
             return {'status': 'blocked'}
+
+        normalized_text = text.strip().lower()
+
+        if normalized_text in {'/web', '/site', '/conectar'}:
+            return await self._process_web_credentials_command(
+                chat_id=chat_id,
+                context=context,
+            )
 
         state_service = self.telegram_conversation_state_service
         state = await state_service.get_by_telegram_user_id(telegram_user_id)

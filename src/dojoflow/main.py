@@ -1,21 +1,39 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from dojoflow.api.exception_handlers import register_exception_handlers
+from dojoflow.api.routes.auth import router as auth_router
 from dojoflow.api.routes.health import router as health_router
 from dojoflow.api.routes.master import router as master_router
+from dojoflow.api.routes.modalities import router as modalities_router
 from dojoflow.api.routes.onboarding import router as onboarding_router
+from dojoflow.api.routes.students import router as students_router
 from dojoflow.api.routes.telegram import router as telegram_router
 from dojoflow.core.settings import settings
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description='API for Dojoflow, a workflow automation tool.',
+    description=(
+        'API for DojoFlow — academy tuition management via Telegram and web.'
+    ),
     version='1.0.0',
 )
+
+if settings.cors_origins_list:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=['*'],
+        allow_headers=['*'],
+    )
 
 register_exception_handlers(app)
 
 app.include_router(health_router)
+app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(onboarding_router, prefix=settings.API_V1_PREFIX)
 app.include_router(master_router, prefix=settings.API_V1_PREFIX)
+app.include_router(modalities_router, prefix=settings.API_V1_PREFIX)
+app.include_router(students_router, prefix=settings.API_V1_PREFIX)
 app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)

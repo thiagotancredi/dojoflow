@@ -1,0 +1,245 @@
+import secrets
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from dojoflow.core.settings import settings
+from dojoflow.database.transaction import transactional
+from dojoflow.repositories.one_time_token import OneTimeTokenRepository
+from dojoflow.schemas.auth import (
+    AuthLoginRequest,
+    AuthRegisterRequest,
+    AuthTokenResponse,
+    SetCredentialsRequest,
+    TelegramLinkTokenResponse,
+    TelegramSetupTokenResponse,
+)
+from dojoflow.schemas.master_context import MasterContextRead
+from dojoflow.schemas.onboarding import OnboardingWebCreate
+from dojoflow.services.master import MasterService
+from dojoflow.services.onboarding import OnboardingService
+from dojoflow.services.security import (
+    create_access_token,
+    create_refresh_token,
+    get_master_id_from_token,
+    hash_password,
+    verify_password,
+)
+from dojoflow.shared.exceptions import UnauthorizedError
+
+PURPOSE_TELEGRAM_LINK = 'telegram_link'
+PURPOSE_TELEGRAM_SETUP = 'telegram_setup'
+
+
+class AuthService:
+    def __init__(
+        self,
+        onboarding_service: OnboardingService,
+        master_service: MasterService,
+        one_time_token_repository: OneTimeTokenRepository,
+        db_session: AsyncSession,
+    ) -> None:
+        self.onboarding_service = onboarding_service
+        self.master_service = master_service
+        self.one_time_token_repository = one_time_token_repository
+        self.db_session = db_session
+
+    async def register(
+        self,
+        data: AuthRegisterRequest,
+    ) -> AuthTokenResponse:
+        onboarding = await self.onboarding_service.register_web(
+            OnboardingWebCreate(
+                academy_name=data.academy_name,
+                master_name=data.master_name,
+                email=str(data.email),
+                password=data.password,
+                phone=data.phone,
+            )
+        )
+
+        context = await self.master_service.get_context_by_id(
+            onboarding.master_id
+        )
+
+        if context is None:
+            raise UnauthorizedError('Could not load master context.')
+
+        return self._build_token_response(context)
+
+    async def login(
+        self,
+        data: AuthLoginRequest,
+    ) -> AuthTokenResponse:
+        normalized_email = str(data.email).strip().lower()
+        master = await self.master_service.get_by_email(normalized_email)
+
+        if master is None or master.get('password_hash') is None:
+            raise UnauthorizedError('Invalid email or password.')
+
+        if not verify_password(data.password, str(master['password_hash'])):
+            raise UnauthorizedError('Invalid email or password.')
+
+        master_id = int(master['id'])
+        context = await self.master_service.get_context_by_id(master_id)
+
+        if context is None:
+            raise UnauthorizedError('Invalid email or password.')
+
+        return self._build_token_response(context)
+
+    async def refresh(
+        self,
+        refresh_token: str,
+    ) -> AuthTokenResponse:
+        master_id = get_master_id_from_token(
+            refresh_token,
+            expected_purpose='refresh',
+        )
+        context = await self.master_service.get_context_by_id(master_id)
+
+        if context is None:
+            raise UnauthorizedError('Invalid or expired token.')
+
+        return self._build_token_response(context)
+
+    async def get_me(
+        self,
+        master_id: int,
+    ) -> MasterContextRead:
+        context = await self.master_service.get_context_by_id(master_id)
+
+        if context is None:
+            raise UnauthorizedError('Master not found.')
+
+        return context
+
+    async def create_telegram_link_token_for_master(
+        self,
+        master_id: int,
+    ) -> TelegramLinkTokenResponse:
+        token, expires_at = await self._issue_one_time_token(
+            master_id=master_id,
+            purpose=PURPOSE_TELEGRAM_LINK,
+            ttl_minutes=settings.JWT_TELEGRAM_LINK_TTL_MINUTES,
+        )
+        deep_link = None
+
+        if settings.TELEGRAM_BOT_USERNAME:
+            deep_link = (
+                f'https://t.me/{settings.TELEGRAM_BOT_USERNAME}'
+                f'?start=link_{token}'
+            )
+
+        return TelegramLinkTokenResponse(
+            token=token,
+            deep_link=deep_link,
+            expires_at=expires_at,
+        )
+
+    async def create_telegram_setup_token_for_master(
+        self,
+        master_id: int,
+    ) -> TelegramSetupTokenResponse:
+        token, expires_at = await self._issue_one_time_token(
+            master_id=master_id,
+            purpose=PURPOSE_TELEGRAM_SETUP,
+            ttl_minutes=settings.JWT_TELEGRAM_SETUP_TTL_MINUTES,
+        )
+
+        return TelegramSetupTokenResponse(
+            token=token,
+            expires_at=expires_at,
+        )
+
+    async def set_credentials(
+        self,
+        data: SetCredentialsRequest,
+        *,
+        authenticated_master_id: int | None = None,
+    ) -> AuthTokenResponse:
+        if authenticated_master_id is not None:
+            master_id = authenticated_master_id
+        elif data.setup_token:
+            master_id = await self._consume_one_time_token(
+                token=data.setup_token,
+                purpose=PURPOSE_TELEGRAM_SETUP,
+            )
+        else:
+            raise UnauthorizedError(
+                'Authentication or setup token is required.'
+            )
+
+        context = await self.master_service.set_credentials(
+            master_id=master_id,
+            email=str(data.email),
+            password_hash=hash_password(data.password),
+        )
+
+        return self._build_token_response(context)
+
+    async def link_telegram_from_token(
+        self,
+        token: str,
+        telegram_user_id: int,
+    ) -> MasterContextRead:
+        master_id = await self._consume_one_time_token(
+            token=token,
+            purpose=PURPOSE_TELEGRAM_LINK,
+        )
+
+        return await self.master_service.link_telegram_user(
+            master_id=master_id,
+            telegram_user_id=telegram_user_id,
+        )
+
+    @transactional
+    async def _issue_one_time_token(
+        self,
+        master_id: int,
+        purpose: str,
+        ttl_minutes: int,
+    ) -> tuple[str, datetime]:
+        token = secrets.token_urlsafe(16)
+        expires_at = datetime.now(UTC) + timedelta(minutes=ttl_minutes)
+
+        await self.one_time_token_repository.create({
+            'master_id': master_id,
+            'token': token,
+            'purpose': purpose,
+            'expires_at': expires_at,
+            'used_at': None,
+        })
+
+        return token, expires_at
+
+    @transactional
+    async def _consume_one_time_token(
+        self,
+        token: str,
+        purpose: str,
+    ) -> int:
+        record = await self.one_time_token_repository.get_valid_by_token(
+            token=token,
+            purpose=purpose,
+        )
+
+        if record is None:
+            raise UnauthorizedError('Invalid or expired token.')
+
+        await self.one_time_token_repository.update_by_id(
+            record_id=int(record['id']),
+            data={'used_at': datetime.now(UTC)},
+        )
+
+        return int(record['master_id'])
+
+    @staticmethod
+    def _build_token_response(
+        context: MasterContextRead,
+    ) -> AuthTokenResponse:
+        return AuthTokenResponse(
+            access_token=create_access_token(context.master_id),
+            refresh_token=create_refresh_token(context.master_id),
+            master=context,
+        )
