@@ -2,7 +2,6 @@ from typing import Any
 
 from sqlalchemy import select
 
-from dojoflow.database.transaction import transactional
 from dojoflow.models.academy import Academy
 from dojoflow.models.master import Master
 from dojoflow.repositories.base import BaseRepository
@@ -51,7 +50,6 @@ class MasterRepository(BaseRepository[Master]):
 
         return dict(record)
 
-    @transactional
     async def get_context_by_telegram_user_id(
         self,
         telegram_user_id: int,

@@ -4,6 +4,7 @@ from time import time
 
 from devtools.factories.onboarding import OnboardingPayloadFactory
 from dojoflow.database.session import AsyncSessionLocal
+from dojoflow.database.transaction import unit_of_work
 from dojoflow.repositories.academy import AcademyRepository
 from dojoflow.repositories.master import MasterRepository
 from dojoflow.schemas.onboarding import OnboardingCreate
@@ -54,9 +55,10 @@ async def seed_onboarding(quantity: int) -> None:
                 telegram_user_id=base_telegram_user_id + index,
             )
 
-            onboarding = await onboarding_service.register_onboarding(
-                OnboardingCreate(**payload)
-            )
+            async with unit_of_work(session):
+                onboarding = await onboarding_service.register_onboarding(
+                    OnboardingCreate(**payload)
+                )
 
             print(
                 'Created onboarding: '
