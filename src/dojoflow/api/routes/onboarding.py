@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, status
 
 from dojoflow.api.dependencies.auth import require_internal_api_key

@@ -184,9 +184,7 @@ async def test_telegram_link_token_and_webhook_link(
     assert webhook_response.json() == {'status': 'telegram_linked'}
 
     master = (
-        await db_session.execute(
-            select(Master).where(Master.id == master_id)
-        )
+        await db_session.execute(select(Master).where(Master.id == master_id))
     ).scalar_one()
 
     assert master.telegram_user_id == telegram_user_id

@@ -38,9 +38,7 @@ async def test_modalities_catalog_and_toggle(
     )
 
     assert catalog_response.status_code == HTTPStatus.OK
-    assert any(
-        item['id'] == modality.id for item in catalog_response.json()
-    )
+    assert any(item['id'] == modality.id for item in catalog_response.json())
 
     toggle_response = await client.put(
         f'/api/v1/academy/modalities/{modality.id}/toggle',
@@ -57,9 +55,7 @@ async def test_modalities_catalog_and_toggle(
 
     assert academy_response.status_code == HTTPStatus.OK
     selected = [
-        item
-        for item in academy_response.json()
-        if item['id'] == modality.id
+        item for item in academy_response.json() if item['id'] == modality.id
     ]
     assert selected[0]['is_selected'] is True
 
