@@ -55,10 +55,14 @@ def int_fk(
 def str_column(
     length: int = 120,
     nullable: bool = False,
+    unique: bool = False,
+    index: bool = False,
 ) -> MappedColumn[str]:
     return mapped_column(
         String(length),
         nullable=nullable,
+        unique=unique,
+        index=index,
     )
 
 

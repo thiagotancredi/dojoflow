@@ -15,6 +15,7 @@ from dojoflow.shared.telegram_enums import TelegramStep
 async def test_update_student_edit_context_serializes_context_data() -> None:
     repository = AsyncMock()
     db_session = AsyncMock()
+    db_session.info = {}
     service = TelegramConversationStateService(
         telegram_conversation_state_repository=repository,
         db_session=db_session,

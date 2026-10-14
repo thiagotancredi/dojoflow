@@ -1,0 +1,43 @@
+name: backend
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dojoflow
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5434/dojoflow_test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: pipx install poetry
+      - run: poetry install --no-interaction
+      - run: poetry run ruff check .
+      - run: poetry run ruff format --check .
+      - run: poetry run typos .
+      - name: Validate migrations
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5434/dojoflow
+        run: |
+          poetry run alembic upgrade head
+          poetry run alembic check
+      - run: poetry run pytest -q

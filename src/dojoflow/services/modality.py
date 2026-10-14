@@ -40,6 +40,7 @@ class ModalityService:
         stmt = (
             select(
                 Modality.id,
+                Modality.public_id,
                 Modality.name,
                 Modality.emoji,
                 Modality.is_active,
@@ -72,6 +73,7 @@ class ModalityService:
         return [
             ModalityOptionRead(
                 id=modality.id,
+                public_id=modality.public_id,
                 name=modality.name,
                 emoji=modality.emoji,
                 is_selected=modality.id in selected_modality_ids,

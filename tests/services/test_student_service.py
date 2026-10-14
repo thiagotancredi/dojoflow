@@ -207,6 +207,41 @@ async def test_create_student_cannot_reuse_address_from_another_academy(
 
 
 @pytest.mark.asyncio
+async def test_reuse_address_without_reference_address_has_specific_code(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    academy_id, modality_id = await _setup_academy_with_modality(
+        client=client,
+        db_session=db_session,
+        academy_name='Academia Luna',
+        telegram_user_id=100000001,
+    )
+    student_service = _make_student_service(db_session)
+    reference = await student_service.create_from_telegram_context(
+        academy_id=academy_id,
+        context_data=_make_student_context('Luna', modality_id),
+    )
+    other = await student_service.create_from_telegram_context(
+        academy_id=academy_id,
+        context_data=_make_student_context('Castiel', modality_id),
+    )
+    reference_model = await db_session.get(Student, reference.id)
+    assert reference_model is not None
+    reference_model.address_id = None
+    await db_session.commit()
+
+    with pytest.raises(NotFoundError) as error:
+        await student_service.reuse_address(
+            academy_id=academy_id,
+            student_id=other.id,
+            reference_student_id=reference.id,
+        )
+
+    assert error.value.code == 'ADDRESS_NOT_FOUND'
+
+
+@pytest.mark.asyncio
 async def test_create_student_reusing_responsible_from_another_student(
     client: AsyncClient,
     db_session: AsyncSession,

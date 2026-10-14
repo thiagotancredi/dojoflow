@@ -8,7 +8,7 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql import ColumnElement
 
 from dojoflow.database.base import Base
-from dojoflow.database.transaction import transactional
+from dojoflow.database.transaction import in_unit_of_work
 from dojoflow.shared.exceptions import ConflictError, NotFoundError
 
 type RecordId = int
@@ -65,8 +65,15 @@ class BaseRepository[T: Base]:
             f'Could not find {self.model.__name__} with id {record_id}.'
         )
 
-    @transactional
+    def _ensure_unit_of_work(self) -> None:
+        if not in_unit_of_work(self.db_session):
+            raise RuntimeError(
+                f'{self.model.__name__} write outside a unit of work. '
+                'Decorate the calling service method with @transactional.'
+            )
+
     async def create(self, data: DataInput) -> RecordId:
+        self._ensure_unit_of_work()
         data_dict = self._get_data_dict(data)
 
         stmt = insert(self.model).values(**data_dict).returning(self.pk_column)
@@ -74,12 +81,12 @@ class BaseRepository[T: Base]:
 
         return stmt_result.scalar_one()
 
-    @transactional
     async def update_by_id(
         self,
         record_id: RecordId,
         data: DataInput,
     ) -> None:
+        self._ensure_unit_of_work()
         data_dict = self._get_data_dict(data)
 
         stmt = (
@@ -95,8 +102,8 @@ class BaseRepository[T: Base]:
         if updated_id is None:
             self._raise_not_found(record_id)
 
-    @transactional
     async def delete_by_id(self, record_id: RecordId) -> None:
+        self._ensure_unit_of_work()
         stmt = (
             delete(self.model)
             .where(self.pk_column == record_id)
@@ -109,7 +116,6 @@ class BaseRepository[T: Base]:
         if deleted_id is None:
             self._raise_not_found(record_id)
 
-    @transactional
     async def list(
         self,
         fields: Fields = None,
@@ -140,7 +146,6 @@ class BaseRepository[T: Base]:
 
         return [dict(row) for row in rows]
 
-    @transactional
     async def get_by_id(
         self,
         record_id: RecordId,
@@ -159,7 +164,6 @@ class BaseRepository[T: Base]:
 
         return records[0]
 
-    @transactional
     async def get_by_id_or_fail(
         self,
         record_id: RecordId,
@@ -172,7 +176,6 @@ class BaseRepository[T: Base]:
 
         return record
 
-    @transactional
     async def get_one(
         self,
         fields: Fields = None,
@@ -196,7 +199,6 @@ class BaseRepository[T: Base]:
 
         return records[0]
 
-    @transactional
     async def get_one_or_fail(
         self,
         fields: Fields = None,
@@ -211,7 +213,6 @@ class BaseRepository[T: Base]:
 
         return record
 
-    @transactional
     async def exists(self, filters: Filters = None) -> bool:
         stmt = select(literal(1)).select_from(self.model).limit(1)
 
@@ -223,7 +224,6 @@ class BaseRepository[T: Base]:
 
         return stmt_result.scalar_one_or_none() is not None
 
-    @transactional
     async def count(self, filters: Filters = None) -> int:
         stmt = select(func.count()).select_from(self.model)
 
@@ -235,7 +235,6 @@ class BaseRepository[T: Base]:
 
         return stmt_result.scalar_one()
 
-    @transactional
     async def sum[V](
         self,
         field: InstrumentedAttribute[V] | ColumnElement[V],

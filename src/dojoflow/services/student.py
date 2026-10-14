@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import exists, not_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.database.transaction import transactional
@@ -24,14 +24,22 @@ from dojoflow.repositories.student_responsible import (
 from dojoflow.schemas.address import AddressCreate
 from dojoflow.schemas.enrollment import EnrollmentCreate
 from dojoflow.schemas.responsible import ResponsibleCreate
-from dojoflow.schemas.student import StudentCreate, StudentRead
+from dojoflow.schemas.student import (
+    StudentAddressPayload,
+    StudentCreate,
+    StudentCreateRequest,
+    StudentEnrollmentPayload,
+    StudentRead,
+    StudentResponsiblePayload,
+    StudentResponsibleReferencePayload,
+)
 from dojoflow.schemas.student_responsible import StudentResponsibleCreate
 from dojoflow.shared.enums import (
     EnrollmentStatus,
     StudentResponsibleRelationship,
     StudentSex,
 )
-from dojoflow.shared.exceptions import NotFoundError
+from dojoflow.shared.exceptions import ConflictError, NotFoundError
 
 
 class StudentService:
@@ -54,18 +62,17 @@ class StudentService:
         self.db_session = db_session
 
     @transactional
-    async def create_from_telegram_context(
+    async def create_student(
         self,
         academy_id: int,
-        context_data: dict[str, Any],
+        data: StudentCreateRequest,
     ) -> StudentRead:
-        modality_id = int(context_data['modality_id'])
-
         await self._ensure_modality_belongs_to_academy(
             academy_id=academy_id,
-            modality_id=modality_id,
+            modality_id=data.enrollment.modality_id,
         )
 
+        context_data = self._build_context_from_create_request(data)
         address_id = await self._get_address_id_from_context(
             academy_id=academy_id,
             context_data=context_data,
@@ -75,14 +82,14 @@ class StudentService:
             StudentCreate(
                 academy_id=academy_id,
                 address_id=address_id,
-                name=context_data['student_name'],
-                phone=context_data.get('phone'),
-                phone_is_whatsapp=context_data.get('is_whatsapp'),
-                cpf=context_data.get('cpf'),
-                instagram=context_data.get('instagram'),
-                email=context_data.get('email'),
-                birth_date=self._parse_birth_date(context_data),
-                sex=self._parse_student_sex(context_data),
+                name=data.name,
+                phone=data.phone,
+                phone_is_whatsapp=data.phone_is_whatsapp,
+                cpf=data.cpf,
+                instagram=data.instagram,
+                email=data.email,
+                birth_date=data.birth_date,
+                sex=data.sex,
             )
         )
 
@@ -90,10 +97,11 @@ class StudentService:
             EnrollmentCreate(
                 academy_id=academy_id,
                 student_id=student_id,
-                modality_id=modality_id,
-                monthly_fee=Decimal(context_data['monthly_fee']),
-                due_day=int(context_data['due_day']),
-                is_exempt=bool(context_data['is_exempt']),
+                modality_id=data.enrollment.modality_id,
+                monthly_fee=data.enrollment.monthly_fee,
+                due_day=data.enrollment.due_day,
+                is_exempt=data.enrollment.is_exempt,
+                status=data.enrollment.status,
             )
         )
 
@@ -107,6 +115,41 @@ class StudentService:
 
         return StudentRead(**student)
 
+    @transactional
+    async def create_from_telegram_context(
+        self,
+        academy_id: int,
+        context_data: dict[str, Any],
+    ) -> StudentRead:
+        request = StudentCreateRequest(
+            name=str(context_data['student_name']),
+            phone=context_data.get('phone'),
+            phone_is_whatsapp=context_data.get('is_whatsapp'),
+            cpf=context_data.get('cpf'),
+            instagram=context_data.get('instagram'),
+            email=context_data.get('email'),
+            birth_date=self._parse_birth_date(context_data),
+            sex=(
+                self._parse_student_sex(context_data)
+                if context_data.get('sex') is not None
+                else None
+            ),
+            enrollment=self._enrollment_from_context(context_data),
+            address=self._address_from_context(context_data),
+            address_reference_student_id=context_data.get(
+                'address_reference_student_id'
+            ),
+            responsibles=self._responsibles_from_context(context_data),
+            responsible_references=self._responsible_refs_from_context(
+                context_data
+            ),
+        )
+
+        return await self.create_student(
+            academy_id=academy_id,
+            data=request,
+        )
+
     async def list_by_academy(
         self,
         academy_id: int,
@@ -119,6 +162,85 @@ class StudentService:
         )
 
         return [StudentRead(**student) for student in students]
+
+    async def list_page(  # noqa: PLR0913
+        self,
+        academy_id: int,
+        *,
+        search: str | None,
+        modality_id: int | None,
+        status: EnrollmentStatus | None,
+        page: int,
+        page_size: int,
+    ) -> tuple[list[dict[str, Any]], int]:
+        filters = [Student.academy_id == academy_id]
+
+        normalized = ' '.join(search.split()) if search else ''
+
+        if normalized:
+            escaped = (
+                normalized
+                .replace('\\', '\\\\')
+                .replace('%', '\\%')
+                .replace('_', '\\_')
+            )
+            filters.append(Student.name.ilike(f'%{escaped}%', escape='\\'))
+
+        enrollment_filters = [
+            Enrollment.student_id == Student.id,
+            Enrollment.academy_id == academy_id,
+        ]
+
+        if modality_id is not None:
+            enrollment_filters.append(Enrollment.modality_id == modality_id)
+            filters.append(exists().where(*enrollment_filters))
+
+        if status is not None:
+            has_active = exists().where(
+                *enrollment_filters,
+                Enrollment.status == EnrollmentStatus.ACTIVE,
+            )
+            filters.append(
+                has_active
+                if status == EnrollmentStatus.ACTIVE
+                else not_(has_active)
+            )
+
+        total = await self.student_repository.count(filters=filters)
+        students = await self.student_repository.list(
+            filters=filters,
+            order_by=[Student.name, Student.id],
+            offset=(page - 1) * page_size,
+            limit=page_size,
+        )
+
+        return students, total
+
+    async def get_active_modality_names(
+        self,
+        academy_id: int,
+        student_ids: list[int],
+    ) -> dict[int, list[str]]:
+        if not student_ids:
+            return {}
+
+        stmt = (
+            select(Enrollment.student_id, Modality.name)
+            .join(Modality, Modality.id == Enrollment.modality_id)
+            .where(
+                Enrollment.academy_id == academy_id,
+                Enrollment.student_id.in_(student_ids),
+                Enrollment.status == EnrollmentStatus.ACTIVE,
+            )
+            .order_by(Modality.name)
+        )
+        result = await self.db_session.execute(stmt)
+        names: dict[int, list[str]] = {}
+
+        for student_id, modality_name in result.all():
+            names.setdefault(student_id, []).append(modality_name)
+
+        return names
 
     async def search_by_name(
         self,
@@ -153,7 +275,8 @@ class StudentService:
 
         if student is None:
             raise NotFoundError(
-                f'Could not find Student with id {student_id}.'
+                f'Could not find Student with id {student_id}.',
+                code='STUDENT_NOT_FOUND',
             )
 
         enrollments = await self._get_student_enrollments(
@@ -192,7 +315,8 @@ class StudentService:
 
         if student is None:
             raise NotFoundError(
-                f'Could not find Student with id {student_id}.'
+                f'Could not find Student with id {student_id}.',
+                code='STUDENT_NOT_FOUND',
             )
 
         update_data = dict(data)
@@ -290,6 +414,65 @@ class StudentService:
         await self.enrollment_repository.update_by_id(
             record_id=enrollments[0]['id'],
             data=update_data,
+        )
+
+    @transactional
+    async def add_enrollment(
+        self,
+        academy_id: int,
+        student_id: int,
+        data: StudentEnrollmentPayload,
+    ) -> None:
+        await self._ensure_modality_belongs_to_academy(
+            academy_id=academy_id,
+            modality_id=data.modality_id,
+        )
+
+        already_enrolled = await self.enrollment_repository.exists(
+            filters=[
+                Enrollment.academy_id == academy_id,
+                Enrollment.student_id == student_id,
+                Enrollment.modality_id == data.modality_id,
+            ],
+        )
+
+        if already_enrolled:
+            raise ConflictError(
+                'Student is already enrolled in this modality.',
+                code='ENROLLMENT_ALREADY_EXISTS',
+            )
+
+        await self.enrollment_repository.create(
+            EnrollmentCreate(
+                academy_id=academy_id,
+                student_id=student_id,
+                modality_id=data.modality_id,
+                monthly_fee=data.monthly_fee,
+                due_day=data.due_day,
+                is_exempt=data.is_exempt,
+                status=data.status,
+            )
+        )
+
+    @transactional
+    async def update_enrollment_by_id(
+        self,
+        academy_id: int,
+        student_id: int,
+        enrollment_id: int,
+        data: dict[str, Any],
+    ) -> None:
+        await self.enrollment_repository.get_one_or_fail(
+            filters=[
+                Enrollment.id == enrollment_id,
+                Enrollment.academy_id == academy_id,
+                Enrollment.student_id == student_id,
+            ],
+        )
+
+        await self.enrollment_repository.update_by_id(
+            record_id=enrollment_id,
+            data=data,
         )
 
     @transactional
@@ -494,6 +677,8 @@ class StudentService:
                 Enrollment.due_day,
                 Enrollment.is_exempt,
                 Modality.name.label('modality_name'),
+                Enrollment.public_id.label('enrollment_public_id'),
+                Modality.public_id.label('modality_public_id'),
             )
             .join(Modality, Modality.id == Enrollment.modality_id)
             .where(
@@ -521,7 +706,8 @@ class StudentService:
 
         if student is None:
             raise NotFoundError(
-                f'Could not find Student with id {student_id}.'
+                f'Could not find Student with id {student_id}.',
+                code='STUDENT_NOT_FOUND',
             )
 
         return student
@@ -542,6 +728,8 @@ class StudentService:
                 Responsible.phone,
                 Responsible.phone_is_whatsapp,
                 Responsible.email,
+                StudentResponsible.public_id.label('link_public_id'),
+                Responsible.public_id.label('responsible_public_id'),
             )
             .join(
                 Responsible,
@@ -592,14 +780,16 @@ class StudentService:
 
         if student is None:
             raise NotFoundError(
-                f'Could not find Student with id {student_id}.'
+                f'Could not find Student with id {student_id}.',
+                code='STUDENT_NOT_FOUND',
             )
 
         address_id = student.get('address_id')
 
         if address_id is None:
             raise NotFoundError(
-                f'Student with id {student_id} does not have address.'
+                f'Student with id {student_id} does not have address.',
+                code='ADDRESS_NOT_FOUND',
             )
 
         return int(address_id)
@@ -755,7 +945,8 @@ class StudentService:
 
         if not exists:
             raise NotFoundError(
-                'This modality is not configured for this academy.'
+                'This modality is not configured for this academy.',
+                code='MODALITY_NOT_ENABLED',
             )
 
     @staticmethod
@@ -786,3 +977,95 @@ class StudentService:
             return None
 
         return date.fromisoformat(birth_date)
+
+    @staticmethod
+    def _build_context_from_create_request(
+        data: StudentCreateRequest,
+    ) -> dict[str, Any]:
+        return {
+            'address': (
+                data.address.model_dump() if data.address is not None else None
+            ),
+            'address_reference_student_id': data.address_reference_student_id,
+            'responsibles': [
+                responsible.model_dump(mode='json')
+                for responsible in data.responsibles
+            ],
+            'responsible_references': [
+                reference.model_dump(mode='json')
+                for reference in data.responsible_references
+            ],
+        }
+
+    @staticmethod
+    def _enrollment_from_context(
+        context_data: dict[str, Any],
+    ) -> StudentEnrollmentPayload:
+        return StudentEnrollmentPayload(
+            modality_id=int(context_data['modality_id']),
+            monthly_fee=Decimal(str(context_data['monthly_fee'])),
+            due_day=int(context_data['due_day']),
+            is_exempt=bool(context_data['is_exempt']),
+        )
+
+    @staticmethod
+    def _address_from_context(
+        context_data: dict[str, Any],
+    ) -> StudentAddressPayload | None:
+        address = context_data.get('address')
+
+        if not isinstance(address, dict):
+            return None
+
+        has_address_data = any(
+            address.get(field)
+            for field in (
+                'zip_code',
+                'street',
+                'neighborhood',
+                'city',
+                'state',
+                'number',
+                'complement',
+            )
+        )
+
+        if not has_address_data:
+            return None
+
+        return StudentAddressPayload(**address)
+
+    @staticmethod
+    def _responsibles_from_context(
+        context_data: dict[str, Any],
+    ) -> list[StudentResponsiblePayload]:
+        responsibles = context_data.get('responsibles', [])
+
+        return [
+            StudentResponsiblePayload(
+                name=str(responsible['name']),
+                phone=str(responsible['phone']),
+                phone_is_whatsapp=bool(responsible['phone_is_whatsapp']),
+                email=responsible.get('email'),
+                relationship=StudentResponsibleRelationship(
+                    responsible['relationship']
+                ),
+            )
+            for responsible in responsibles
+        ]
+
+    @staticmethod
+    def _responsible_refs_from_context(
+        context_data: dict[str, Any],
+    ) -> list[StudentResponsibleReferencePayload]:
+        references = context_data.get('responsible_references', [])
+
+        return [
+            StudentResponsibleReferencePayload(
+                responsible_id=int(reference['responsible_id']),
+                relationship=StudentResponsibleRelationship(
+                    reference['relationship']
+                ),
+            )
+            for reference in references
+        ]

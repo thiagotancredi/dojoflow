@@ -1,15 +1,14 @@
 from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import Mapped
 
-from dojoflow.database.base import Base
 from dojoflow.database.helper_mapped_columns import (
     bool_column,
-    int_pk,
     str_column,
 )
+from dojoflow.models.base_model import BaseModel
 
 
-class Modality(Base):
+class Modality(BaseModel):
     __tablename__ = 'modality'
 
     __table_args__ = (
@@ -18,8 +17,6 @@ class Modality(Base):
             name='uq_modality_name',
         ),
     )
-
-    id: Mapped[int] = int_pk()
 
     name: Mapped[str] = str_column(length=80)
     emoji: Mapped[str] = str_column(length=10)

@@ -13,9 +13,20 @@ class Master(BaseModel):
 
     academy_id: Mapped[int] = int_fk('academy.id')
 
-    telegram_user_id: Mapped[int] = big_int_column(
+    telegram_user_id: Mapped[int | None] = big_int_column(
         unique=True,
         index=True,
+        nullable=True,
+    )
+    email: Mapped[str | None] = str_column(
+        length=255,
+        nullable=True,
+        unique=True,
+        index=True,
+    )
+    password_hash: Mapped[str | None] = str_column(
+        length=255,
+        nullable=True,
     )
 
     name: Mapped[str] = str_column(length=120)

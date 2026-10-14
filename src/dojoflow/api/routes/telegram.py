@@ -1,3 +1,4 @@
+import secrets
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Header, HTTPException, status
@@ -8,6 +9,7 @@ from dojoflow.api.dependencies.telegram import (
 )
 from dojoflow.core.settings import settings
 from dojoflow.integrations.telegram.schemas import TelegramUpdate
+from dojoflow.shared.exceptions import UnauthorizedError
 
 router = APIRouter(prefix='/telegram', tags=['Telegram'])
 
@@ -42,10 +44,10 @@ async def receive_telegram_webhook(
             detail='Telegram webhook secret is not configured.',
         )
 
-    if telegram_secret_token != settings.TELEGRAM_WEBHOOK_SECRET:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Invalid Telegram webhook secret.',
-        )
+    if telegram_secret_token is None or not secrets.compare_digest(
+        telegram_secret_token.encode(),
+        settings.TELEGRAM_WEBHOOK_SECRET.encode(),
+    ):
+        raise UnauthorizedError('Invalid Telegram webhook secret.')
 
     return await telegram_webhook_service_dep.process_update(payload)

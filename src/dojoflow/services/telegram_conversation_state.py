@@ -70,11 +70,9 @@ class TelegramConversationStateService:
             data={
                 'current_flow': TelegramFlow.ONBOARDING,
                 'current_step': TelegramStep.WAITING_MASTER_NAME,
-                'context_data': self._serialize_context_data(
-                    {
-                        'academy_name': academy_name,
-                    }
-                ),
+                'context_data': self._serialize_context_data({
+                    'academy_name': academy_name,
+                }),
             },
         )
 
@@ -132,43 +130,30 @@ class TelegramConversationStateService:
         next_step: TelegramStep,
         context_data: dict[str, Any],
     ) -> None:
-        try:
-            await self.telegram_conversation_state_repository.update_by_id(
-                record_id=state_id,
-                data={
-                    'current_flow': TelegramFlow.STUDENT_CREATION,
-                    'current_step': next_step,
-                    'context_data': self._serialize_context_data(
-                        context_data
-                    ),
-                },
-            )
-            await self.db_session.commit()
-        except Exception:
-            await self.db_session.rollback()
-            raise
+        await self.telegram_conversation_state_repository.update_by_id(
+            record_id=state_id,
+            data={
+                'current_flow': TelegramFlow.STUDENT_CREATION,
+                'current_step': next_step,
+                'context_data': self._serialize_context_data(context_data),
+            },
+        )
 
+    @transactional
     async def update_student_search_context(
         self,
         state_id: int,
         next_step: TelegramStep,
         context_data: dict[str, Any],
     ) -> None:
-        try:
-            await self.telegram_conversation_state_repository.update_by_id(
-                record_id=state_id,
-                data={
-                    'current_flow': TelegramFlow.STUDENT_SEARCH,
-                    'current_step': next_step,
-                    'context_data': self._serialize_context_data(
-                        context_data
-                    ),
-                },
-            )
-            await self.db_session.commit()
-        except Exception:
-            await self.db_session.rollback()
-            raise
+        await self.telegram_conversation_state_repository.update_by_id(
+            record_id=state_id,
+            data={
+                'current_flow': TelegramFlow.STUDENT_SEARCH,
+                'current_step': next_step,
+                'context_data': self._serialize_context_data(context_data),
+            },
+        )
 
     @transactional
     async def start_student_edit(
@@ -186,11 +171,9 @@ class TelegramConversationStateService:
             'master_id': master_id,
             'current_flow': TelegramFlow.STUDENT_EDIT,
             'current_step': TelegramStep.WAITING_STUDENT_EDIT_MENU,
-            'context_data': self._serialize_context_data(
-                {
-                    'student_id': student_id,
-                }
-            ),
+            'context_data': self._serialize_context_data({
+                'student_id': student_id,
+            }),
         }
 
         if state is None:
@@ -205,27 +188,21 @@ class TelegramConversationStateService:
 
         return state['id']
 
+    @transactional
     async def update_student_edit_context(
         self,
         state_id: int,
         next_step: TelegramStep,
         context_data: dict[str, Any],
     ) -> None:
-        try:
-            await self.telegram_conversation_state_repository.update_by_id(
-                record_id=state_id,
-                data={
-                    'current_flow': TelegramFlow.STUDENT_EDIT,
-                    'current_step': next_step,
-                    'context_data': self._serialize_context_data(
-                        context_data
-                    ),
-                },
-            )
-            await self.db_session.commit()
-        except Exception:
-            await self.db_session.rollback()
-            raise
+        await self.telegram_conversation_state_repository.update_by_id(
+            record_id=state_id,
+            data={
+                'current_flow': TelegramFlow.STUDENT_EDIT,
+                'current_step': next_step,
+                'context_data': self._serialize_context_data(context_data),
+            },
+        )
 
     @transactional
     async def complete_current_flow(

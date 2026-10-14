@@ -13,10 +13,7 @@ class StudentResponsible(BaseModel):
 
     academy_id: Mapped[int] = int_fk('academy.id')
     student_id: Mapped[int] = int_fk('student.id')
-    responsible_id: Mapped[int | None] = int_fk(
-        'responsible.id',
-        nullable=True,
-    )
+    responsible_id: Mapped[int] = int_fk('responsible.id')
 
     relationship: Mapped[StudentResponsibleRelationship] = enum_column(
         StudentResponsibleRelationship,
