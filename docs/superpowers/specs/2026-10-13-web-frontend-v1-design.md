@@ -114,7 +114,7 @@ Fica de fora, de propósito: generalizar `Master` em uma tabela `User`. O portal
    - A cada refresh, a sessão atual é revogada e uma nova é emitida.
    - **Detecção de reuso:** apresentar um refresh já revogado revoga todas as sessões do mestre e retorna 401.
    - Novo `POST /auth/logout`: revoga a sessão atual e apaga o cookie.
-3. **`set-credentials` exige a senha atual quando a chamada é autenticada.** Com token de setup do Telegram, não exige (o token de uso único prova a identidade). Trocar a senha revoga todas as `refresh_session` do mestre.
+3. **`set-credentials` exige a senha atual quando a chamada é autenticada.** Com token de setup do Telegram, não exige (o token de uso único prova a identidade). Um token de setup informado tem precedência sobre um bearer token: o bearer é ignorado (mesmo expirado ou inválido). Trocar a senha revoga todas as `refresh_session` do mestre.
 4. **Proteção no boot.** Nova configuração `ENVIRONMENT` (`dev` | `prod`). Fora de `dev`, a aplicação não inicia se `JWT_SECRET` estiver no valor padrão.
 5. **O header secreto do webhook do Telegram** passa a ser comparado com `secrets.compare_digest`.
 
@@ -211,7 +211,7 @@ O mestre envia `/web` ao bot → recebe o link `/definir-acesso?token=…` (uso 
 Os testes existentes continuam passando. Testes novos:
 
 - Refresh: rotação; reuso de token revogado derruba todas as sessões; logout
-- `set-credentials`: autenticado sem senha atual → 401; com senha atual → troca e revoga sessões; token de setup funciona uma única vez
+- `set-credentials`: autenticado sem senha atual → 403 (`CURRENT_PASSWORD_INVALID`; um 401 acionaria o fluxo de refresh do 6.4); com senha atual → troca e revoga sessões; token de setup funciona uma única vez
 - JWT sem `role` → 401
 - `public_id` de outra academia → 404
 - Rota `/masters/context/...` removida → 404
