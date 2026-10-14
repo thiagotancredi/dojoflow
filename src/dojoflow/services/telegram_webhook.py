@@ -1,3 +1,4 @@
+from dojoflow.core.settings import settings
 from dojoflow.integrations.telegram.schemas import (
     TelegramCallbackQuery,
     TelegramUpdate,
@@ -186,11 +187,10 @@ class TelegramWebhookService:
         await self.telegram_service.send_message(
             chat_id=chat_id,
             text=(
-                'Para criar ou atualizar seu acesso ao site, use este '
-                'código no formulário de credenciais:\n\n'
-                f'`{setup.token}`\n\n'
-                'Ele expira em breve. Endpoint: '
-                'POST /api/v1/auth/set-credentials'
+                'Para criar ou redefinir seu acesso ao site, abra este link '
+                f'(válido por {settings.JWT_TELEGRAM_SETUP_TTL_MINUTES} '
+                'minutos):\n\n'
+                f'{settings.WEB_APP_URL}/definir-acesso?token={setup.token}'
             ),
         )
 
