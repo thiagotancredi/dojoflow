@@ -10,7 +10,7 @@ from dojoflow.core.settings import settings
 from dojoflow.repositories.one_time_token import OneTimeTokenRepository
 from dojoflow.schemas.master_context import MasterContextRead
 from dojoflow.services.auth import AuthService
-from dojoflow.services.security import get_master_id_from_token
+from dojoflow.services.security import MASTER_ROLE, get_master_id_from_token
 from dojoflow.shared.exceptions import UnauthorizedError
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -61,6 +61,7 @@ async def _get_current_master(
     master_id = get_master_id_from_token(
         credentials.credentials,
         expected_purpose='access',
+        expected_role=MASTER_ROLE,
     )
     context = await master_service_dep.get_context_by_id(master_id)
 
@@ -89,6 +90,7 @@ async def _get_optional_current_master(
     master_id = get_master_id_from_token(
         credentials.credentials,
         expected_purpose='access',
+        expected_role=MASTER_ROLE,
     )
     return await master_service_dep.get_context_by_id(master_id)
 

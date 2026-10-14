@@ -16,6 +16,8 @@ TokenPurpose = Literal[
     'telegram_setup',
 ]
 
+MASTER_ROLE = 'master'
+
 
 def hash_password(plain_password: str) -> str:
     return password_hash.hash(plain_password)
@@ -57,6 +59,7 @@ def create_access_token(master_id: int) -> str:
         subject=str(master_id),
         purpose='access',
         expires_delta=timedelta(minutes=settings.JWT_ACCESS_TTL_MINUTES),
+        extra_claims={'role': MASTER_ROLE},
     )
     return token
 
@@ -94,6 +97,7 @@ def decode_token(
     token: str,
     *,
     expected_purpose: TokenPurpose,
+    expected_role: str | None = None,
 ) -> dict[str, Any]:
     try:
         payload = jwt.decode(
@@ -107,6 +111,9 @@ def decode_token(
     if payload.get('purpose') != expected_purpose:
         raise UnauthorizedError('Invalid token purpose.')
 
+    if expected_role is not None and payload.get('role') != expected_role:
+        raise UnauthorizedError('Invalid token role.')
+
     subject = payload.get('sub')
 
     if subject is None:
@@ -119,8 +126,13 @@ def get_master_id_from_token(
     token: str,
     *,
     expected_purpose: TokenPurpose,
+    expected_role: str | None = None,
 ) -> int:
-    payload = decode_token(token, expected_purpose=expected_purpose)
+    payload = decode_token(
+        token,
+        expected_purpose=expected_purpose,
+        expected_role=expected_role,
+    )
 
     try:
         return int(payload['sub'])
