@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from dojoflow.schemas.base import ReadBase
 from dojoflow.shared.enums import (
@@ -96,6 +96,14 @@ class StudentBasicUpdateRequest(BaseModel):
     email: str | None = Field(default=None, max_length=255)
     birth_date: date | None = None
     sex: StudentSex | None = None
+
+    @field_validator('name', mode='before')
+    @classmethod
+    def _reject_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError('This field cannot be null.')
+
+        return value
 
 
 class StudentEnrollmentUpdateRequest(BaseModel):

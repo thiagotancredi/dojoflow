@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from dojoflow.schemas.student import (
     StudentAddressPayload,
@@ -138,3 +138,11 @@ class EnrollmentApiUpdateRequest(BaseModel):
     due_day: int | None = Field(default=None, ge=MIN_DUE_DAY, le=MAX_DUE_DAY)
     is_exempt: bool | None = None
     status: EnrollmentStatus | None = None
+
+    @field_validator('status', 'is_exempt', mode='before')
+    @classmethod
+    def _reject_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError('This field cannot be null.')
+
+        return value

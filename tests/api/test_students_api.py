@@ -228,3 +228,62 @@ async def test_students_require_auth(client: AsyncClient) -> None:
     response = await client.get(f'/api/v1/students/{uuid.uuid4()}')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ('field', 'expected'),
+    [
+        ('status', HTTPStatus.UNPROCESSABLE_ENTITY),
+        ('is_exempt', HTTPStatus.UNPROCESSABLE_ENTITY),
+        ('monthly_fee', HTTPStatus.NO_CONTENT),
+    ],
+)
+async def test_enrollment_patch_null_handling(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    field: str,
+    expected: HTTPStatus,
+) -> None:
+    headers = await auth_headers(client)
+    modality_id = await _enable_modality(client, db_session, headers, 'Jiu')
+    created = await client.post(
+        '/api/v1/students',
+        headers=headers,
+        json=_create_payload(modality_id),
+    )
+    student_id = created.json()['id']
+    detail = await client.get(
+        f'/api/v1/students/{student_id}', headers=headers
+    )
+    enrollment_id = detail.json()['enrollments'][0]['id']
+
+    response = await client.patch(
+        f'/api/v1/students/{student_id}/enrollments/{enrollment_id}',
+        headers=headers,
+        json={field: None},
+    )
+
+    assert response.status_code == expected
+
+
+@pytest.mark.asyncio
+async def test_student_patch_null_name_is_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers = await auth_headers(client)
+    modality_id = await _enable_modality(client, db_session, headers, 'Jiu')
+    created = await client.post(
+        '/api/v1/students',
+        headers=headers,
+        json=_create_payload(modality_id),
+    )
+
+    response = await client.patch(
+        f'/api/v1/students/{created.json()["id"]}',
+        headers=headers,
+        json={'name': None},
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
