@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import exists, not_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.database.transaction import transactional
@@ -162,6 +162,84 @@ class StudentService:
         )
 
         return [StudentRead(**student) for student in students]
+
+    async def list_page(  # noqa: PLR0913
+        self,
+        academy_id: int,
+        *,
+        search: str | None,
+        modality_id: int | None,
+        status: EnrollmentStatus | None,
+        page: int,
+        page_size: int,
+    ) -> tuple[list[dict[str, Any]], int]:
+        filters = [Student.academy_id == academy_id]
+
+        if search:
+            normalized = ' '.join(search.strip().split())
+            escaped = (
+                normalized
+                .replace('\\', '\\\\')
+                .replace('%', '\\%')
+                .replace('_', '\\_')
+            )
+            filters.append(Student.name.ilike(f'%{escaped}%', escape='\\'))
+
+        enrollment_filters = [
+            Enrollment.student_id == Student.id,
+            Enrollment.academy_id == academy_id,
+        ]
+
+        if modality_id is not None:
+            enrollment_filters.append(Enrollment.modality_id == modality_id)
+            filters.append(exists().where(*enrollment_filters))
+
+        if status is not None:
+            has_active = exists().where(
+                *enrollment_filters,
+                Enrollment.status == EnrollmentStatus.ACTIVE,
+            )
+            filters.append(
+                has_active
+                if status == EnrollmentStatus.ACTIVE
+                else not_(has_active)
+            )
+
+        total = await self.student_repository.count(filters=filters)
+        students = await self.student_repository.list(
+            filters=filters,
+            order_by=[Student.name, Student.id],
+            offset=(page - 1) * page_size,
+            limit=page_size,
+        )
+
+        return students, total
+
+    async def get_active_modality_names(
+        self,
+        academy_id: int,
+        student_ids: list[int],
+    ) -> dict[int, list[str]]:
+        if not student_ids:
+            return {}
+
+        stmt = (
+            select(Enrollment.student_id, Modality.name)
+            .join(Modality, Modality.id == Enrollment.modality_id)
+            .where(
+                Enrollment.academy_id == academy_id,
+                Enrollment.student_id.in_(student_ids),
+                Enrollment.status == EnrollmentStatus.ACTIVE,
+            )
+            .order_by(Modality.name)
+        )
+        result = await self.db_session.execute(stmt)
+        names: dict[int, list[str]] = {}
+
+        for student_id, modality_name in result.all():
+            names.setdefault(student_id, []).append(modality_name)
+
+        return names
 
     async def search_by_name(
         self,

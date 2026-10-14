@@ -146,3 +146,14 @@ class EnrollmentApiUpdateRequest(BaseModel):
             raise ValueError('This field cannot be null.')
 
         return value
+
+
+class StudentListItemRead(StudentApiRead):
+    modalities: list[str]
+
+
+class StudentPageRead(BaseModel):
+    items: list[StudentListItemRead]
+    total: int
+    page: int
+    page_size: int

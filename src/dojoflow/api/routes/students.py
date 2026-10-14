@@ -1,8 +1,9 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi import status as http_status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.api.dependencies.auth import CurrentMasterDep
@@ -14,6 +15,7 @@ from dojoflow.api.dependencies.public_ids import (
 )
 from dojoflow.api.dependencies.student import StudentServiceDep
 from dojoflow.models.enrollment import Enrollment
+from dojoflow.models.modality import Modality
 from dojoflow.schemas.student import (
     StudentAddressPayload,
     StudentBasicUpdateRequest,
@@ -27,7 +29,10 @@ from dojoflow.schemas.student_api import (
     StudentApiRead,
     StudentCreateApiRequest,
     StudentDetailRead,
+    StudentListItemRead,
+    StudentPageRead,
 )
+from dojoflow.shared.enums import EnrollmentStatus
 
 router = APIRouter(prefix='/students', tags=['Students'])
 
@@ -59,6 +64,59 @@ async def _resolve_enrollment_id(
 
 
 EnrollmentIdDep = Annotated[int, Depends(_resolve_enrollment_id)]
+
+
+@router.get(
+    path='',
+    status_code=http_status.HTTP_200_OK,
+)
+async def list_students(  # noqa: PLR0913, PLR0917
+    current_master: CurrentMasterDep,
+    student_service_dep: StudentServiceDep,
+    db_session_dep: DbSessionDep,
+    search: str | None = Query(default=None, min_length=1, max_length=120),
+    modality_id: UUID | None = None,
+    status: EnrollmentStatus | None = None,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> StudentPageRead:
+    internal_modality_id = None
+
+    if modality_id is not None:
+        internal_modality_id = await db_session_dep.scalar(
+            select(Modality.id).where(Modality.public_id == modality_id)
+        )
+
+        if internal_modality_id is None:
+            return StudentPageRead(
+                items=[], total=0, page=page, page_size=page_size
+            )
+
+    students, total = await student_service_dep.list_page(
+        current_master.academy_id,
+        search=search,
+        modality_id=internal_modality_id,
+        status=status,
+        page=page,
+        page_size=page_size,
+    )
+    modality_names = await student_service_dep.get_active_modality_names(
+        current_master.academy_id,
+        [student['id'] for student in students],
+    )
+
+    return StudentPageRead(
+        items=[
+            StudentListItemRead(
+                **StudentApiRead.from_record(student).model_dump(),
+                modalities=modality_names.get(student['id'], []),
+            )
+            for student in students
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.post(
