@@ -1,10 +1,13 @@
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.database.transaction import unit_of_work
+from dojoflow.models.master import Master
 from dojoflow.repositories.refresh_session import RefreshSessionRepository
 from tests.helpers.onboarding import register_web
 
@@ -15,7 +18,13 @@ async def test_revoke_all_for_master(
     db_session: AsyncSession,
 ) -> None:
     response, _ = await register_web(client)
-    master_id = response.json()['master']['master_id']
+    master_id = (
+        await db_session.execute(
+            select(Master.id).where(
+                Master.public_id == uuid.UUID(response.json()['master']['id'])
+            )
+        )
+    ).scalar_one()
     repository = RefreshSessionRepository(db_session=db_session)
     expires_at = datetime.now(UTC) + timedelta(days=1)
 

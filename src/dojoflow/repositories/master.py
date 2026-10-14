@@ -31,10 +31,12 @@ class MasterRepository(BaseRepository[Master]):
         stmt = (
             select(
                 Master.id.label('master_id'),
+                Master.public_id.label('master_public_id'),
                 Master.name.label('master_name'),
                 Master.telegram_user_id,
                 Master.email,
                 Academy.id.label('academy_id'),
+                Academy.public_id.label('academy_public_id'),
                 Academy.name.label('academy_name'),
                 Academy.status.label('academy_status'),
             )
@@ -57,10 +59,12 @@ class MasterRepository(BaseRepository[Master]):
         stmt = (
             select(
                 Master.id.label('master_id'),
+                Master.public_id.label('master_public_id'),
                 Master.name.label('master_name'),
                 Master.telegram_user_id,
                 Master.email,
                 Academy.id.label('academy_id'),
+                Academy.public_id.label('academy_public_id'),
                 Academy.name.label('academy_name'),
                 Academy.status.label('academy_status'),
             )

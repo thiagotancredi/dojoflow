@@ -1,3 +1,4 @@
+import uuid
 from http import HTTPStatus
 
 import pytest
@@ -38,8 +39,18 @@ async def test_register_web_should_create_academy_and_master_without_telegram(
     assert body['access_token']
     assert response.cookies['dojoflow_refresh']
     assert body['master']['email'] == payload['email']
-    assert body['master']['telegram_user_id'] is None
-    assert body['master']['academy_name'] == payload['academy_name']
+    assert body['master']['telegram_linked'] is False
+    assert body['master']['academy']['name'] == payload['academy_name']
+    assert set(body['master']) == {
+        'id',
+        'name',
+        'email',
+        'telegram_linked',
+        'academy',
+    }
+    assert set(body['master']['academy']) == {'id', 'name', 'status'}
+    uuid.UUID(body['master']['id'])
+    uuid.UUID(body['master']['academy']['id'])
 
     master = (
         await db_session.execute(
@@ -95,7 +106,12 @@ async def test_login_and_me(
     )
 
     assert me_response.status_code == HTTPStatus.OK
-    assert me_response.json()['email'] == payload['email']
+    me = me_response.json()
+
+    assert me['email'] == payload['email']
+    assert me['id'] == tokens['master']['id']
+    assert 'master_id' not in me
+    assert 'academy_id' not in me
 
 
 @pytest.mark.asyncio
@@ -133,7 +149,7 @@ async def test_telegram_link_token_and_webhook_link(
 
     register_response, _ = await register_web(client)
     access_token = register_response.json()['access_token']
-    master_id = register_response.json()['master']['master_id']
+    master_public_id = register_response.json()['master']['id']
 
     link_response = await client.post(
         '/api/v1/auth/telegram/link-token',
@@ -170,7 +186,11 @@ async def test_telegram_link_token_and_webhook_link(
     assert webhook_response.json() == {'status': 'telegram_linked'}
 
     master = (
-        await db_session.execute(select(Master).where(Master.id == master_id))
+        await db_session.execute(
+            select(Master).where(
+                Master.public_id == uuid.UUID(master_public_id)
+            )
+        )
     ).scalar_one()
 
     assert master.telegram_user_id == telegram_user_id
@@ -193,6 +213,11 @@ async def test_set_credentials_with_setup_token(
 ) -> None:
     onboarding_response, _ = await register_onboarding(client)
     master_id = onboarding_response.json()['master_id']
+    master_public_id = (
+        await db_session.execute(
+            select(Master.public_id).where(Master.id == master_id)
+        )
+    ).scalar_one()
 
     master_repository = MasterRepository(db_session=db_session)
     academy_repository = AcademyRepository(db_session=db_session)
@@ -237,7 +262,8 @@ async def test_set_credentials_with_setup_token(
     assert response.status_code == HTTPStatus.OK
     body = response.json()
     assert body['master']['email'] == 'telegram.mestre@dojoflow.test'
-    assert body['master']['master_id'] == master_id
+    assert body['master']['telegram_linked'] is True
+    assert body['master']['id'] == str(master_public_id)
 
     login_response = await client.post(
         '/api/v1/auth/login',

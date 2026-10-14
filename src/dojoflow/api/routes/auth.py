@@ -18,7 +18,7 @@ from dojoflow.schemas.auth import (
     TelegramLinkTokenResponse,
     TelegramSetupTokenResponse,
 )
-from dojoflow.schemas.master_context import MasterContextRead
+from dojoflow.schemas.master_context import MasterContextApiRead
 from dojoflow.shared.exceptions import UnauthorizedError
 
 router = APIRouter(prefix='/auth', tags=['Auth'])
@@ -124,8 +124,8 @@ async def logout(
 )
 async def me(
     current_master: CurrentMasterDep,
-) -> MasterContextRead:
-    return current_master
+) -> MasterContextApiRead:
+    return MasterContextApiRead.from_context(current_master)
 
 
 @router.post(

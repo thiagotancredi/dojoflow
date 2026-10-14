@@ -17,7 +17,10 @@ from dojoflow.schemas.auth import (
     TelegramLinkTokenResponse,
     TelegramSetupTokenResponse,
 )
-from dojoflow.schemas.master_context import MasterContextRead
+from dojoflow.schemas.master_context import (
+    MasterContextApiRead,
+    MasterContextRead,
+)
 from dojoflow.schemas.onboarding import OnboardingWebCreate
 from dojoflow.services.master import MasterService
 from dojoflow.services.onboarding import OnboardingService
@@ -225,7 +228,7 @@ class AuthService:
 
         response = AuthTokenResponse(
             access_token=create_access_token(master_id),
-            master=context,
+            master=MasterContextApiRead.from_context(context),
         )
 
         return AuthResult(response, refresh_token), session_id

@@ -3,7 +3,7 @@ from typing import NamedTuple
 
 from pydantic import BaseModel, Field, field_validator
 
-from dojoflow.schemas.master_context import MasterContextRead
+from dojoflow.schemas.master_context import MasterContextApiRead
 
 
 class AuthRegisterRequest(BaseModel):
@@ -37,7 +37,7 @@ class AuthLoginRequest(BaseModel):
 class AuthTokenResponse(BaseModel):
     access_token: str
     token_type: str = 'bearer'
-    master: MasterContextRead
+    master: MasterContextApiRead
 
 
 class AuthResult(NamedTuple):
