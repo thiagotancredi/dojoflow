@@ -279,13 +279,19 @@ class AuthService:
             expires_at=expires_at,
         )
 
+    @transactional
     async def set_credentials(
         self,
         data: SetCredentialsRequest,
         *,
         authenticated_master_id: int | None = None,
     ) -> AuthResult:
-        if authenticated_master_id is not None:
+        if data.setup_token:
+            master_id = await self._consume_one_time_token(
+                token=data.setup_token,
+                purpose=PURPOSE_TELEGRAM_SETUP,
+            )
+        elif authenticated_master_id is not None:
             master = await self.master_service.get_by_id(
                 authenticated_master_id
             )
@@ -304,11 +310,6 @@ class AuthService:
                 )
 
             master_id = authenticated_master_id
-        elif data.setup_token:
-            master_id = await self._consume_one_time_token(
-                token=data.setup_token,
-                purpose=PURPOSE_TELEGRAM_SETUP,
-            )
         else:
             raise UnauthorizedError(
                 'Authentication or setup token is required.'
@@ -324,6 +325,7 @@ class AuthService:
 
         return await self._start_session(context)
 
+    @transactional
     async def link_telegram_from_token(
         self,
         token: str,

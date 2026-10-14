@@ -4,9 +4,11 @@ from fastapi import APIRouter, Cookie, Response, status
 
 from dojoflow.api.dependencies.auth import (
     AuthServiceDep,
+    BearerCredentialsDep,
     CurrentMasterDep,
-    OptionalCurrentMasterDep,
+    resolve_optional_master,
 )
+from dojoflow.api.dependencies.master import MasterServiceDep
 from dojoflow.core.settings import settings
 from dojoflow.schemas.auth import (
     AuthLoginRequest,
@@ -165,11 +167,19 @@ async def set_credentials(
     data: SetCredentialsRequest,
     response: Response,
     auth_service_dep: AuthServiceDep,
-    optional_master: OptionalCurrentMasterDep,
+    master_service_dep: MasterServiceDep,
+    credentials: BearerCredentialsDep,
 ) -> AuthTokenResponse:
-    authenticated_master_id = (
-        optional_master.master_id if optional_master is not None else None
-    )
+    # A supplied setup token takes precedence: the bearer is not even parsed.
+    authenticated_master_id = None
+
+    if not data.setup_token:
+        optional_master = await resolve_optional_master(
+            master_service_dep, credentials
+        )
+        authenticated_master_id = (
+            optional_master.master_id if optional_master is not None else None
+        )
 
     result = await auth_service_dep.set_credentials(
         data,

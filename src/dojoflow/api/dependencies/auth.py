@@ -11,6 +11,7 @@ from dojoflow.repositories.one_time_token import OneTimeTokenRepository
 from dojoflow.repositories.refresh_session import RefreshSessionRepository
 from dojoflow.schemas.master_context import MasterContextRead
 from dojoflow.services.auth import AuthService
+from dojoflow.services.master import MasterService
 from dojoflow.services.security import MASTER_ROLE, get_master_id_from_token
 from dojoflow.shared.exceptions import UnauthorizedError
 
@@ -92,12 +93,15 @@ CurrentMasterDep = Annotated[
 ]
 
 
-async def _get_optional_current_master(
-    master_service_dep: MasterServiceDep,
-    credentials: Annotated[
-        HTTPAuthorizationCredentials | None,
-        Depends(bearer_scheme),
-    ],
+BearerCredentialsDep = Annotated[
+    HTTPAuthorizationCredentials | None,
+    Depends(bearer_scheme),
+]
+
+
+async def resolve_optional_master(
+    master_service: MasterService,
+    credentials: HTTPAuthorizationCredentials | None,
 ) -> MasterContextRead | None:
     if credentials is None or credentials.scheme.lower() != 'bearer':
         return None
@@ -107,13 +111,8 @@ async def _get_optional_current_master(
         expected_purpose='access',
         expected_role=MASTER_ROLE,
     )
-    return await master_service_dep.get_context_by_id(master_id)
 
-
-OptionalCurrentMasterDep = Annotated[
-    MasterContextRead | None,
-    Depends(_get_optional_current_master),
-]
+    return await master_service.get_context_by_id(master_id)
 
 
 def require_internal_api_key(
