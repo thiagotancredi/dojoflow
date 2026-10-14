@@ -26,7 +26,7 @@ async def test_dashboard_summary(
         )
 
     async def student(name: str, modality_id: object, **enrollment: object):
-        await client.post(
+        response = await client.post(
             '/api/v1/students',
             headers=headers,
             json={
@@ -34,6 +34,7 @@ async def test_dashboard_summary(
                 'enrollment': {'modality_id': str(modality_id), **enrollment},
             },
         )
+        assert response.status_code == HTTPStatus.CREATED
 
     await student('Ana', jiu.public_id, monthly_fee='150', due_day=10)
     await student('Bruno', jiu.public_id)
@@ -57,14 +58,48 @@ async def test_dashboard_summary(
 
 
 @pytest.mark.asyncio
-async def test_dashboard_isolated_per_academy(client: AsyncClient) -> None:
-    headers = await auth_headers(client)
+async def test_dashboard_isolated_per_academy(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers_a = await auth_headers(client)
+    jiu = await create_modality(db_session, 'Jiu')
+    await client.put(
+        f'/api/v1/academy/modalities/{jiu.public_id}/toggle',
+        headers=headers_a,
+    )
+    created = await client.post(
+        '/api/v1/students',
+        headers=headers_a,
+        json={
+            'name': 'Ana',
+            'enrollment': {'modality_id': str(jiu.public_id)},
+        },
+    )
+    assert created.status_code == HTTPStatus.CREATED
 
-    response = await client.get('/api/v1/dashboard/summary', headers=headers)
+    headers_b = await auth_headers(
+        client,
+        email='outro@dojoflow.test',
+        academy_name='Outra Academia',
+    )
 
-    assert response.json() == {
+    response_b = await client.get(
+        '/api/v1/dashboard/summary', headers=headers_b
+    )
+    response_a = await client.get(
+        '/api/v1/dashboard/summary', headers=headers_a
+    )
+
+    assert response_b.json() == {
         'active_students': 0,
         'students_by_modality': [],
         'recent_enrollments': [],
         'registration_pending': [],
     }
+    body_a = response_a.json()
+    assert body_a['active_students'] == 1
+    assert len(body_a['recent_enrollments']) == 1
+    assert [i['student_name'] for i in body_a['registration_pending']] == [
+        'Ana'
+    ]
