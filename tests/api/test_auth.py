@@ -78,7 +78,7 @@ async def test_register_web_conflict_when_email_exists(
     assert second_response.status_code == HTTPStatus.CONFLICT
     assert second_response.json() == {
         'detail': 'This email is already registered as a master.',
-        'code': 'CONFLICT',
+        'code': 'EMAIL_ALREADY_REGISTERED',
     }
 
 
@@ -129,6 +129,20 @@ async def test_login_invalid_password(
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json()['code'] == 'INVALID_CREDENTIALS'
+
+
+@pytest.mark.asyncio
+async def test_login_unknown_email_has_same_error_code(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(
+        '/api/v1/auth/login',
+        json={'email': 'ninguem@dojoflow.test', 'password': 'senha-segura'},
+    )
+
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json()['code'] == 'INVALID_CREDENTIALS'
 
 
 @pytest.mark.asyncio

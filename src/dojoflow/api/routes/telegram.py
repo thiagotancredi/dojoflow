@@ -45,8 +45,8 @@ async def receive_telegram_webhook(
         )
 
     if telegram_secret_token is None or not secrets.compare_digest(
-        telegram_secret_token,
-        settings.TELEGRAM_WEBHOOK_SECRET,
+        telegram_secret_token.encode(),
+        settings.TELEGRAM_WEBHOOK_SECRET.encode(),
     ):
         raise UnauthorizedError('Invalid Telegram webhook secret.')
 

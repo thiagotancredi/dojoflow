@@ -118,7 +118,8 @@ class MasterService:
 
         if existing is not None and int(existing['id']) != master_id:
             raise ConflictError(
-                'This email is already registered as a master.'
+                'This email is already registered as a master.',
+                code='EMAIL_ALREADY_REGISTERED',
             )
 
         master = await self.get_by_id(master_id)

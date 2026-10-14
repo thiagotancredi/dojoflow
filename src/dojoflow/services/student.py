@@ -175,8 +175,9 @@ class StudentService:
     ) -> tuple[list[dict[str, Any]], int]:
         filters = [Student.academy_id == academy_id]
 
-        if search:
-            normalized = ' '.join(search.strip().split())
+        normalized = ' '.join(search.split()) if search else ''
+
+        if normalized:
             escaped = (
                 normalized
                 .replace('\\', '\\\\')
@@ -787,7 +788,8 @@ class StudentService:
 
         if address_id is None:
             raise NotFoundError(
-                f'Student with id {student_id} does not have address.'
+                f'Student with id {student_id} does not have address.',
+                code='ADDRESS_NOT_FOUND',
             )
 
         return int(address_id)

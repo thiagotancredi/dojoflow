@@ -417,6 +417,24 @@ async def test_telegram_webhook_should_return_401_without_secret(
 
 
 @pytest.mark.asyncio
+async def test_telegram_webhook_should_return_401_for_non_ascii_secret(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', 'test-secret')
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        json={'update_id': 1},
+        headers={
+            'X-Telegram-Bot-Api-Secret-Token': 'segredo-ção'.encode('latin-1')
+        },
+    )
+
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+@pytest.mark.asyncio
 async def test_telegram_webhook_should_ignore_update_without_message(
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,

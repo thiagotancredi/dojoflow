@@ -119,6 +119,7 @@ async def test_setup_token_survives_email_conflict(
     )
 
     assert conflict.status_code == HTTPStatus.CONFLICT
+    assert conflict.json()['code'] == 'EMAIL_ALREADY_REGISTERED'
     assert retry.status_code == HTTPStatus.OK
 
 
@@ -177,6 +178,7 @@ async def test_setup_token_works_only_once(client: AsyncClient) -> None:
 
     assert first.status_code == HTTPStatus.OK
     assert second.status_code == HTTPStatus.UNAUTHORIZED
+    assert second.json()['code'] == 'SETUP_TOKEN_INVALID'
 
 
 @pytest.mark.asyncio

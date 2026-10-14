@@ -110,6 +110,20 @@ async def test_search_treats_wildcards_literally(
 
 
 @pytest.mark.asyncio
+async def test_whitespace_only_search_is_no_search(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers, jiu, _ = await _setup(client, db_session)
+    await _student(client, headers, 'Ana Lima', jiu)
+    await _student(client, headers, 'Bia Souza', jiu)
+
+    response = await client.get(URL, headers=headers, params={'search': '   '})
+
+    assert response.json()['total'] == 2  # noqa: PLR2004
+
+
+@pytest.mark.asyncio
 async def test_page_beyond_end_and_unknown_modality_are_empty(
     client: AsyncClient,
     db_session: AsyncSession,

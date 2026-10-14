@@ -85,16 +85,25 @@ class AuthService:
         master = await self.master_service.get_by_email(normalized_email)
 
         if master is None or master.get('password_hash') is None:
-            raise UnauthorizedError('Invalid email or password.')
+            raise UnauthorizedError(
+                'Invalid email or password.',
+                code='INVALID_CREDENTIALS',
+            )
 
         if not verify_password(data.password, str(master['password_hash'])):
-            raise UnauthorizedError('Invalid email or password.')
+            raise UnauthorizedError(
+                'Invalid email or password.',
+                code='INVALID_CREDENTIALS',
+            )
 
         master_id = int(master['id'])
         context = await self.master_service.get_context_by_id(master_id)
 
         if context is None:
-            raise UnauthorizedError('Invalid email or password.')
+            raise UnauthorizedError(
+                'Invalid email or password.',
+                code='INVALID_CREDENTIALS',
+            )
 
         return await self._start_session(context)
 
@@ -376,7 +385,10 @@ class AuthService:
         )
 
         if record is None:
-            raise UnauthorizedError('Invalid or expired token.')
+            raise UnauthorizedError(
+                'Invalid or expired token.',
+                code='SETUP_TOKEN_INVALID',
+            )
 
         await self.one_time_token_repository.update_by_id(
             record_id=int(record['id']),

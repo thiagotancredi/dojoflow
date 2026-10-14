@@ -69,7 +69,8 @@ class OnboardingService:
 
         if existing_master is not None:
             raise ConflictError(
-                'This email is already registered as a master.'
+                'This email is already registered as a master.',
+                code='EMAIL_ALREADY_REGISTERED',
             )
 
         master_data = MasterCreate(
