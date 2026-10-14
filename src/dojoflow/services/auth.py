@@ -28,7 +28,7 @@ from dojoflow.services.security import (
     hash_refresh_token,
     verify_password,
 )
-from dojoflow.shared.exceptions import UnauthorizedError
+from dojoflow.shared.exceptions import ForbiddenError, UnauthorizedError
 
 PURPOSE_TELEGRAM_LINK = 'telegram_link'
 PURPOSE_TELEGRAM_SETUP = 'telegram_setup'
@@ -286,6 +286,23 @@ class AuthService:
         authenticated_master_id: int | None = None,
     ) -> AuthResult:
         if authenticated_master_id is not None:
+            master = await self.master_service.get_by_id(
+                authenticated_master_id
+            )
+            password_hash = master.get('password_hash') if master else None
+
+            if password_hash is not None and (
+                data.current_password is None
+                or not verify_password(
+                    data.current_password,
+                    str(password_hash),
+                )
+            ):
+                raise ForbiddenError(
+                    'Current password is invalid.',
+                    code='CURRENT_PASSWORD_INVALID',
+                )
+
             master_id = authenticated_master_id
         elif data.setup_token:
             master_id = await self._consume_one_time_token(
@@ -302,6 +319,8 @@ class AuthService:
             email=str(data.email),
             password_hash=hash_password(data.password),
         )
+
+        await self.revoke_all_sessions(master_id)
 
         return await self._start_session(context)
 
