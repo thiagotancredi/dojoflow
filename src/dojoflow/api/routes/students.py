@@ -16,6 +16,7 @@ from dojoflow.api.dependencies.public_ids import (
 from dojoflow.api.dependencies.student import StudentServiceDep
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.modality import Modality
+from dojoflow.models.student_responsible import StudentResponsible
 from dojoflow.schemas.student import (
     StudentAddressPayload,
     StudentBasicUpdateRequest,
@@ -272,4 +273,30 @@ async def update_student_enrollment(
         student_id=student_id,
         enrollment_id=enrollment_id,
         data=payload,
+    )
+
+
+@router.delete(
+    path='/{student_id}/responsibles/{link_id}',
+    status_code=http_status.HTTP_204_NO_CONTENT,
+)
+async def remove_student_responsible(
+    student_id: StudentIdDep,
+    link_id: UUID,
+    current_master: CurrentMasterDep,
+    student_service_dep: StudentServiceDep,
+    db_session_dep: DbSessionDep,
+) -> None:
+    internal_link_id = await resolve_public_id(
+        db_session_dep,
+        StudentResponsible,
+        link_id,
+        code='RESPONSIBLE_LINK_NOT_FOUND',
+        extra_filters=[StudentResponsible.student_id == student_id],
+    )
+
+    await student_service_dep.remove_responsible_link(
+        academy_id=current_master.academy_id,
+        student_id=student_id,
+        student_responsible_id=internal_link_id,
     )
