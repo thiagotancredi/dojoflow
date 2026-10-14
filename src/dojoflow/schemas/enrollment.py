@@ -12,7 +12,7 @@ class EnrollmentCreate(BaseModel):
     modality_id: int = Field(gt=0)
     status: EnrollmentStatus = EnrollmentStatus.ACTIVE
     monthly_fee: Decimal | None = Field(default=None, ge=0)
-    due_day: int | None = Field(default=None, ge=1, le=31)
+    due_day: int | None = Field(default=None, ge=1, le=28)
     is_exempt: bool = False
 
 

@@ -39,7 +39,7 @@ from dojoflow.shared.enums import (
     StudentResponsibleRelationship,
     StudentSex,
 )
-from dojoflow.shared.exceptions import NotFoundError
+from dojoflow.shared.exceptions import ConflictError, NotFoundError
 
 
 class StudentService:
@@ -196,7 +196,8 @@ class StudentService:
 
         if student is None:
             raise NotFoundError(
-                f'Could not find Student with id {student_id}.'
+                f'Could not find Student with id {student_id}.',
+                code='STUDENT_NOT_FOUND',
             )
 
         enrollments = await self._get_student_enrollments(
@@ -235,7 +236,8 @@ class StudentService:
 
         if student is None:
             raise NotFoundError(
-                f'Could not find Student with id {student_id}.'
+                f'Could not find Student with id {student_id}.',
+                code='STUDENT_NOT_FOUND',
             )
 
         update_data = dict(data)
@@ -333,6 +335,65 @@ class StudentService:
         await self.enrollment_repository.update_by_id(
             record_id=enrollments[0]['id'],
             data=update_data,
+        )
+
+    @transactional
+    async def add_enrollment(
+        self,
+        academy_id: int,
+        student_id: int,
+        data: StudentEnrollmentPayload,
+    ) -> None:
+        await self._ensure_modality_belongs_to_academy(
+            academy_id=academy_id,
+            modality_id=data.modality_id,
+        )
+
+        already_enrolled = await self.enrollment_repository.exists(
+            filters=[
+                Enrollment.academy_id == academy_id,
+                Enrollment.student_id == student_id,
+                Enrollment.modality_id == data.modality_id,
+            ],
+        )
+
+        if already_enrolled:
+            raise ConflictError(
+                'Student is already enrolled in this modality.',
+                code='ENROLLMENT_ALREADY_EXISTS',
+            )
+
+        await self.enrollment_repository.create(
+            EnrollmentCreate(
+                academy_id=academy_id,
+                student_id=student_id,
+                modality_id=data.modality_id,
+                monthly_fee=data.monthly_fee,
+                due_day=data.due_day,
+                is_exempt=data.is_exempt,
+                status=data.status,
+            )
+        )
+
+    @transactional
+    async def update_enrollment_by_id(
+        self,
+        academy_id: int,
+        student_id: int,
+        enrollment_id: int,
+        data: dict[str, Any],
+    ) -> None:
+        await self.enrollment_repository.get_one_or_fail(
+            filters=[
+                Enrollment.id == enrollment_id,
+                Enrollment.academy_id == academy_id,
+                Enrollment.student_id == student_id,
+            ],
+        )
+
+        await self.enrollment_repository.update_by_id(
+            record_id=enrollment_id,
+            data=data,
         )
 
     @transactional
@@ -537,6 +598,8 @@ class StudentService:
                 Enrollment.due_day,
                 Enrollment.is_exempt,
                 Modality.name.label('modality_name'),
+                Enrollment.public_id.label('enrollment_public_id'),
+                Modality.public_id.label('modality_public_id'),
             )
             .join(Modality, Modality.id == Enrollment.modality_id)
             .where(
@@ -564,7 +627,8 @@ class StudentService:
 
         if student is None:
             raise NotFoundError(
-                f'Could not find Student with id {student_id}.'
+                f'Could not find Student with id {student_id}.',
+                code='STUDENT_NOT_FOUND',
             )
 
         return student
@@ -585,6 +649,8 @@ class StudentService:
                 Responsible.phone,
                 Responsible.phone_is_whatsapp,
                 Responsible.email,
+                StudentResponsible.public_id.label('link_public_id'),
+                Responsible.public_id.label('responsible_public_id'),
             )
             .join(
                 Responsible,
@@ -635,7 +701,8 @@ class StudentService:
 
         if student is None:
             raise NotFoundError(
-                f'Could not find Student with id {student_id}.'
+                f'Could not find Student with id {student_id}.',
+                code='STUDENT_NOT_FOUND',
             )
 
         address_id = student.get('address_id')
@@ -798,7 +865,8 @@ class StudentService:
 
         if not exists:
             raise NotFoundError(
-                'This modality is not configured for this academy.'
+                'This modality is not configured for this academy.',
+                code='MODALITY_NOT_ENABLED',
             )
 
     @staticmethod

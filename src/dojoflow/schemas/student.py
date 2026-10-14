@@ -63,8 +63,8 @@ class StudentResponsibleReferencePayload(BaseModel):
 
 class StudentEnrollmentPayload(BaseModel):
     modality_id: int = Field(gt=0)
-    monthly_fee: Decimal = Field(ge=0)
-    due_day: int = Field(ge=1, le=31)
+    monthly_fee: Decimal | None = Field(default=None, ge=0)
+    due_day: int | None = Field(default=None, ge=1, le=28)
     is_exempt: bool = False
     status: EnrollmentStatus = EnrollmentStatus.ACTIVE
 
@@ -100,7 +100,7 @@ class StudentBasicUpdateRequest(BaseModel):
 
 class StudentEnrollmentUpdateRequest(BaseModel):
     monthly_fee: Decimal | None = Field(default=None, ge=0)
-    due_day: int | None = Field(default=None, ge=1, le=31)
+    due_day: int | None = Field(default=None, ge=1, le=28)
     is_exempt: bool | None = None
     status: EnrollmentStatus | None = None
 
