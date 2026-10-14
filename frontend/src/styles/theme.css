@@ -1,0 +1,251 @@
+/*
+ * ============================================================
+ *  TEMAS DO DOJOFLOW — todas as cores do site moram aqui.
+ * ============================================================
+ *
+ *  Os componentes nunca usam cores diretas (ex.: "bg-indigo-50"); usam
+ *  nomes que dizem PARA QUE a cor serve (ex.: "bg-chip-active",
+ *  "border-status-pending"). Para mudar o visual, mude só este arquivo.
+ *
+ *  Como trocar de tema:
+ *    no frontend/index.html, mude <html data-theme="..."> para
+ *    "lavanda" (padrão), "verde" ou "pastel".
+ *
+ *  Como criar um tema novo:
+ *    copie o bloco [data-theme='pastel'], troque o nome e os valores.
+ *    Só é preciso redefinir as variáveis que mudam.
+ *
+ *  Regras para não estragar a leitura:
+ *    - "*-foreground" é a cor do texto que fica EM CIMA da cor de mesmo
+ *      nome; precisa de contraste (cor clara de fundo → texto escuro).
+ *    - "--chart-1" pinta as barras dos gráficos; precisa de contraste de
+ *      pelo menos 3:1 contra o branco dos painéis.
+ *    - status-critical (atraso) e status-warning (vence em breve) são
+ *      reservados para esses alertas; não reutilize para outra coisa.
+ */
+
+/* ---------- Tema padrão: lavanda + índigo ---------- */
+:root,
+[data-theme='lavanda'] {
+  /* Fundo da página (gradiente atrás dos painéis) */
+  --app-bg-from: #e2e5fb;
+  --app-bg-to: #f1f2fe;
+
+  /* Painéis, textos e bordas */
+  --background: #eef0fd;
+  --foreground: #1e2140;
+  --card: #ffffff;
+  --card-foreground: #1e2140;
+  --popover: #ffffff;
+  --popover-foreground: #1e2140;
+  --muted: #f4f5fb;
+  --muted-foreground: #8a8eab;
+  --border: #eceefa;
+  --input: #e2e4f5;
+  --ring: #a5a1f5;
+
+  /* Cor principal (botões, item ativo do menu) */
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f3ff;
+  --secondary-foreground: #4f46e5;
+  --accent: #f2f3ff;
+  --accent-foreground: #4f46e5;
+  --destructive: #dc2626;
+
+  /* Painel da marca na tela de login (gradiente) */
+  --brand-from: #4f46e5;
+  --brand-to: #818cf8;
+  --brand-foreground: #ffffff;
+
+  /* Filtros/abas selecionados (chips) */
+  --chip-active: #eef0ff;
+  --chip-active-border: #c7c4fb;
+  --chip-active-foreground: #4f46e5;
+
+  /* Balão de valor nos gráficos */
+  --tooltip: #1e2140;
+  --tooltip-foreground: #ffffff;
+
+  /* Gráficos (série única usa chart-1) */
+  --chart-1: #4f46e5;
+  --chart-2: #3b82f6;
+  --chart-3: #22a35a;
+  --chart-4: #d4a514;
+  --chart-5: #e8743b;
+
+  /* Status das matrículas: cor da borda + fundo suave */
+  --status-active: #3b82f6;
+  --status-active-soft: #eef6fe;
+  --status-exempt: #22a35a;
+  --status-exempt-soft: #eef8f1;
+  --status-pending: #d4a514;
+  --status-pending-soft: #fdf8e6;
+  --status-inactive: #b5b8c9;
+  --status-inactive-soft: #f5f5f8;
+  --status-inactive-foreground: #7d8099;
+
+  /* Alertas (reservados): atraso e vencimento próximo */
+  --status-critical: #dc2626;
+  --status-critical-soft: #fef2f2;
+  --status-warning: #d97706;
+  --status-warning-soft: #fffbeb;
+
+  /* Avatares com iniciais: fundo + letra */
+  --avatar-1: #ecebff;
+  --avatar-1-foreground: #4f46e5;
+  --avatar-2: #e3f2fd;
+  --avatar-2-foreground: #1e78c8;
+  --avatar-3: #e5f6ec;
+  --avatar-3-foreground: #1f8a4c;
+  --avatar-4: #fdeee6;
+  --avatar-4-foreground: #c9602b;
+  --avatar-5: #fbf3d8;
+  --avatar-5-foreground: #a8820c;
+
+  /* Sidebar (desktop) */
+  --sidebar: rgb(255 255 255 / 75%);
+  --sidebar-foreground: #8a8eab;
+  --sidebar-primary: #4f46e5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f2f3ff;
+  --sidebar-accent-foreground: #4f46e5;
+  --sidebar-border: #eceefa;
+  --sidebar-ring: #a5a1f5;
+
+  /* Arredondamento base (painéis usam múltiplos dele) */
+  --radius: 1rem;
+}
+
+/* ---------- Tema verde: sálvia e menta suaves ---------- */
+[data-theme='verde'] {
+  --app-bg-from: #e3f2e9;
+  --app-bg-to: #f3f9f5;
+
+  --background: #f2f8f4;
+  --foreground: #1f3a2d;
+  --card-foreground: #1f3a2d;
+  --popover-foreground: #1f3a2d;
+  --muted: #f1f6f2;
+  --muted-foreground: #7f9688;
+  --border: #e3eee7;
+  --input: #d6e6dc;
+  --ring: #a7d3b8;
+
+  /* Botões em verde claro → texto verde-escuro para manter o contraste */
+  --primary: #a8d8bb;
+  --primary-foreground: #163a2a;
+  --secondary: #eef7f1;
+  --secondary-foreground: #2f7a55;
+  --accent: #eef7f1;
+  --accent-foreground: #2f7a55;
+
+  --brand-from: #8fcfaa;
+  --brand-to: #cdeedc;
+  --brand-foreground: #163a2a;
+
+  --chip-active: #eef7f1;
+  --chip-active-border: #b9dfc8;
+  --chip-active-foreground: #2f7a55;
+
+  --tooltip: #1f3a2d;
+
+  /* Barras precisam de contraste ≥ 3:1 com o branco: verde mais forte */
+  --chart-1: #4f9d76;
+
+  --status-active: #93c5fd;
+  --status-active-soft: #f0f7ff;
+  /* "Isenta" em verde-água para não se confundir com a cor do tema */
+  --status-exempt: #5cc4b6;
+  --status-exempt-soft: #ecf9f7;
+  --status-pending: #f5cf6b;
+  --status-pending-soft: #fffaeb;
+  --status-inactive: #cfd8d2;
+  --status-inactive-soft: #f5f8f6;
+  --status-inactive-foreground: #869489;
+
+  --avatar-1: #e3f4ea;
+  --avatar-1-foreground: #2f7a55;
+  --avatar-2: #e6f3fd;
+  --avatar-2-foreground: #2f73b0;
+  --avatar-3: #fdf3dc;
+  --avatar-3-foreground: #9a7413;
+  --avatar-4: #fdebe4;
+  --avatar-4-foreground: #b45c3c;
+  --avatar-5: #efe8ff;
+  --avatar-5-foreground: #6a52c4;
+
+  --sidebar-foreground: #7f9688;
+  --sidebar-primary: #a8d8bb;
+  --sidebar-primary-foreground: #163a2a;
+  --sidebar-accent: #eef7f1;
+  --sidebar-accent-foreground: #2f7a55;
+  --sidebar-border: #e3eee7;
+  --sidebar-ring: #a7d3b8;
+}
+
+/* ---------- Tema pastel: lilás, rosa e menta suaves ---------- */
+[data-theme='pastel'] {
+  --app-bg-from: #fde8f1;
+  --app-bg-to: #e8f4fd;
+
+  --background: #fbf5fb;
+  --foreground: #3b2f4a;
+  --card-foreground: #3b2f4a;
+  --popover-foreground: #3b2f4a;
+  --muted: #f8f3f9;
+  --muted-foreground: #9a8fa8;
+  --border: #f1e8f3;
+  --input: #eadff0;
+  --ring: #d4c4f7;
+
+  /* Botões em lilás claro → texto escuro para manter o contraste */
+  --primary: #c9b8fa;
+  --primary-foreground: #2e1f52;
+  --secondary: #f6f0ff;
+  --secondary-foreground: #5b45a8;
+  --accent: #f6f0ff;
+  --accent-foreground: #5b45a8;
+
+  --brand-from: #f9c6dd;
+  --brand-to: #c9b8fa;
+  --brand-foreground: #3b2f4a;
+
+  --chip-active: #f6f0ff;
+  --chip-active-border: #dccdfb;
+  --chip-active-foreground: #5b45a8;
+
+  --tooltip: #3b2f4a;
+
+  /* Barras precisam de contraste ≥ 3:1 com o branco: lilás mais forte */
+  --chart-1: #8b7cf0;
+
+  --status-active: #93c5fd;
+  --status-active-soft: #f0f7ff;
+  --status-exempt: #86d6a8;
+  --status-exempt-soft: #effaf3;
+  --status-pending: #f5cf6b;
+  --status-pending-soft: #fffaeb;
+  --status-inactive: #d5d0dc;
+  --status-inactive-soft: #f7f5f9;
+  --status-inactive-foreground: #8c8499;
+
+  --avatar-1: #efe8ff;
+  --avatar-1-foreground: #6a52c4;
+  --avatar-2: #fde7f1;
+  --avatar-2-foreground: #b4477a;
+  --avatar-3: #e3f7ec;
+  --avatar-3-foreground: #2f8a5a;
+  --avatar-4: #fff0e3;
+  --avatar-4-foreground: #b8662a;
+  --avatar-5: #e6f3fd;
+  --avatar-5-foreground: #2f73b0;
+
+  --sidebar-foreground: #9a8fa8;
+  --sidebar-primary: #c9b8fa;
+  --sidebar-primary-foreground: #2e1f52;
+  --sidebar-accent: #f6f0ff;
+  --sidebar-accent-foreground: #5b45a8;
+  --sidebar-border: #f1e8f3;
+  --sidebar-ring: #d4c4f7;
+}
