@@ -20,6 +20,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    op.alter_column(
+        'student_responsible',
+        'responsible_id',
+        existing_type=sa.Integer(),
+        nullable=False,
+    )
 
     op.drop_column('student_responsible', 'email')
     op.drop_column('student_responsible', 'phone_is_whatsapp')
@@ -80,4 +86,10 @@ def downgrade() -> None:
         'phone_is_whatsapp',
         existing_type=sa.Boolean(),
         nullable=False,
+    )
+    op.alter_column(
+        'student_responsible',
+        'responsible_id',
+        existing_type=sa.Integer(),
+        nullable=True,
     )
