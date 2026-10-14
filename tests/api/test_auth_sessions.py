@@ -127,6 +127,7 @@ async def test_logout_revokes_session_and_clears_cookie(
     response = await client.post(REFRESH_URL)
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json()['code'] == 'REFRESH_TOKEN_INVALID'
 
 
 @pytest.mark.asyncio
@@ -136,3 +137,74 @@ async def test_logout_without_cookie_is_noop(client: AsyncClient) -> None:
     response = await client.post('/api/v1/auth/logout')
 
     assert response.status_code == HTTPStatus.NO_CONTENT
+
+
+@pytest.mark.asyncio
+async def test_grace_reuse_after_revoke_all_down_the_chain_is_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    register_response, _ = await register_web(client)
+    token_a = register_response.cookies[COOKIE]
+
+    _use_cookie(client, token_a)
+    first = await client.post(REFRESH_URL)
+    _use_cookie(client, first.cookies[COOKIE])
+    second = await client.post(REFRESH_URL)
+
+    assert second.status_code == HTTPStatus.OK
+
+    await db_session.execute(
+        update(RefreshSession)
+        .where(RefreshSession.replaced_by_id.is_(None))
+        .values(revoked_at=datetime.now(UTC))
+    )
+    await db_session.commit()
+
+    _use_cookie(client, token_a)
+    response = await client.post(REFRESH_URL)
+
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json()['code'] == 'REFRESH_TOKEN_INVALID'
+
+
+@pytest.mark.asyncio
+async def test_grace_reuse_with_revoked_successor_is_rejected(
+    client: AsyncClient,
+) -> None:
+    register_response, _ = await register_web(client)
+    old_token = register_response.cookies[COOKIE]
+
+    _use_cookie(client, old_token)
+    rotated = await client.post(REFRESH_URL)
+
+    _use_cookie(client, rotated.cookies[COOKIE])
+    await client.post('/api/v1/auth/logout')
+
+    _use_cookie(client, old_token)
+    response = await client.post(REFRESH_URL)
+
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json()['code'] == 'REFRESH_TOKEN_INVALID'
+
+
+@pytest.mark.asyncio
+async def test_expired_session_is_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    register_response, _ = await register_web(client)
+    token = register_response.cookies[COOKIE]
+
+    await db_session.execute(
+        update(RefreshSession)
+        .where(RefreshSession.token_hash == hash_refresh_token(token))
+        .values(expires_at=datetime.now(UTC) - timedelta(minutes=1))
+    )
+    await db_session.commit()
+
+    _use_cookie(client, token)
+    response = await client.post(REFRESH_URL)
+
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json()['code'] == 'REFRESH_TOKEN_INVALID'

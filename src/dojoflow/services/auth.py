@@ -33,6 +33,7 @@ from dojoflow.shared.exceptions import UnauthorizedError
 PURPOSE_TELEGRAM_LINK = 'telegram_link'
 PURPOSE_TELEGRAM_SETUP = 'telegram_setup'
 REFRESH_REUSE_GRACE_SECONDS = 30
+REFRESH_CHAIN_MAX_HOPS = 20
 
 
 class AuthService:
@@ -125,15 +126,9 @@ class AuthService:
                 code='REFRESH_TOKEN_REUSED',
             )
 
-        successor = await self.refresh_session_repository.get_by_id(
-            int(session['replaced_by_id'])
-        )
+        tail = await self._find_active_chain_tail(session)
 
-        if (
-            successor is None
-            or successor['revoked_at'] is not None
-            and successor['replaced_by_id'] is None
-        ):
+        if tail is None:
             raise UnauthorizedError(
                 'Invalid or expired token.',
                 code='REFRESH_TOKEN_INVALID',
@@ -164,6 +159,27 @@ class AuthService:
             master_id=master_id,
             revoked_at=datetime.now(UTC),
         )
+
+    async def _find_active_chain_tail(
+        self,
+        session: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        current = session
+
+        for _ in range(REFRESH_CHAIN_MAX_HOPS):
+            if current['replaced_by_id'] is None:
+                return current if current['revoked_at'] is None else None
+
+            next_session = await self.refresh_session_repository.get_by_id(
+                int(current['replaced_by_id'])
+            )
+
+            if next_session is None:
+                return None
+
+            current = next_session
+
+        return None
 
     @transactional
     async def _rotate_session(self, session: dict[str, Any]) -> AuthResult:
