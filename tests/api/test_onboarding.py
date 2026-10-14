@@ -57,7 +57,8 @@ async def test_register_onboarding_conflict_when_telegram_exists(
     assert first_response.status_code == HTTPStatus.CREATED
     assert second_response.status_code == HTTPStatus.CONFLICT
     assert second_response.json() == {
-        'detail': 'This Telegram user is already registered as a master.'
+        'detail': 'This Telegram user is already registered as a master.',
+        'code': 'CONFLICT',
     }
 
     academy_count = await db_session.scalar(

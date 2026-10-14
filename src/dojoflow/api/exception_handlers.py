@@ -15,7 +15,7 @@ async def not_found_error_handler(
 ) -> JSONResponse:
     return JSONResponse(
         status_code=404,
-        content={'detail': str(exc)},
+        content={'detail': str(exc), 'code': exc.code},
     )
 
 
@@ -25,7 +25,7 @@ async def conflict_error_handler(
 ) -> JSONResponse:
     return JSONResponse(
         status_code=409,
-        content={'detail': str(exc)},
+        content={'detail': str(exc), 'code': exc.code},
     )
 
 
@@ -35,7 +35,7 @@ async def unauthorized_error_handler(
 ) -> JSONResponse:
     return JSONResponse(
         status_code=401,
-        content={'detail': str(exc)},
+        content={'detail': str(exc), 'code': exc.code},
         headers={'WWW-Authenticate': 'Bearer'},
     )
 
@@ -46,7 +46,7 @@ async def forbidden_error_handler(
 ) -> JSONResponse:
     return JSONResponse(
         status_code=403,
-        content={'detail': str(exc)},
+        content={'detail': str(exc), 'code': exc.code},
     )
 
 

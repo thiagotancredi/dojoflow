@@ -412,6 +412,7 @@ async def test_telegram_webhook_should_return_401_without_secret(
     assert response.status_code == HTTPStatus.UNAUTHORIZED
     assert response.json() == {
         'detail': 'Invalid Telegram webhook secret.',
+        'code': 'UNAUTHORIZED',
     }
 
 

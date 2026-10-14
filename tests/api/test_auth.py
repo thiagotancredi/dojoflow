@@ -66,6 +66,7 @@ async def test_register_web_conflict_when_email_exists(
     assert second_response.status_code == HTTPStatus.CONFLICT
     assert second_response.json() == {
         'detail': 'This email is already registered as a master.',
+        'code': 'CONFLICT',
     }
 
 
