@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
@@ -11,7 +13,6 @@ password_hash = PasswordHash.recommended()
 
 TokenPurpose = Literal[
     'access',
-    'refresh',
     'telegram_link',
     'telegram_setup',
 ]
@@ -64,13 +65,12 @@ def create_access_token(master_id: int) -> str:
     return token
 
 
-def create_refresh_token(master_id: int) -> str:
-    token, _ = _create_token(
-        subject=str(master_id),
-        purpose='refresh',
-        expires_delta=timedelta(days=settings.JWT_REFRESH_TTL_DAYS),
-    )
-    return token
+def generate_refresh_token() -> str:
+    return secrets.token_urlsafe(48)
+
+
+def hash_refresh_token(refresh_token: str) -> str:
+    return hashlib.sha256(refresh_token.encode()).hexdigest()
 
 
 def create_telegram_link_token(master_id: int) -> tuple[str, datetime]:

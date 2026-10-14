@@ -13,6 +13,7 @@ from dojoflow.models.one_time_token import OneTimeToken
 from dojoflow.repositories.academy import AcademyRepository
 from dojoflow.repositories.master import MasterRepository
 from dojoflow.repositories.one_time_token import OneTimeTokenRepository
+from dojoflow.repositories.refresh_session import RefreshSessionRepository
 from dojoflow.services.academy import AcademyService
 from dojoflow.services.auth import AuthService
 from dojoflow.services.master import MasterService
@@ -35,7 +36,7 @@ async def test_register_web_should_create_academy_and_master_without_telegram(
     body = response.json()
 
     assert body['access_token']
-    assert body['refresh_token']
+    assert response.cookies['dojoflow_refresh']
     assert body['master']['email'] == payload['email']
     assert body['master']['telegram_user_id'] is None
     assert body['master']['academy_name'] == payload['academy_name']
@@ -112,22 +113,6 @@ async def test_login_invalid_password(
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-
-
-@pytest.mark.asyncio
-async def test_refresh_token(
-    client: AsyncClient,
-) -> None:
-    register_response, _ = await register_web(client)
-    refresh_token = register_response.json()['refresh_token']
-
-    response = await client.post(
-        '/api/v1/auth/refresh',
-        json={'refresh_token': refresh_token},
-    )
-
-    assert response.status_code == HTTPStatus.OK
-    assert response.json()['access_token']
 
 
 @pytest.mark.asyncio
@@ -228,6 +213,9 @@ async def test_set_credentials_with_setup_token(
         onboarding_service=onboarding_service,
         master_service=master_service,
         one_time_token_repository=OneTimeTokenRepository(
+            db_session=db_session
+        ),
+        refresh_session_repository=RefreshSessionRepository(
             db_session=db_session
         ),
         db_session=db_session,

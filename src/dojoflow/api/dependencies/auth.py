@@ -8,6 +8,7 @@ from dojoflow.api.dependencies.master import MasterServiceDep
 from dojoflow.api.dependencies.onboarding import OnboardingServiceDep
 from dojoflow.core.settings import settings
 from dojoflow.repositories.one_time_token import OneTimeTokenRepository
+from dojoflow.repositories.refresh_session import RefreshSessionRepository
 from dojoflow.schemas.master_context import MasterContextRead
 from dojoflow.services.auth import AuthService
 from dojoflow.services.security import MASTER_ROLE, get_master_id_from_token
@@ -28,16 +29,30 @@ OneTimeTokenRepositoryDep = Annotated[
 ]
 
 
+def _get_refresh_session_repository(
+    db_session_dep: DbSessionDep,
+) -> RefreshSessionRepository:
+    return RefreshSessionRepository(db_session=db_session_dep)
+
+
+RefreshSessionRepositoryDep = Annotated[
+    RefreshSessionRepository,
+    Depends(_get_refresh_session_repository),
+]
+
+
 def _get_auth_service(
     onboarding_service_dep: OnboardingServiceDep,
     master_service_dep: MasterServiceDep,
     one_time_token_repository_dep: OneTimeTokenRepositoryDep,
+    refresh_session_repository_dep: RefreshSessionRepositoryDep,
     db_session_dep: DbSessionDep,
 ) -> AuthService:
     return AuthService(
         onboarding_service=onboarding_service_dep,
         master_service=master_service_dep,
         one_time_token_repository=one_time_token_repository_dep,
+        refresh_session_repository=refresh_session_repository_dep,
         db_session=db_session_dep,
     )
 

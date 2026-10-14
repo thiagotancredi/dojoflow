@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import NamedTuple
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -33,15 +34,15 @@ class AuthLoginRequest(BaseModel):
         return value.strip().lower()
 
 
-class AuthRefreshRequest(BaseModel):
-    refresh_token: str = Field(min_length=10)
-
-
 class AuthTokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
     token_type: str = 'bearer'
     master: MasterContextRead
+
+
+class AuthResult(NamedTuple):
+    response: AuthTokenResponse
+    refresh_token: str
 
 
 class TelegramLinkTokenResponse(BaseModel):

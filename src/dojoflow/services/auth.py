@@ -1,14 +1,17 @@
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.core.settings import settings
 from dojoflow.database.transaction import transactional
 from dojoflow.repositories.one_time_token import OneTimeTokenRepository
+from dojoflow.repositories.refresh_session import RefreshSessionRepository
 from dojoflow.schemas.auth import (
     AuthLoginRequest,
     AuthRegisterRequest,
+    AuthResult,
     AuthTokenResponse,
     SetCredentialsRequest,
     TelegramLinkTokenResponse,
@@ -20,15 +23,16 @@ from dojoflow.services.master import MasterService
 from dojoflow.services.onboarding import OnboardingService
 from dojoflow.services.security import (
     create_access_token,
-    create_refresh_token,
-    get_master_id_from_token,
+    generate_refresh_token,
     hash_password,
+    hash_refresh_token,
     verify_password,
 )
 from dojoflow.shared.exceptions import UnauthorizedError
 
 PURPOSE_TELEGRAM_LINK = 'telegram_link'
 PURPOSE_TELEGRAM_SETUP = 'telegram_setup'
+REFRESH_REUSE_GRACE_SECONDS = 30
 
 
 class AuthService:
@@ -37,17 +41,19 @@ class AuthService:
         onboarding_service: OnboardingService,
         master_service: MasterService,
         one_time_token_repository: OneTimeTokenRepository,
+        refresh_session_repository: RefreshSessionRepository,
         db_session: AsyncSession,
     ) -> None:
         self.onboarding_service = onboarding_service
         self.master_service = master_service
         self.one_time_token_repository = one_time_token_repository
+        self.refresh_session_repository = refresh_session_repository
         self.db_session = db_session
 
     async def register(
         self,
         data: AuthRegisterRequest,
-    ) -> AuthTokenResponse:
+    ) -> AuthResult:
         onboarding = await self.onboarding_service.register_web(
             OnboardingWebCreate(
                 academy_name=data.academy_name,
@@ -65,12 +71,12 @@ class AuthService:
         if context is None:
             raise UnauthorizedError('Could not load master context.')
 
-        return self._build_token_response(context)
+        return await self._start_session(context)
 
     async def login(
         self,
         data: AuthLoginRequest,
-    ) -> AuthTokenResponse:
+    ) -> AuthResult:
         normalized_email = str(data.email).strip().lower()
         master = await self.master_service.get_by_email(normalized_email)
 
@@ -86,22 +92,127 @@ class AuthService:
         if context is None:
             raise UnauthorizedError('Invalid email or password.')
 
-        return self._build_token_response(context)
+        return await self._start_session(context)
 
-    async def refresh(
-        self,
-        refresh_token: str,
-    ) -> AuthTokenResponse:
-        master_id = get_master_id_from_token(
-            refresh_token,
-            expected_purpose='refresh',
+    async def refresh(self, refresh_token: str) -> AuthResult:
+        session = await self.refresh_session_repository.get_by_token_hash(
+            hash_refresh_token(refresh_token)
         )
+        now = datetime.now(UTC)
+
+        if session is None or session['expires_at'] <= now:
+            raise UnauthorizedError(
+                'Invalid or expired token.',
+                code='REFRESH_TOKEN_INVALID',
+            )
+
+        if session['revoked_at'] is None:
+            return await self._rotate_session(session)
+
+        if session['replaced_by_id'] is None:
+            raise UnauthorizedError(
+                'Invalid or expired token.',
+                code='REFRESH_TOKEN_INVALID',
+            )
+
+        master_id = int(session['master_id'])
+        grace = timedelta(seconds=REFRESH_REUSE_GRACE_SECONDS)
+
+        if now - session['revoked_at'] > grace:
+            await self.revoke_all_sessions(master_id)
+            raise UnauthorizedError(
+                'Refresh token was already used.',
+                code='REFRESH_TOKEN_REUSED',
+            )
+
+        successor = await self.refresh_session_repository.get_by_id(
+            int(session['replaced_by_id'])
+        )
+
+        if (
+            successor is None
+            or successor['revoked_at'] is not None
+            and successor['replaced_by_id'] is None
+        ):
+            raise UnauthorizedError(
+                'Invalid or expired token.',
+                code='REFRESH_TOKEN_INVALID',
+            )
+
+        return await self._start_session_for_master(master_id)
+
+    @transactional
+    async def logout(self, refresh_token: str | None) -> None:
+        if refresh_token is None:
+            return
+
+        session = await self.refresh_session_repository.get_by_token_hash(
+            hash_refresh_token(refresh_token)
+        )
+
+        if session is None or session['revoked_at'] is not None:
+            return
+
+        await self.refresh_session_repository.update_by_id(
+            record_id=int(session['id']),
+            data={'revoked_at': datetime.now(UTC)},
+        )
+
+    @transactional
+    async def revoke_all_sessions(self, master_id: int) -> None:
+        await self.refresh_session_repository.revoke_all_for_master(
+            master_id=master_id,
+            revoked_at=datetime.now(UTC),
+        )
+
+    @transactional
+    async def _rotate_session(self, session: dict[str, Any]) -> AuthResult:
+        result, new_session_id = await self._create_session(
+            int(session['master_id'])
+        )
+
+        await self.refresh_session_repository.update_by_id(
+            record_id=int(session['id']),
+            data={
+                'revoked_at': datetime.now(UTC),
+                'replaced_by_id': new_session_id,
+            },
+        )
+
+        return result
+
+    @transactional
+    async def _start_session_for_master(self, master_id: int) -> AuthResult:
+        result, _ = await self._create_session(master_id)
+
+        return result
+
+    async def _start_session(self, context: MasterContextRead) -> AuthResult:
+        return await self._start_session_for_master(context.master_id)
+
+    async def _create_session(self, master_id: int) -> tuple[AuthResult, int]:
         context = await self.master_service.get_context_by_id(master_id)
 
         if context is None:
-            raise UnauthorizedError('Invalid or expired token.')
+            raise UnauthorizedError(
+                'Invalid or expired token.',
+                code='REFRESH_TOKEN_INVALID',
+            )
 
-        return self._build_token_response(context)
+        refresh_token = generate_refresh_token()
+        session_id = await self.refresh_session_repository.create({
+            'master_id': master_id,
+            'token_hash': hash_refresh_token(refresh_token),
+            'expires_at': datetime.now(UTC)
+            + timedelta(days=settings.JWT_REFRESH_TTL_DAYS),
+        })
+
+        response = AuthTokenResponse(
+            access_token=create_access_token(master_id),
+            master=context,
+        )
+
+        return AuthResult(response, refresh_token), session_id
 
     async def get_me(
         self,
@@ -157,7 +268,7 @@ class AuthService:
         data: SetCredentialsRequest,
         *,
         authenticated_master_id: int | None = None,
-    ) -> AuthTokenResponse:
+    ) -> AuthResult:
         if authenticated_master_id is not None:
             master_id = authenticated_master_id
         elif data.setup_token:
@@ -176,7 +287,7 @@ class AuthService:
             password_hash=hash_password(data.password),
         )
 
-        return self._build_token_response(context)
+        return await self._start_session(context)
 
     async def link_telegram_from_token(
         self,
@@ -233,13 +344,3 @@ class AuthService:
         )
 
         return int(record['master_id'])
-
-    @staticmethod
-    def _build_token_response(
-        context: MasterContextRead,
-    ) -> AuthTokenResponse:
-        return AuthTokenResponse(
-            access_token=create_access_token(context.master_id),
-            refresh_token=create_refresh_token(context.master_id),
-            master=context,
-        )
