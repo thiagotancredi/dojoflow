@@ -497,7 +497,6 @@ export interface components {
              * @default bearer
              */
             token_type: string;
-            master: components["schemas"]["MasterContextApiRead"];
         };
         /** CepAddress */
         CepAddress: {
@@ -597,6 +596,8 @@ export interface components {
             name: string;
             /** Email */
             email: string | null;
+            /** Phone */
+            phone: string | null;
             /** Telegram Linked */
             telegram_linked: boolean;
             academy: components["schemas"]["AcademyApiRead"];
