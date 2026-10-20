@@ -1,7 +1,6 @@
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from fastapi import status as http_status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,12 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dojoflow.api.dependencies.auth import CurrentMasterDep
 from dojoflow.api.dependencies.db_session import DbSessionDep
 from dojoflow.api.dependencies.public_ids import (
+    EnrollmentIdDep,
     StudentIdDep,
     resolve_modality_id,
     resolve_public_id,
 )
 from dojoflow.api.dependencies.student import StudentServiceDep
-from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.modality import Modality
 from dojoflow.models.student_responsible import StudentResponsible
 from dojoflow.schemas.student import (
@@ -48,23 +47,6 @@ async def _to_internal_enrollment(
         modality_id=modality_id,
         **payload.model_dump(exclude={'modality_id'}),
     )
-
-
-async def _resolve_enrollment_id(
-    enrollment_id: UUID,
-    student_id: StudentIdDep,
-    db_session_dep: DbSessionDep,
-) -> int:
-    return await resolve_public_id(
-        db_session_dep,
-        Enrollment,
-        enrollment_id,
-        code='ENROLLMENT_NOT_FOUND',
-        extra_filters=[Enrollment.student_id == student_id],
-    )
-
-
-EnrollmentIdDep = Annotated[int, Depends(_resolve_enrollment_id)]
 
 
 @router.get(

@@ -11,6 +11,8 @@ from dojoflow.api.dependencies.db_session import DbSessionDep
 from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.base_model import BaseModel
 from dojoflow.models.belt import Belt
+from dojoflow.models.enrollment import Enrollment
+from dojoflow.models.enrollment_belt import EnrollmentBelt
 from dojoflow.models.modality import Modality
 from dojoflow.models.student import Student
 from dojoflow.shared.exceptions import NotFoundError
@@ -67,6 +69,40 @@ async def _resolve_student_id(
 
 
 StudentIdDep = Annotated[int, Depends(_resolve_student_id)]
+
+
+async def _resolve_enrollment_id(
+    enrollment_id: UUID,
+    student_id: StudentIdDep,
+    db_session_dep: DbSessionDep,
+) -> int:
+    return await resolve_public_id(
+        db_session_dep,
+        Enrollment,
+        enrollment_id,
+        code='ENROLLMENT_NOT_FOUND',
+        extra_filters=[Enrollment.student_id == student_id],
+    )
+
+
+EnrollmentIdDep = Annotated[int, Depends(_resolve_enrollment_id)]
+
+
+async def _resolve_belt_record_id(
+    record_id: UUID,
+    enrollment_id: EnrollmentIdDep,
+    db_session_dep: DbSessionDep,
+) -> int:
+    return await resolve_public_id(
+        db_session_dep,
+        EnrollmentBelt,
+        record_id,
+        code='BELT_RECORD_NOT_FOUND',
+        extra_filters=[EnrollmentBelt.enrollment_id == enrollment_id],
+    )
+
+
+BeltRecordIdDep = Annotated[int, Depends(_resolve_belt_record_id)]
 
 
 async def _resolve_enabled_modality_id(
