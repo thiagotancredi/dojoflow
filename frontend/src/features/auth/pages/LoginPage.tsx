@@ -1,23 +1,46 @@
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import { useState } from 'react'
-import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router'
+import type { SubmitEvent } from 'react'
+import { Navigate, useNavigate } from 'react-router'
+
+import { useAuth } from '@/features/auth/useAuth'
+import type { ApiError } from '@/lib/api/client'
 
 import { Logo } from '@/app/components/Logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-// Por enquanto o botão só navega para /app. Na Fase 4 ele chama
-// POST /api/v1/auth/login e guarda o token.
+// Login: o signIn() do AuthContext chama a API e guarda a sessão.
 export function LoginPage() {
   const navigate = useNavigate()
+  const { status, signIn } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     // Impede o navegador de recarregar a página (comportamento padrão do <form>)
     event.preventDefault()
-    navigate('/app')
+    setError(null)
+
+    try {
+      await signIn(email, password)
+      navigate('/app')
+    } catch (err) {
+      const apiError = err as ApiError
+      setError(
+        apiError.code === 'INVALID_CREDENTIALS'
+          ? 'E-mail ou senha incorretos.'
+          : 'Não foi possível entrar. Tente novamente.',
+      )
+    }
+  }
+
+  // Já logado (ex.: voltou para /login com a sessão ativa): vai direto ao app
+  if (status === 'authenticated') {
+    return <Navigate to="/app" replace />
   }
 
   return (
@@ -61,6 +84,8 @@ export function LoginPage() {
                 type="email"
                 placeholder="voce@academia.com"
                 className="h-11 rounded-xl pl-9"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
               />
             </div>
           </div>
@@ -73,6 +98,8 @@ export function LoginPage() {
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 className="h-11 rounded-xl px-9"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
               />
               <button
                 type="button"
@@ -88,6 +115,12 @@ export function LoginPage() {
               </button>
             </div>
           </div>
+
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
 
           <Button type="submit" className="h-11 w-full rounded-full text-base">
             Entrar

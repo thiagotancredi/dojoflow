@@ -1,6 +1,7 @@
 import { AlertCircle, CalendarClock, Cake, Users } from 'lucide-react'
 
 import { PageHeader } from '@/components/PageHeader'
+import { useAuth } from '@/features/auth/useAuth'
 import { DashboardCard } from '@/features/dashboard/components/DashboardCard'
 import { HorizontalBars } from '@/features/dashboard/components/HorizontalBars'
 import { MonthlyEnrollmentsChart } from '@/features/dashboard/components/MonthlyEnrollmentsChart'
@@ -19,9 +20,13 @@ import {
 const iconProps = { className: 'size-5', strokeWidth: 1.6 }
 
 export function DashboardPage() {
+  const { master } = useAuth()
+  // Primeiro nome do mestre logado (ex.: "Mestre Teste" → "Mestre")
+  const firstName = master?.name.split(' ')[0]
+
   return (
     <div className="space-y-4">
-      <PageHeader title="Dashboard" />
+      <PageHeader title={firstName ? `Olá, ${firstName}` : 'Dashboard'} />
 
       {/* Números do topo: 2 colunas no celular, 4 no desktop */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

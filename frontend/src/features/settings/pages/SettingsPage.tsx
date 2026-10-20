@@ -1,11 +1,24 @@
-import { Link } from 'react-router'
+import { useNavigate } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useAuth } from '@/features/auth/useAuth'
 
 export function SettingsPage() {
+  const navigate = useNavigate()
+  const { signOut } = useAuth()
+
+  async function handleSignOut() {
+    try {
+      await signOut()
+    } catch {
+      // Se a API falhar, a sessão local já foi limpa pelo signOut
+    }
+    navigate('/login', { replace: true })
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader title="Configurações" />
@@ -33,8 +46,8 @@ export function SettingsPage() {
         </Button>
       </section>
 
-      <Button asChild variant="ghost" className="rounded-full">
-        <Link to="/login">Sair</Link>
+      <Button variant="ghost" className="rounded-full" onClick={handleSignOut}>
+        Sair
       </Button>
     </div>
   )
