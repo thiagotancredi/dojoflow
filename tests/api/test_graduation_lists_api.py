@@ -263,3 +263,258 @@ async def test_other_academy_cannot_see_list(
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.json()['code'] == 'GRADUATION_LIST_NOT_FOUND'
     assert listed.json() == []
+
+
+async def _add_entry(
+    client: AsyncClient,
+    ctx: dict,
+    list_id: str,
+    enrollment_id: str,
+    target_belt_id: str | None = None,
+) -> object:
+    payload = {'enrollment_id': enrollment_id}
+
+    if target_belt_id is not None:
+        payload['target_belt_id'] = target_belt_id
+
+    return await client.post(
+        f'{LISTS_URL}/{list_id}/entries',
+        headers=ctx['headers'],
+        json=payload,
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_entry_defaults_to_next_belt(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    ctx = await _setup(client, db_session)
+    created = await _create_list(client, ctx)
+
+    response = await _add_entry(client, ctx, created['id'], ctx['ana'][1])
+
+    assert response.status_code == HTTPStatus.NO_CONTENT, response.text
+    detail = await _detail(client, ctx, created['id'])
+    [entry] = detail['entries']
+    assert entry['student_name'] == 'Ana Lima'
+    assert entry['enrollment_id'] == ctx['ana'][1]
+    assert entry['target_belt']['name'] == 'Amarela'
+    assert entry['snapshot_belt']['name'] == 'Branca'
+    assert entry['snapshot_graduated_on'] == '2026-08-20'
+    assert entry['eligibility'] == 'eligible'
+    assert 'Ana Lima' not in _by_name(detail['candidates'])
+    assert detail['summary']['entry_count'] == 1
+
+
+@pytest.mark.asyncio
+async def test_add_entry_can_skip_belts(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    ctx = await _setup(client, db_session)
+    created = await _create_list(client, ctx)
+
+    await _add_entry(
+        client,
+        ctx,
+        created['id'],
+        ctx['ana'][1],
+        ctx['belts']['Laranja']['id'],
+    )
+
+    detail = await _detail(client, ctx, created['id'])
+    assert detail['entries'][0]['target_belt']['name'] == 'Laranja'
+
+
+@pytest.mark.asyncio
+async def test_not_eligible_student_can_be_added(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    ctx = await _setup(client, db_session)
+    created = await _create_list(client, ctx)
+
+    response = await _add_entry(client, ctx, created['id'], ctx['bruno'][1])
+    no_belt = await _add_entry(client, ctx, created['id'], ctx['caio'][1])
+
+    assert response.status_code == HTTPStatus.NO_CONTENT
+    assert no_belt.status_code == HTTPStatus.NO_CONTENT
+    entries = _by_name((await _detail(client, ctx, created['id']))['entries'])
+    assert entries['Bruno Costa']['eligibility'] == 'not_yet'
+    assert entries['Caio Souza']['eligibility'] == 'no_belt'
+    assert entries['Caio Souza']['snapshot_belt'] is None
+    assert entries['Caio Souza']['target_belt']['name'] == 'Branca'
+
+
+@pytest.mark.asyncio
+async def test_entry_keeps_snapshot_after_new_graduation(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    ctx = await _setup(client, db_session)
+    created = await _create_list(client, ctx)
+    await _add_entry(client, ctx, created['id'], ctx['ana'][1])
+
+    await _register_belt(
+        client,
+        ctx['headers'],
+        ctx['ana'],
+        ctx['belts']['Amarela'],
+        '2026-10-25',
+    )
+
+    entry = (await _detail(client, ctx, created['id']))['entries'][0]
+    assert entry['snapshot_belt']['name'] == 'Branca'
+    assert entry['snapshot_graduated_on'] == '2026-08-20'
+
+
+@pytest.mark.asyncio
+async def test_duplicate_entry_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    ctx = await _setup(client, db_session)
+    created = await _create_list(client, ctx)
+    await _add_entry(client, ctx, created['id'], ctx['ana'][1])
+
+    response = await _add_entry(client, ctx, created['id'], ctx['ana'][1])
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'ALREADY_IN_LIST'
+
+
+@pytest.mark.asyncio
+async def test_non_candidate_enrollment_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    ctx = await _setup(client, db_session)
+    jiu_jitsu = await enable_modality(
+        client, db_session, ctx['headers'], 'Jiu-jitsu'
+    )
+    _, other_enrollment = await create_student(
+        client, ctx['headers'], jiu_jitsu, 'Edu Lima'
+    )
+    created = await _create_list(client, ctx)
+
+    other = await _add_entry(client, ctx, created['id'], other_enrollment)
+    inactive = await _add_entry(client, ctx, created['id'], ctx['duda'][1])
+
+    for response in (other, inactive):
+        assert response.status_code == HTTPStatus.CONFLICT
+        assert response.json()['code'] == 'ENROLLMENT_NOT_CANDIDATE'
+
+
+@pytest.mark.asyncio
+async def test_target_belt_from_other_modality_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    ctx = await _setup(client, db_session)
+    jiu_jitsu = await enable_modality(
+        client, db_session, ctx['headers'], 'Jiu-jitsu'
+    )
+    blue = await create_belt(client, ctx['headers'], jiu_jitsu, 'Azul')
+    created = await _create_list(client, ctx)
+
+    response = await _add_entry(
+        client, ctx, created['id'], ctx['ana'][1], blue['id']
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'BELT_MODALITY_MISMATCH'
+
+
+@pytest.mark.asyncio
+async def test_last_belt_requires_explicit_target(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    ctx = await _setup(client, db_session)
+    await _register_belt(
+        client,
+        ctx['headers'],
+        ctx['caio'],
+        ctx['belts']['Laranja'],
+        '2020-01-01',
+    )
+    created = await _create_list(client, ctx)
+
+    response = await _add_entry(client, ctx, created['id'], ctx['caio'][1])
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'TARGET_BELT_REQUIRED'
+
+
+@pytest.mark.asyncio
+async def test_update_and_remove_entry(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    ctx = await _setup(client, db_session)
+    created = await _create_list(client, ctx)
+    await _add_entry(client, ctx, created['id'], ctx['ana'][1])
+    entry_id = (await _detail(client, ctx, created['id']))['entries'][0]['id']
+    entry_url = f'{LISTS_URL}/{created["id"]}/entries/{entry_id}'
+
+    updated = await client.patch(
+        entry_url,
+        headers=ctx['headers'],
+        json={'target_belt_id': ctx['belts']['Laranja']['id']},
+    )
+
+    assert updated.status_code == HTTPStatus.NO_CONTENT
+    detail = await _detail(client, ctx, created['id'])
+    assert detail['entries'][0]['target_belt']['name'] == 'Laranja'
+
+    removed = await client.delete(entry_url, headers=ctx['headers'])
+
+    assert removed.status_code == HTTPStatus.NO_CONTENT
+    detail = await _detail(client, ctx, created['id'])
+    assert detail['entries'] == []
+    assert 'Ana Lima' in _by_name(detail['candidates'])
+
+    again = await client.delete(entry_url, headers=ctx['headers'])
+
+    assert again.status_code == HTTPStatus.NOT_FOUND
+    assert again.json()['code'] == 'GRADUATION_ENTRY_NOT_FOUND'
+
+
+@pytest.mark.asyncio
+async def test_target_belt_in_list_cannot_be_deleted(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    ctx = await _setup(client, db_session)
+    created = await _create_list(client, ctx)
+    await _add_entry(client, ctx, created['id'], ctx['ana'][1])
+
+    response = await client.delete(
+        f'/api/v1/academy/belts/{ctx["belts"]["Amarela"]["id"]}',
+        headers=ctx['headers'],
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'BELT_IN_USE'
+
+
+@pytest.mark.asyncio
+async def test_delete_list_with_entries(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    ctx = await _setup(client, db_session)
+    created = await _create_list(client, ctx)
+    await _add_entry(client, ctx, created['id'], ctx['ana'][1])
+    await _add_entry(client, ctx, created['id'], ctx['bruno'][1])
+    detail = await _detail(client, ctx, created['id'])
+    assert detail['summary']['entry_count'] == 2  # noqa: PLR2004
+
+    response = await client.delete(
+        f'{LISTS_URL}/{created["id"]}', headers=ctx['headers']
+    )
+
+    assert response.status_code == HTTPStatus.NO_CONTENT
+    listed = await client.get(LISTS_URL, headers=ctx['headers'])
+    assert listed.json() == []

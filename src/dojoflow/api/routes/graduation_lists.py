@@ -4,7 +4,10 @@ from dojoflow.api.dependencies.auth import CurrentMasterDep
 from dojoflow.api.dependencies.db_session import DbSessionDep
 from dojoflow.api.dependencies.graduation_list import GraduationListServiceDep
 from dojoflow.api.dependencies.public_ids import (
+    GraduationEntryIdDep,
     GraduationListIdDep,
+    resolve_academy_enrollment_id,
+    resolve_belt_id,
     resolve_modality_id,
 )
 from dojoflow.schemas.graduation_list import (
@@ -12,6 +15,8 @@ from dojoflow.schemas.graduation_list import (
     GraduationListUpdate,
 )
 from dojoflow.schemas.graduation_list_api import (
+    GraduationEntryApiCreate,
+    GraduationEntryApiUpdate,
     GraduationListApiCreate,
     GraduationListDetailApiRead,
     GraduationListSummaryApiRead,
@@ -85,4 +90,66 @@ async def delete_graduation_list(
 ) -> None:
     await graduation_list_service_dep.delete(
         current_master.academy_id, list_id
+    )
+
+
+@router.post(
+    path='/{list_id}/entries',
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def add_graduation_entry(
+    list_id: GraduationListIdDep,
+    data: GraduationEntryApiCreate,
+    current_master: CurrentMasterDep,
+    graduation_list_service_dep: GraduationListServiceDep,
+    db_session_dep: DbSessionDep,
+) -> None:
+    academy_id = current_master.academy_id
+    enrollment_id = await resolve_academy_enrollment_id(
+        db_session_dep, data.enrollment_id, academy_id
+    )
+    target_belt_id = (
+        await resolve_belt_id(db_session_dep, data.target_belt_id, academy_id)
+        if data.target_belt_id
+        else None
+    )
+
+    await graduation_list_service_dep.add_entry(
+        academy_id, list_id, enrollment_id, target_belt_id
+    )
+
+
+@router.patch(
+    path='/{list_id}/entries/{entry_id}',
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def update_graduation_entry(  # noqa: PLR0913, PLR0917
+    list_id: GraduationListIdDep,
+    entry_id: GraduationEntryIdDep,
+    data: GraduationEntryApiUpdate,
+    current_master: CurrentMasterDep,
+    graduation_list_service_dep: GraduationListServiceDep,
+    db_session_dep: DbSessionDep,
+) -> None:
+    target_belt_id = await resolve_belt_id(
+        db_session_dep, data.target_belt_id, current_master.academy_id
+    )
+
+    await graduation_list_service_dep.update_entry(
+        current_master.academy_id, list_id, entry_id, target_belt_id
+    )
+
+
+@router.delete(
+    path='/{list_id}/entries/{entry_id}',
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_graduation_entry(
+    list_id: GraduationListIdDep,
+    entry_id: GraduationEntryIdDep,
+    current_master: CurrentMasterDep,
+    graduation_list_service_dep: GraduationListServiceDep,
+) -> None:
+    await graduation_list_service_dep.remove_entry(
+        current_master.academy_id, list_id, entry_id
     )

@@ -14,8 +14,10 @@ from dojoflow.repositories.graduation_list import GraduationListRepository
 from dojoflow.repositories.graduation_list_entry import (
     GraduationListEntryRepository,
 )
+from dojoflow.schemas.belt import BeltRead
 from dojoflow.schemas.graduation_list import (
     GraduationCandidate,
+    GraduationEntry,
     GraduationListCreate,
     GraduationListDetail,
     GraduationListSummary,
@@ -148,7 +150,7 @@ class GraduationListService:
         return GraduationListDetail(
             summary=summary,
             belts=belts,
-            entries=[],
+            entries=await self._entries(summary, belts),
             candidates=await self._candidates(academy_id, summary, belts),
         )
 
@@ -177,6 +179,180 @@ class GraduationListService:
             )
         )
         await self.graduation_list_repository.delete_by_id(list_id)
+
+    @transactional
+    async def add_entry(
+        self,
+        academy_id: int,
+        list_id: int,
+        enrollment_id: int,
+        target_belt_id: int | None,
+    ) -> None:
+        summary = await self.get_summary(academy_id, list_id)
+        enrollment = (
+            (
+                await self.db_session.execute(
+                    select(Enrollment.modality_id, Enrollment.status).where(
+                        Enrollment.id == enrollment_id,
+                        Enrollment.academy_id == academy_id,
+                    )
+                )
+            )
+            .mappings()
+            .one()
+        )
+
+        if (
+            enrollment['modality_id'] != summary.modality_id
+            or enrollment['status'] != EnrollmentStatus.ACTIVE
+        ):
+            raise ConflictError(
+                'Only active enrollments of this modality can be added.',
+                code='ENROLLMENT_NOT_CANDIDATE',
+            )
+
+        if await self.graduation_list_entry_repository.exists(
+            filters=[
+                GraduationListEntry.graduation_list_id == list_id,
+                GraduationListEntry.enrollment_id == enrollment_id,
+            ],
+        ):
+            raise ConflictError(
+                'This student is already in the list.',
+                code='ALREADY_IN_LIST',
+            )
+
+        current = (
+            await self.enrollment_belt_service.current_belts(
+                academy_id, [enrollment_id]
+            )
+        ).get(enrollment_id)
+        target = await self._resolve_target(
+            academy_id,
+            summary,
+            current.belt.id if current else None,
+            target_belt_id,
+        )
+
+        await self.graduation_list_entry_repository.create({
+            'academy_id': academy_id,
+            'graduation_list_id': list_id,
+            'enrollment_id': enrollment_id,
+            'target_belt_id': target.id,
+            'snapshot_belt_id': current.belt.id if current else None,
+            'snapshot_graduated_on': current.graduated_on if current else None,
+        })
+
+    @transactional
+    async def update_entry(
+        self,
+        academy_id: int,
+        list_id: int,
+        entry_id: int,
+        target_belt_id: int,
+    ) -> None:
+        summary = await self.get_summary(academy_id, list_id)
+        target = await self._resolve_target(
+            academy_id, summary, None, target_belt_id
+        )
+
+        await self.graduation_list_entry_repository.update_by_id(
+            entry_id, {'target_belt_id': target.id}
+        )
+
+    @transactional
+    async def remove_entry(
+        self,
+        academy_id: int,
+        list_id: int,
+        entry_id: int,
+    ) -> None:
+        await self.get_summary(academy_id, list_id)
+        await self.graduation_list_entry_repository.delete_by_id(entry_id)
+
+    async def _resolve_target(
+        self,
+        academy_id: int,
+        summary: GraduationListSummary,
+        current_belt_id: int | None,
+        target_belt_id: int | None,
+    ) -> BeltRead:
+        if target_belt_id is None:
+            belts = await self.belt_service.list_by_modality(
+                academy_id, summary.modality_id
+            )
+            target = next_in_sequence(belts, current_belt_id)
+
+            if target is None:
+                raise ConflictError(
+                    'This student is already in the last belt; '
+                    'choose the target belt.',
+                    code='TARGET_BELT_REQUIRED',
+                )
+
+            return target
+
+        target = await self.belt_service.get(academy_id, target_belt_id)
+
+        if target.modality_id != summary.modality_id:
+            raise ConflictError(
+                'This belt belongs to another modality.',
+                code='BELT_MODALITY_MISMATCH',
+            )
+
+        return target
+
+    async def _entries(
+        self,
+        summary: GraduationListSummary,
+        belts: list[BeltRead],
+    ) -> list[GraduationEntry]:
+        stmt = (
+            select(
+                GraduationListEntry.id,
+                GraduationListEntry.public_id,
+                GraduationListEntry.enrollment_id,
+                GraduationListEntry.target_belt_id,
+                GraduationListEntry.snapshot_belt_id,
+                GraduationListEntry.snapshot_graduated_on,
+                Enrollment.public_id.label('enrollment_public_id'),
+                Student.name.label('student_name'),
+            )
+            .join(
+                Enrollment, Enrollment.id == GraduationListEntry.enrollment_id
+            )
+            .join(Student, Student.id == Enrollment.student_id)
+            .where(GraduationListEntry.graduation_list_id == summary.id)
+            .order_by(Student.name, GraduationListEntry.id)
+        )
+        rows = (await self.db_session.execute(stmt)).mappings().all()
+        # Faixas do retrato e pretendida são sempre da modalidade da lista
+        belts_by_id = {belt.id: belt for belt in belts}
+
+        entries = []
+
+        for row in rows:
+            snapshot = belts_by_id.get(row['snapshot_belt_id'])
+            entries.append(
+                GraduationEntry(
+                    id=row['id'],
+                    public_id=row['public_id'],
+                    enrollment_id=row['enrollment_id'],
+                    enrollment_public_id=row['enrollment_public_id'],
+                    student_name=row['student_name'],
+                    snapshot_belt=snapshot,
+                    snapshot_graduated_on=row['snapshot_graduated_on'],
+                    eligibility=evaluate_eligibility(
+                        row['snapshot_graduated_on'],
+                        snapshot.min_time_amount if snapshot else None,
+                        snapshot.min_time_unit if snapshot else None,
+                        summary.exam_date,
+                    ),
+                    target_belt=belts_by_id[row['target_belt_id']],
+                )
+            )
+
+        return entries
 
     async def _candidates(
         self,

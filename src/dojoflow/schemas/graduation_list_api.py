@@ -21,6 +21,15 @@ class GraduationListApiCreate(BaseModel):
     exam_date: date
 
 
+class GraduationEntryApiCreate(BaseModel):
+    enrollment_id: UUID
+    target_belt_id: UUID | None = None
+
+
+class GraduationEntryApiUpdate(BaseModel):
+    target_belt_id: UUID
+
+
 class ModalityRefApiRead(BaseModel):
     id: UUID
     name: str
