@@ -95,3 +95,16 @@ class AuditAction(str, enum.Enum):
     PAYMENT_ALLOCATED = 'payment_allocated'
     NOTIFICATION_SENT = 'notification_sent'
     STATUS_CHANGED = 'status_changed'
+
+
+class DurationUnit(str, enum.Enum):
+    DAYS = 'days'
+    MONTHS = 'months'
+    YEARS = 'years'
+
+
+class Eligibility(str, enum.Enum):
+    ELIGIBLE = 'eligible'
+    NOT_YET = 'not_yet'
+    NO_BELT = 'no_belt'
+    NO_REQUIREMENT = 'no_requirement'
