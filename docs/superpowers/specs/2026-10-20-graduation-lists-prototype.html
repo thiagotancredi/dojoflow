@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faixas: protótipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#f5f3ff; --card:#fff; --muted:#6b7280; --primary:#4f46e5; --ok:#047857; --okbg:#d1fae5; --warn:#92400e; --warnbg:#fef3c7; --border:#e5e7eb; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Outfit',system-ui,sans-serif; background:var(--bg); color:#1f2937; padding:24px 16px; }
+  .wrap { max-width:980px; margin:0 auto; display:grid; gap:16px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 8px; font-size:14px; }
+  .card { background:var(--card); border-radius:24px; padding:20px; box-shadow:0 10px 30px rgba(79,70,229,.08); }
+  .card h2 { font-size:16px; margin:0 0 4px; }
+  .card p.hint { color:var(--muted); font-size:13px; margin:0 0 14px; }
+  .gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; }
+  .item { border:1px solid var(--border); border-radius:16px; padding:12px; }
+  .item .name { font-weight:600; font-size:14px; margin-top:8px; }
+  .item .meta { color:var(--muted); font-size:12px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:left; color:var(--muted); font-weight:500; font-size:12px; padding:8px; border-bottom:1px solid var(--border); }
+  td { padding:10px 8px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  .beltcell { display:flex; align-items:center; gap:10px; }
+  .badge { display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:500; }
+  .ok { background:var(--okbg); color:var(--ok); }
+  .warn { background:var(--warnbg); color:var(--warn); }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:999px; background:#d1d5db; margin-right:6px; vertical-align:middle; }
+  .dot.on { background:#10b981; }
+  .dot.wait { background:#f59e0b; }
+  .waitt { color:var(--muted); font-size:13px; }
+  .okt { color:var(--ok); font-size:13px; }
+  .btn { border:1px solid var(--border); background:#fff; border-radius:999px; padding:6px 12px; font:inherit; font-size:13px; cursor:pointer; }
+  .btn.primary { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .order { color:var(--muted); width:28px; }
+  .scroll { overflow-x:auto; }
+  .form { display:grid; gap:16px; }
+  .form label, .lbl { display:grid; gap:6px; font-size:13px; color:var(--muted); }
+  .form input, .form select { font:inherit; font-size:14px; color:#1f2937; border:1px solid var(--border); border-radius:12px; padding:8px 10px; background:#fff; }
+  .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+  .inline { display:flex; gap:6px; } .inline input { width:80px; }
+  .swatches { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .sw { width:30px; height:30px; border-radius:999px; border:2px solid #fff; box-shadow:0 0 0 1px var(--border); cursor:pointer; padding:0; }
+  .sw.sel { box-shadow:0 0 0 3px var(--primary); }
+  .sw.none { background:repeating-linear-gradient(45deg,#fff 0 4px,#e5e7eb 4px 8px); }
+  .swatches input[type=color] { width:36px; height:32px; padding:2px; border-radius:10px; }
+  .preview { background:var(--bg); border-radius:16px; padding:14px; display:grid; gap:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>Faixas: protótipo do desenho</h1>
+    <p class="sub">Tudo desenhado a partir do cadastro: cor principal, cor da listra (opcional) e graus/dan.</p>
+  </div>
+
+  <section class="card">
+    <h2>Galeria</h2>
+    <p class="hint">Como cada combinação aparece.</p>
+    <div class="gallery" id="gallery"></div>
+  </section>
+
+  <section class="card">
+    <h2>Configurações → Taekwondo → Faixas (sequência padrão)</h2>
+    <p class="hint">Criada pelo botão "Usar a sequência padrão do Taekwondo". Tempos são sugestões, editáveis.</p>
+    <div class="scroll"><table id="config"></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Nova faixa (teste aqui!)</h2>
+    <p class="hint">O mestre preenche; o desenho acompanha na hora. Nada é salvo neste protótipo.</p>
+    <div class="form">
+      <label>Nome<input id="f-name" value="Roxa"></label>
+      <div><span class="lbl">Cor principal</span><div class="swatches" id="sw-main"></div></div>
+      <div><span class="lbl">Cor da listra (opcional)</span><div class="swatches" id="sw-stripe"></div></div>
+      <div><span class="lbl">Cor das marcas (graus/dan)</span><div class="swatches" id="sw-mark"></div></div>
+      <div><span class="lbl">Cor da ponta (opcional)</span><div class="swatches" id="sw-tip"></div></div>
+      <div class="row">
+        <label>Graus / Dan<input id="f-marks" type="number" min="0" max="10" value="2"></label>
+        <label>Tempo mínimo<span class="inline"><input id="f-time" type="number" min="1" value="3"><select id="f-unit"><option value="dias">dias</option><option value="meses" selected>meses</option><option value="anos">anos</option></select></span></label>
+        <label>Posição na sequência<select id="f-pos"></select></label>
+      </div>
+      <div class="preview">
+        <span class="lbl">Prévia</span>
+        <div id="f-preview"></div>
+        <div id="f-summary" class="meta"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Lista: Alunos aptos a graduar em Novembro/2026 (Taekwondo)</h2>
+    <p class="hint"><strong>Exame: 20/11/2026</strong> · "Apto" e tempo calculados na data do exame. Passe o mouse na faixa para ver o nome.</p>
+    <div class="scroll"><table id="list"></table></div>
+  </section>
+</div>
+
+<script>
+const GOLD = '#d4a017';
+const C = { branca:'#f8fafc', amarela:'#facc15', laranja:'#f97316', verde:'#16a34a', azul:'#1d4ed8',
+            roxa:'#7c3aed', marrom:'#78350f', preta:'#111827', vermelha:'#dc2626', cinza:'#9ca3af' };
+
+// Desenha a faixa: cor principal, listra central opcional, marcas (graus/dan) na ponta.
+function belt({ main, stripe = null, marks = 0, markColor = GOLD, tip = null }, w = 200, h = 34) {
+  const edge = main === C.branca ? '#cbd5e1' : 'rgba(0,0,0,.25)';
+  let s = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img">`;
+  // Cantos quase retos, como uma faixa de tecido
+  const rx = Math.min(2, h * 0.08);
+  s += `<rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="${rx}" fill="${main}" stroke="${edge}"/>`;
+  if (stripe) s += `<rect x="1" y="${h*0.36}" width="${w-2}" height="${h*0.28}" fill="${stripe}"/>`;
+  // costuras
+  for (const y of [h*0.2, h*0.8]) s += `<line x1="4" y1="${y}" x2="${w-4}" y2="${y}" stroke="rgba(255,255,255,.18)" stroke-dasharray="3 3"/>`;
+  if (marks > 0) {
+    // Marcas (graus/dan) contadas a partir da ponta; ponta colorida opcional
+    const gap = Math.max(5, w * 0.03);
+    const markW = Math.max(2, gap * 0.55);
+    const firstX = w - gap * 1.6;
+    const lastX = firstX - (marks - 1) * gap * 1.5;
+    if (tip) s += `<rect x="${lastX - gap}" y="1" width="${w - (lastX - gap) - 1}" height="${h-2}" rx="0" fill="${tip}"/>`;
+    for (let i = 0; i < marks; i++) s += `<rect x="${firstX - i * gap * 1.5}" y="4" width="${markW}" height="${h-8}" rx="1" fill="${markColor}"/>`;
+  }
+  return s + '</svg>';
+}
+
+const gallery = [
+  { name:'Branca', b:{ main:C.branca }, meta:'Lisa' },
+  { name:'Amarela', b:{ main:C.amarela }, meta:'Lisa' },
+  { name:'Azul com listra vermelha', b:{ main:C.azul, stripe:C.vermelha }, meta:'A da foto' },
+  { name:'Verde com listra azul', b:{ main:C.verde, stripe:C.azul }, meta:'Mista' },
+  { name:'Cinza com listra branca', b:{ main:C.cinza, stripe:C.branca }, meta:'Infantil (jiu-jitsu)' },
+  { name:'Azul 2 graus', b:{ main:C.azul, marks:2, markColor:C.branca, tip:C.preta }, meta:'Ponta preta + marcas brancas' },
+  { name:'Roxa 4 graus', b:{ main:C.roxa, marks:4, markColor:C.branca, tip:C.preta }, meta:'Ponta preta + marcas brancas' },
+  { name:'Preta 1º Dan', b:{ main:C.preta, marks:1 }, meta:'Marcas douradas' },
+  { name:'Preta 3º Dan', b:{ main:C.preta, marks:3 }, meta:'Marcas douradas' },
+];
+document.getElementById('gallery').innerHTML = gallery.map(g =>
+  `<div class="item">${belt(g.b, 196)}<div class="name">${g.name}</div><div class="meta">${g.meta}</div></div>`).join('');
+
+const danTimes = ['1 ano', '2 anos', '3 anos', '4 anos', '5 anos', '6 anos', '8 anos', '9 anos', '—']
+const config = [
+  ['Branca', { main:C.branca }, '3 meses'],
+  ['Cinza', { main:C.cinza }, '3 meses'],
+  ['Amarela', { main:C.amarela }, '3 meses'],
+  ['Laranja', { main:C.laranja }, '3 meses'],
+  ['Verde', { main:C.verde }, '3 meses'],
+  ['Verde e azul', { main:C.verde, stripe:C.azul }, '3 meses'],
+  ['Azul', { main:C.azul }, '3 meses'],
+  ['Azul e vermelha', { main:C.azul, stripe:C.vermelha }, '3 meses'],
+  ['Vermelha', { main:C.vermelha }, '3 meses'],
+  ['Vermelha e preta', { main:C.vermelha, stripe:C.preta }, '6 meses'],
+  ...danTimes.map((t, i) => [`Preta ${i + 1}º Dan`, { main:C.preta, marks:i + 1 }, t]),
+];
+document.getElementById('config').innerHTML =
+  `<tr><th>#</th><th>Faixa</th><th>Tempo mínimo</th><th></th></tr>` +
+  config.map(([n, b, t], i) => `<tr><td class="order">${i+1}</td><td><div class="beltcell">${belt(b, 120, 22)} ${n}</div></td><td>${t}</td><td style="text-align:right"><button class="btn">Editar</button></td></tr>`).join('');
+
+// Formulário "Nova faixa" com prévia ao vivo
+const form = { main: C.roxa, stripe: null, markColor: GOLD, tip: null }
+function swatches(el, key, allowNone, withGold = false) {
+  const palette = withGold ? { dourado: GOLD, ...C } : C
+  const items = Object.entries(palette).map(([n, hex]) =>
+    `<button type="button" class="sw" title="${n}" data-hex="${hex}" style="background:${hex}"></button>`)
+  if (allowNone) items.unshift('<button type="button" class="sw none" title="nenhuma" data-hex=""></button>')
+  items.push(`<input type="color" title="outra cor" value="#8b5cf6">`)
+  el.innerHTML = items.join('')
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('.sw'); if (!b) return
+    form[key] = b.dataset.hex || null; render()
+  })
+  el.querySelector('input[type=color]').addEventListener('input', (e) => { form[key] = e.target.value; render() })
+}
+swatches(document.getElementById('sw-main'), 'main', false)
+swatches(document.getElementById('sw-stripe'), 'stripe', true)
+swatches(document.getElementById('sw-mark'), 'markColor', false, true)
+swatches(document.getElementById('sw-tip'), 'tip', true)
+document.getElementById('f-pos').innerHTML = config.map(([n], i) =>
+  `<option ${n === 'Verde e azul' ? 'selected' : ''}>Depois de: ${n}</option>`).join('') + '<option>No início</option>'
+for (const id of ['f-name', 'f-marks', 'f-time', 'f-unit', 'f-pos']) document.getElementById(id).addEventListener('input', render)
+function render() {
+  const marks = Math.min(10, Math.max(0, +document.getElementById('f-marks').value || 0))
+  document.getElementById('f-preview').innerHTML = belt({ main: form.main, stripe: form.stripe, marks, markColor: form.markColor, tip: form.tip }, 320, 46)
+  for (const [id, key] of [['sw-main', 'main'], ['sw-stripe', 'stripe'], ['sw-mark', 'markColor'], ['sw-tip', 'tip']])
+    document.querySelectorAll(`#${id} .sw`).forEach((b) => b.classList.toggle('sel', (b.dataset.hex || null) === form[key]))
+  document.getElementById('f-summary').textContent =
+    `${document.getElementById('f-name').value || 'Sem nome'} · tempo mínimo ${document.getElementById('f-time').value} ${document.getElementById('f-unit').value} · ${document.getElementById('f-pos').value}`
+}
+render()
+
+const students = [
+  ['Ana Souza', 'Amarela', { main:C.amarela }, '3m 2d', true, 'Verde', { main:C.verde }],
+  ['Bruno Lima', 'Verde', { main:C.verde }, '2m 20d', false, 'Verde e azul', { main:C.verde, stripe:C.azul }],
+  ['Carla Dias', 'Azul e vermelha', { main:C.azul, stripe:C.vermelha }, '7m', true, 'Vermelha', { main:C.vermelha }],
+  ['Diego Alves', 'Branca', { main:C.branca }, '1m', false, 'Cinza', { main:C.cinza }],
+];
+// Versão limpa: só o desenho (nome no tooltip) e situação discreta
+const tip = (name, b) => `<span title="${name}" style="display:inline-flex">${belt(b, 72, 14)}</span>`
+document.getElementById('list').innerHTML =
+  `<tr><th>Aluno</th><th>Faixa</th><th>Tempo no exame</th><th></th><th>Pretendida</th><th></th></tr>` +
+  students.map(([n, fn, b, t, ok, next, nb]) => `<tr><td>${n}</td><td>${tip(fn, b)}</td><td style="color:var(--muted)">${t}</td>
+    <td><span class="dot ${ok ? 'on' : 'wait'}" title="${ok ? 'Apto por tempo' : 'Ainda não apto por tempo'}"></span>${ok ? '<span class="okt">Apto</span>' : '<span class="waitt">Ainda não</span>'}</td>
+    <td>${tip(next, nb)}</td><td style="text-align:right"><button class="btn">+ Adicionar</button></td></tr>`).join('');
+</script>
+</body>
+</html>
