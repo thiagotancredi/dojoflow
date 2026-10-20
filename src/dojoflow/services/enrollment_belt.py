@@ -119,6 +119,30 @@ class EnrollmentBeltService:
         })
 
     @transactional
+    async def add_for_modality(
+        self,
+        academy_id: int,
+        student_id: int,
+        modality_id: int,
+        data: EnrollmentBeltPayload,
+    ) -> None:
+        enrollment_id = await self.db_session.scalar(
+            select(Enrollment.id).where(
+                Enrollment.academy_id == academy_id,
+                Enrollment.student_id == student_id,
+                Enrollment.modality_id == modality_id,
+            )
+        )
+
+        if enrollment_id is None:
+            raise NotFoundError(
+                'Could not find this enrollment.',
+                code='ENROLLMENT_NOT_FOUND',
+            )
+
+        await self.add(academy_id, enrollment_id, data)
+
+    @transactional
     async def update(
         self,
         academy_id: int,

@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from dojoflow.schemas.enrollment_belt_api import EnrollmentBeltApiPayload
 from dojoflow.schemas.student import (
     StudentAddressPayload,
     StudentResponsiblePayload,
@@ -117,6 +118,8 @@ class EnrollmentApiPayload(BaseModel):
     due_day: int | None = Field(default=None, ge=MIN_DUE_DAY, le=MAX_DUE_DAY)
     is_exempt: bool = False
     status: EnrollmentStatus = EnrollmentStatus.ACTIVE
+    # Faixa atual opcional: grava o 1º registro do histórico junto
+    current_belt: EnrollmentBeltApiPayload | None = None
 
 
 class StudentCreateApiRequest(BaseModel):
