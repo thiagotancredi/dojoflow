@@ -1,8 +1,9 @@
-from sqlalchemy import func, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.database.transaction import transactional
 from dojoflow.models.academy_modality import AcademyModality
+from dojoflow.models.belt import Belt
 from dojoflow.models.modality import Modality
 from dojoflow.repositories.academy_modality import AcademyModalityRepository
 from dojoflow.repositories.modality import ModalityRepository
@@ -69,6 +70,13 @@ class ModalityService:
         selected_modality_ids = await self.get_selected_modality_ids(
             academy_id
         )
+        modality_ids_with_belts = set(
+            await self.db_session.scalars(
+                select(distinct(Belt.modality_id)).where(
+                    Belt.academy_id == academy_id
+                )
+            )
+        )
 
         return [
             ModalityOptionRead(
@@ -77,6 +85,7 @@ class ModalityService:
                 name=modality.name,
                 emoji=modality.emoji,
                 is_selected=modality.id in selected_modality_ids,
+                has_belts=modality.id in modality_ids_with_belts,
             )
             for modality in modalities
         ]

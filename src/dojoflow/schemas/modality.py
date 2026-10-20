@@ -25,6 +25,7 @@ class ModalityOptionRead(BaseModel):
     name: str
     emoji: str
     is_selected: bool
+    has_belts: bool = False
 
 
 class AcademyModalityRead(BaseModel):

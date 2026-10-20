@@ -40,6 +40,7 @@ async def test_catalog_and_toggle_use_public_ids(
             'name': 'Jiu-Jitsu',
             'emoji': '🥋',
             'is_selected': True,
+            'has_belts': False,
         }
     ]
 

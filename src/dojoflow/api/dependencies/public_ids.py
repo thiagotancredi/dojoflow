@@ -8,7 +8,9 @@ from sqlalchemy.sql import ColumnElement
 
 from dojoflow.api.dependencies.auth import CurrentMasterDep
 from dojoflow.api.dependencies.db_session import DbSessionDep
+from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.base_model import BaseModel
+from dojoflow.models.belt import Belt
 from dojoflow.models.modality import Modality
 from dojoflow.models.student import Student
 from dojoflow.shared.exceptions import NotFoundError
@@ -65,3 +67,55 @@ async def _resolve_student_id(
 
 
 StudentIdDep = Annotated[int, Depends(_resolve_student_id)]
+
+
+async def _resolve_enabled_modality_id(
+    modality_id: UUID,
+    current_master: CurrentMasterDep,
+    db_session_dep: DbSessionDep,
+) -> int:
+    internal_id = await resolve_modality_id(db_session_dep, modality_id)
+    enabled = await db_session_dep.scalar(
+        select(AcademyModality.id).where(
+            AcademyModality.academy_id == current_master.academy_id,
+            AcademyModality.modality_id == internal_id,
+        )
+    )
+
+    if enabled is None:
+        raise NotFoundError(
+            'This modality is not configured for this academy.',
+            code='MODALITY_NOT_ENABLED',
+        )
+
+    return internal_id
+
+
+EnabledModalityIdDep = Annotated[int, Depends(_resolve_enabled_modality_id)]
+
+
+async def resolve_belt_id(
+    db_session: AsyncSession,
+    public_id: UUID,
+    academy_id: int,
+) -> int:
+    return await resolve_public_id(
+        db_session,
+        Belt,
+        public_id,
+        code='BELT_NOT_FOUND',
+        extra_filters=[Belt.academy_id == academy_id],
+    )
+
+
+async def _resolve_belt_id(
+    belt_id: UUID,
+    current_master: CurrentMasterDep,
+    db_session_dep: DbSessionDep,
+) -> int:
+    return await resolve_belt_id(
+        db_session_dep, belt_id, current_master.academy_id
+    )
+
+
+BeltIdDep = Annotated[int, Depends(_resolve_belt_id)]
