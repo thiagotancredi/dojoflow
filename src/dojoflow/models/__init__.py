@@ -2,7 +2,13 @@ from dojoflow.models.academy import Academy
 from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.address import Address
 from dojoflow.models.audit_log import AuditLog
+from dojoflow.models.belt import Belt
 from dojoflow.models.enrollment import Enrollment
+from dojoflow.models.enrollment_belt import EnrollmentBelt
+from dojoflow.models.graduation_list import (
+    GraduationList,
+    GraduationListEntry,
+)
 from dojoflow.models.import_batch import ImportBatch
 from dojoflow.models.import_row import ImportRow
 from dojoflow.models.master import Master
@@ -26,7 +32,11 @@ __all__ = [
     'AcademyModality',
     'Address',
     'AuditLog',
+    'Belt',
     'Enrollment',
+    'EnrollmentBelt',
+    'GraduationList',
+    'GraduationListEntry',
     'ImportBatch',
     'ImportRow',
     'Master',
