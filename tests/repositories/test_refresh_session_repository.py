@@ -1,4 +1,3 @@
-import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -17,12 +16,10 @@ async def test_revoke_all_for_master(
     client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
-    response, _ = await register_web(client)
+    _, payload = await register_web(client)
     master_id = (
         await db_session.execute(
-            select(Master.id).where(
-                Master.public_id == uuid.UUID(response.json()['master']['id'])
-            )
+            select(Master.id).where(Master.email == payload['email'])
         )
     ).scalar_one()
     repository = RefreshSessionRepository(db_session=db_session)

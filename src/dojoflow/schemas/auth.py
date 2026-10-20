@@ -3,8 +3,6 @@ from typing import NamedTuple
 
 from pydantic import BaseModel, Field, field_validator
 
-from dojoflow.schemas.master_context import MasterContextApiRead
-
 
 class AuthRegisterRequest(BaseModel):
     academy_name: str = Field(min_length=2, max_length=120)
@@ -34,10 +32,10 @@ class AuthLoginRequest(BaseModel):
         return value.strip().lower()
 
 
+# Só a sessão; quem é o usuário vem de GET /auth/me.
 class AuthTokenResponse(BaseModel):
     access_token: str
     token_type: str = 'bearer'
-    master: MasterContextApiRead
 
 
 class AuthResult(NamedTuple):
