@@ -9,6 +9,9 @@ from dojoflow.api.routes.dashboard import router as dashboard_router
 from dojoflow.api.routes.enrollment_belts import (
     router as enrollment_belts_router,
 )
+from dojoflow.api.routes.graduation_lists import (
+    router as graduation_lists_router,
+)
 from dojoflow.api.routes.health import router as health_router
 from dojoflow.api.routes.modalities import router as modalities_router
 from dojoflow.api.routes.onboarding import router as onboarding_router
@@ -43,5 +46,6 @@ app.include_router(belts_router, prefix=settings.API_V1_PREFIX)
 app.include_router(students_router, prefix=settings.API_V1_PREFIX)
 app.include_router(enrollment_belts_router, prefix=settings.API_V1_PREFIX)
 app.include_router(dashboard_router, prefix=settings.API_V1_PREFIX)
+app.include_router(graduation_lists_router, prefix=settings.API_V1_PREFIX)
 app.include_router(cep_router, prefix=settings.API_V1_PREFIX)
 app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)

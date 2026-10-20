@@ -13,6 +13,7 @@ from dojoflow.models.base_model import BaseModel
 from dojoflow.models.belt import Belt
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.enrollment_belt import EnrollmentBelt
+from dojoflow.models.graduation_list import GraduationList
 from dojoflow.models.modality import Modality
 from dojoflow.models.student import Student
 from dojoflow.shared.exceptions import NotFoundError
@@ -155,3 +156,20 @@ async def _resolve_belt_id(
 
 
 BeltIdDep = Annotated[int, Depends(_resolve_belt_id)]
+
+
+async def _resolve_graduation_list_id(
+    list_id: UUID,
+    current_master: CurrentMasterDep,
+    db_session_dep: DbSessionDep,
+) -> int:
+    return await resolve_public_id(
+        db_session_dep,
+        GraduationList,
+        list_id,
+        code='GRADUATION_LIST_NOT_FOUND',
+        extra_filters=[GraduationList.academy_id == current_master.academy_id],
+    )
+
+
+GraduationListIdDep = Annotated[int, Depends(_resolve_graduation_list_id)]

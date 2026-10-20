@@ -12,6 +12,24 @@ from dojoflow.services.belt_presets import TAEKWONDO_NAME, TAEKWONDO_PRESET
 from dojoflow.shared.exceptions import ConflictError, NotFoundError
 
 
+def next_in_sequence(
+    belts: list[BeltRead],
+    current_belt_id: int | None,
+) -> BeltRead | None:
+    """Próxima faixa da sequência; sem faixa atual, a primeira."""
+    if current_belt_id is None:
+        return belts[0] if belts else None
+
+    ids = [belt.id for belt in belts]
+
+    if current_belt_id not in ids:
+        return None
+
+    index = ids.index(current_belt_id) + 1
+
+    return belts[index] if index < len(belts) else None
+
+
 class BeltService:
     def __init__(
         self,
@@ -57,17 +75,7 @@ class BeltService:
     ) -> BeltRead | None:
         belts = await self.list_by_modality(academy_id, modality_id)
 
-        if current_belt_id is None:
-            return belts[0] if belts else None
-
-        ids = [belt.id for belt in belts]
-
-        if current_belt_id not in ids:
-            return None
-
-        index = ids.index(current_belt_id) + 1
-
-        return belts[index] if index < len(belts) else None
+        return next_in_sequence(belts, current_belt_id)
 
     @transactional
     async def create(
