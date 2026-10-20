@@ -1,22 +1,25 @@
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from fastapi import status as http_status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.api.dependencies.auth import CurrentMasterDep
 from dojoflow.api.dependencies.db_session import DbSessionDep
+from dojoflow.api.dependencies.enrollment_belt import EnrollmentBeltServiceDep
 from dojoflow.api.dependencies.public_ids import (
+    EnrollmentIdDep,
     StudentIdDep,
+    resolve_belt_id,
     resolve_modality_id,
     resolve_public_id,
 )
 from dojoflow.api.dependencies.student import StudentServiceDep
-from dojoflow.models.enrollment import Enrollment
+from dojoflow.database.transaction import unit_of_work
 from dojoflow.models.modality import Modality
 from dojoflow.models.student_responsible import StudentResponsible
+from dojoflow.schemas.enrollment_belt import EnrollmentBeltPayload
 from dojoflow.schemas.student import (
     StudentAddressPayload,
     StudentBasicUpdateRequest,
@@ -46,25 +49,26 @@ async def _to_internal_enrollment(
 
     return StudentEnrollmentPayload(
         modality_id=modality_id,
-        **payload.model_dump(exclude={'modality_id'}),
+        **payload.model_dump(exclude={'modality_id', 'current_belt'}),
     )
 
 
-async def _resolve_enrollment_id(
-    enrollment_id: UUID,
-    student_id: StudentIdDep,
-    db_session_dep: DbSessionDep,
-) -> int:
-    return await resolve_public_id(
-        db_session_dep,
-        Enrollment,
-        enrollment_id,
-        code='ENROLLMENT_NOT_FOUND',
-        extra_filters=[Enrollment.student_id == student_id],
+async def _to_internal_current_belt(
+    db_session: AsyncSession,
+    payload: EnrollmentApiPayload,
+    academy_id: int,
+) -> EnrollmentBeltPayload | None:
+    if payload.current_belt is None:
+        return None
+
+    belt_id = await resolve_belt_id(
+        db_session, payload.current_belt.belt_id, academy_id
     )
 
-
-EnrollmentIdDep = Annotated[int, Depends(_resolve_enrollment_id)]
+    return EnrollmentBeltPayload(
+        belt_id=belt_id,
+        graduated_on=payload.current_belt.graduated_on,
+    )
 
 
 @router.get(
@@ -128,18 +132,30 @@ async def create_student(
     data: StudentCreateApiRequest,
     current_master: CurrentMasterDep,
     student_service_dep: StudentServiceDep,
+    enrollment_belt_service_dep: EnrollmentBeltServiceDep,
     db_session_dep: DbSessionDep,
 ) -> StudentApiRead:
+    academy_id = current_master.academy_id
     enrollment = await _to_internal_enrollment(db_session_dep, data.enrollment)
+    current_belt = await _to_internal_current_belt(
+        db_session_dep, data.enrollment, academy_id
+    )
     internal_request = StudentCreateRequest(
         **data.model_dump(exclude={'enrollment'}),
         enrollment=enrollment,
     )
 
-    student = await student_service_dep.create_student(
-        academy_id=current_master.academy_id,
-        data=internal_request,
-    )
+    # Aluno, matrícula e faixa atual: tudo ou nada
+    async with unit_of_work(db_session_dep):
+        student = await student_service_dep.create_student(
+            academy_id=academy_id,
+            data=internal_request,
+        )
+
+        if current_belt is not None:
+            await enrollment_belt_service_dep.add_for_modality(
+                academy_id, student.id, enrollment.modality_id, current_belt
+            )
 
     return StudentApiRead.from_record(student.model_dump())
 
@@ -236,20 +252,32 @@ async def add_student_responsible(
     path='/{student_id}/enrollments',
     status_code=http_status.HTTP_204_NO_CONTENT,
 )
-async def add_student_enrollment(
+async def add_student_enrollment(  # noqa: PLR0913, PLR0917
     student_id: StudentIdDep,
     data: EnrollmentApiPayload,
     current_master: CurrentMasterDep,
     student_service_dep: StudentServiceDep,
+    enrollment_belt_service_dep: EnrollmentBeltServiceDep,
     db_session_dep: DbSessionDep,
 ) -> None:
+    academy_id = current_master.academy_id
     enrollment = await _to_internal_enrollment(db_session_dep, data)
-
-    await student_service_dep.add_enrollment(
-        academy_id=current_master.academy_id,
-        student_id=student_id,
-        data=enrollment,
+    current_belt = await _to_internal_current_belt(
+        db_session_dep, data, academy_id
     )
+
+    # Matrícula e faixa atual: tudo ou nada
+    async with unit_of_work(db_session_dep):
+        await student_service_dep.add_enrollment(
+            academy_id=academy_id,
+            student_id=student_id,
+            data=enrollment,
+        )
+
+        if current_belt is not None:
+            await enrollment_belt_service_dep.add_for_modality(
+                academy_id, student_id, enrollment.modality_id, current_belt
+            )
 
 
 @router.patch(
