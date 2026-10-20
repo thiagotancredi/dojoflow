@@ -38,19 +38,31 @@ async def test_register_web_should_create_academy_and_master_without_telegram(
 
     assert body['access_token']
     assert response.cookies['dojoflow_refresh']
-    assert body['master']['email'] == payload['email']
-    assert body['master']['telegram_linked'] is False
-    assert body['master']['academy']['name'] == payload['academy_name']
-    assert set(body['master']) == {
+    assert set(body) == {'access_token', 'token_type'}
+
+    me_response = await client.get(
+        '/api/v1/auth/me',
+        headers={'Authorization': f'Bearer {body["access_token"]}'},
+    )
+
+    assert me_response.status_code == HTTPStatus.OK
+    me = me_response.json()
+
+    assert me['email'] == payload['email']
+    assert me['phone'] == payload['phone']
+    assert me['telegram_linked'] is False
+    assert me['academy']['name'] == payload['academy_name']
+    assert set(me) == {
         'id',
         'name',
         'email',
+        'phone',
         'telegram_linked',
         'academy',
     }
-    assert set(body['master']['academy']) == {'id', 'name', 'status'}
-    uuid.UUID(body['master']['id'])
-    uuid.UUID(body['master']['academy']['id'])
+    assert set(me['academy']) == {'id', 'name', 'status'}
+    uuid.UUID(me['id'])
+    uuid.UUID(me['academy']['id'])
 
     master = (
         await db_session.execute(
@@ -99,6 +111,7 @@ async def test_login_and_me(
 
     assert login_response.status_code == HTTPStatus.OK
     tokens = login_response.json()
+    assert set(tokens) == {'access_token', 'token_type'}
 
     me_response = await client.get(
         '/api/v1/auth/me',
@@ -109,7 +122,7 @@ async def test_login_and_me(
     me = me_response.json()
 
     assert me['email'] == payload['email']
-    assert me['id'] == tokens['master']['id']
+    uuid.UUID(me['id'])
     assert 'master_id' not in me
     assert 'academy_id' not in me
 
@@ -163,7 +176,11 @@ async def test_telegram_link_token_and_webhook_link(
 
     register_response, _ = await register_web(client)
     access_token = register_response.json()['access_token']
-    master_public_id = register_response.json()['master']['id']
+    me_response = await client.get(
+        '/api/v1/auth/me',
+        headers={'Authorization': f'Bearer {access_token}'},
+    )
+    master_public_id = me_response.json()['id']
 
     link_response = await client.post(
         '/api/v1/auth/telegram/link-token',
@@ -275,9 +292,17 @@ async def test_set_credentials_with_setup_token(
 
     assert response.status_code == HTTPStatus.OK
     body = response.json()
-    assert body['master']['email'] == 'telegram.mestre@dojoflow.test'
-    assert body['master']['telegram_linked'] is True
-    assert body['master']['id'] == str(master_public_id)
+    assert set(body) == {'access_token', 'token_type'}
+
+    me = (
+        await client.get(
+            '/api/v1/auth/me',
+            headers={'Authorization': f'Bearer {body["access_token"]}'},
+        )
+    ).json()
+    assert me['email'] == 'telegram.mestre@dojoflow.test'
+    assert me['telegram_linked'] is True
+    assert me['id'] == str(master_public_id)
 
     login_response = await client.post(
         '/api/v1/auth/login',

@@ -5,7 +5,6 @@ import { NotFoundPage } from '@/app/NotFoundPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
-import { ModalitiesPage } from '@/features/modalities/pages/ModalitiesPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 import { StudentDetailPage } from '@/features/students/pages/StudentDetailPage'
 import { StudentsEmptyDetail } from '@/features/students/pages/StudentsEmptyDetail'
@@ -35,7 +34,11 @@ export const router = createBrowserRouter([
           { path: ':studentId', element: <StudentDetailPage /> },
         ],
       },
-      { path: 'modalidades', element: <ModalitiesPage /> },
+      // Modalidades agora ficam dentro de Configurações
+      {
+        path: 'modalidades',
+        element: <Navigate to="/app/configuracoes" replace />,
+      },
       { path: 'configuracoes', element: <SettingsPage /> },
     ],
   },

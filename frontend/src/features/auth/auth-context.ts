@@ -1,8 +1,6 @@
 import { createContext } from 'react'
 
-import type { AuthSession } from '@/features/auth/api'
-
-export type Master = AuthSession['master']
+import type { Master } from '@/features/auth/api'
 
 // loading: ainda tentando recuperar a sessão pelo cookie (ao abrir o site)
 export type AuthStatus = 'loading' | 'authenticated' | 'anonymous'

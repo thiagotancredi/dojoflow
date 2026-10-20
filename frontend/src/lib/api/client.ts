@@ -23,3 +23,65 @@ export type ApiError = {
   detail: string
   code: string
 }
+
+// Token atual, atualizado pelo AuthProvider (o React não alcança este módulo)
+let accessToken: string | null = null
+
+export function setApiToken(token: string | null) {
+  accessToken = token
+}
+
+// Quem renova a sessão quando a API devolve 401 (registrado pelo AuthProvider).
+// Devolve o token novo, ou null se não deu para renovar.
+let refreshHandler: (() => Promise<string | null>) | null = null
+
+export function setRefreshHandler(
+  handler: (() => Promise<string | null>) | null,
+) {
+  refreshHandler = handler
+}
+
+// Cópias das requisições em andamento, para repetir depois de um refresh
+// (o corpo de uma requisição só pode ser lido uma vez).
+const retryCopies = new Map<string, Request>()
+
+// Rotas /auth/* nunca disparam refresh (ex.: senha errada no login dá 401)
+function isAuthRoute(request: Request) {
+  return new URL(request.url).pathname.startsWith('/api/v1/auth/')
+}
+
+api.use({
+  // Antes de toda requisição: anexa o token e guarda uma cópia
+  onRequest({ request, id }) {
+    if (accessToken) {
+      request.headers.set('Authorization', `Bearer ${accessToken}`)
+    }
+    if (!isAuthRoute(request)) {
+      retryCopies.set(id, request.clone())
+    }
+    return request
+  },
+
+  // 401 (token expirado): renova a sessão uma vez e repete a requisição
+  async onResponse({ response, id }) {
+    const copy = retryCopies.get(id)
+    retryCopies.delete(id)
+
+    if (response.status !== 401 || !copy || !refreshHandler) {
+      return response
+    }
+
+    const newToken = await refreshHandler()
+    if (!newToken) {
+      return response
+    }
+
+    copy.headers.set('Authorization', `Bearer ${newToken}`)
+    return fetch(copy)
+  },
+
+  // Falha de rede: só descarta a cópia
+  onError({ id }) {
+    retryCopies.delete(id)
+  },
+})

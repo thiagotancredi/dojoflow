@@ -1,14 +1,19 @@
+import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/features/auth/useAuth'
+import { ModalitiesSection } from '@/features/modalities/components/ModalitiesSection'
 
+// Configurações da academia: dados (só leitura por enquanto), modalidades e conta.
 export function SettingsPage() {
   const navigate = useNavigate()
-  const { signOut } = useAuth()
+  const { master, signOut } = useAuth()
 
   async function handleSignOut() {
     try {
@@ -19,36 +24,113 @@ export function SettingsPage() {
     navigate('/login', { replace: true })
   }
 
+  // Dentro do /app sempre há sessão (RequireAuth); isto só satisfaz o tipo
+  if (!master) return null
+
+  const { academy } = master
+
   return (
     <div className="space-y-4">
       <PageHeader title="Configurações" />
 
-      <section className="max-w-xl space-y-4 rounded-3xl bg-card p-5">
-        <h2 className="font-semibold">Trocar senha</h2>
-        <div className="space-y-1.5">
-          <Label htmlFor="current-password">Senha atual</Label>
-          <Input id="current-password" type="password" className="rounded-xl" />
+      <section className="space-y-4 rounded-3xl bg-card p-5">
+        <h2 className="font-semibold">Academia</h2>
+        <div className="flex items-center gap-4">
+          {/* Sem imagem por enquanto: mostra as iniciais */}
+          <Avatar size="lg" className="size-14">
+            <AvatarFallback className="text-base font-semibold">
+              {initials(academy.name)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="space-y-1">
+            <p className="text-lg font-semibold">{academy.name}</p>
+            {/* Só avisa quando há problema */}
+            {academy.status === 'blocked' && (
+              <Badge variant="destructive">Bloqueada</Badge>
+            )}
+          </div>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="new-password">Nova senha</Label>
-          <Input id="new-password" type="password" className="rounded-xl" />
-        </div>
-        <Button className="rounded-full">Salvar</Button>
       </section>
 
-      <section className="max-w-xl space-y-3 rounded-3xl bg-card p-5">
-        <h2 className="font-semibold">Telegram</h2>
-        <p className="text-sm text-muted-foreground">
-          Conecte sua conta ao bot para cadastrar alunos pelo celular.
-        </p>
-        <Button variant="outline" className="rounded-full">
-          Conectar Telegram
+      <section className="space-y-4 rounded-3xl bg-card p-5">
+        <h2 className="font-semibold">Mestre</h2>
+        <dl className="grid gap-3 sm:grid-cols-2">
+          <Field label="Nome">{master.name}</Field>
+          <Field label="E-mail">{master.email ?? 'Não informado'}</Field>
+          <Field label="Telefone">
+            {master.phone ? formatPhone(master.phone) : 'Não informado'}
+          </Field>
+          <Field label="Telegram">
+            {master.telegram_linked ? 'Conectado' : 'Não conectado'}
+          </Field>
+        </dl>
+      </section>
+
+      <ModalitiesSection />
+
+      <section className="space-y-4 rounded-3xl bg-card p-5">
+        <h2 className="font-semibold">Conta</h2>
+
+        <div className="max-w-xl space-y-4">
+          <h3 className="text-sm font-medium">Trocar senha</h3>
+          <div className="space-y-1.5">
+            <Label htmlFor="current-password">Senha atual</Label>
+            <Input id="current-password" type="password" className="rounded-xl" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-password">Nova senha</Label>
+            <Input id="new-password" type="password" className="rounded-xl" />
+          </div>
+          <Button className="rounded-full">Salvar</Button>
+        </div>
+
+        {!master.telegram_linked && (
+          <div className="max-w-xl space-y-2">
+            <h3 className="text-sm font-medium">Telegram</h3>
+            <p className="text-sm text-muted-foreground">
+              Conecte sua conta ao bot para cadastrar alunos pelo celular.
+            </p>
+            <Button variant="outline" className="rounded-full">
+              Conectar Telegram
+            </Button>
+          </div>
+        )}
+
+        <Button variant="ghost" className="rounded-full" onClick={handleSignOut}>
+          Sair
         </Button>
       </section>
-
-      <Button variant="ghost" className="rounded-full" onClick={handleSignOut}>
-        Sair
-      </Button>
     </div>
   )
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="font-medium">{children}</dd>
+    </div>
+  )
+}
+
+// "Dojo Teste" → "DT"
+function initials(name: string) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0].toUpperCase())
+    .join('')
+}
+
+// "62999990000" → "(62) 99999-0000"; outros formatos ficam como vieram
+function formatPhone(phone: string) {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
+  }
+  return phone
 }
