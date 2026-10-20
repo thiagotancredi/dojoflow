@@ -108,7 +108,8 @@ do Kukkiwon).
   graduação, o tempo mostrado é o que o aluno **terá na data do exame**.
 - Registros podem ser editados (faixa e data) e excluídos.
 - Alunos antigos: o mestre lança o primeiro registro (faixa atual + data
-  aproximada).
+  aproximada), pela ficha ou de uma vez na tela **Lançar faixas** (tela 2b).
+- Aluno novo / matrícula nova: a faixa atual pode vir já no cadastro (tela 2a).
 
 ### Apto por tempo — na **data do exame**
 O critério é o dia do exame, não hoje (pedido do Thiago: quem tem 2 meses hoje e
@@ -156,6 +157,22 @@ do mestre logado, como o resto do backend.
 - Depende da ficha do aluno usar dados reais (Fases 7–8 do Plano B, ainda com
   dados fictícios).
 
+### 2a. Cadastro de aluno e nova matrícula (aprovado no protótipo de fluxo, 20/10)
+- Logo depois da modalidade, se ela tiver faixas, aparece o bloco **Faixa atual
+  (opcional)**: seletor com os desenhos das faixas + **Desde** (data).
+- Padrão: a primeira faixa da sequência (Branca) e a data de hoje. Aluno vindo de
+  outra academia: escolhe a faixa e uma data aproximada.
+- Grava a matrícula e o primeiro registro do histórico juntos (tudo ou nada).
+- Modalidade sem faixas: o bloco não aparece.
+
+### 2b. Lançar faixas dos alunos antigos (aprovado no protótipo de fluxo, 20/10)
+- Para o primeiro dia: a academia já tem muitos alunos sem faixa registrada.
+- Na tela de Faixas da modalidade, um aviso "N alunos de <modalidade> estão sem
+  faixa registrada" com o botão **Lançar faixas de todos**.
+- Tela em tabela: aluno, faixa atual (seletor), desde (data). O mestre preenche só
+  os que souber e salva tudo de uma vez; quem ficou em branco continua pendente.
+- Lista só matrículas **ativas** da modalidade sem nenhum registro de faixa.
+
 ### 3. Graduações (item novo no menu)
 - `/app/graduacoes`: listas criadas (nome, modalidade, data, nº de alunos).
 - **Nova lista**: nome + modalidade (só oferecidas e com faixas) + data do exame.
@@ -195,8 +212,11 @@ pelo Thiago em 20/10 (`2026-10-20-graduation-lists-prototype.html`, ao lado dest
 1. Backend: catálogo (Musculação/Crossfit), faixas, histórico, listas + testes.
 2. Front: componente do desenho + tela de Faixas nas Configurações.
 3. Front: Graduações (listas).
-4. Front: seção de faixas na ficha do aluno — junto com as Fases 7–8 (alunos com
-   dados reais).
+4. Front: seção de faixas na ficha do aluno, faixa atual no cadastro (2a) e
+   Lançar faixas (2b) — junto com as Fases 7–8 (alunos com dados reais).
+
+Protótipo clicável do fluxo completo (aprovado em 20/10):
+`2026-10-20-graduation-flow-prototype.html` (no Obsidian: `Anexos/faixas-fluxo-prototipo.html`).
 
 ## Deixado para quem implementar
 

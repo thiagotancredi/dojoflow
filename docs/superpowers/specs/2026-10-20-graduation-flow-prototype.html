@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fluxo das faixas</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-from:#e2e5fb; --bg-to:#f1f2fe; --fg:#1e2140; --card:#fff; --muted:#f4f5fb; --muted-fg:#8a8eab;
+    --border:#eceefa; --input:#e2e4f5; --primary:#4f46e5; --chip:#eef0ff; --chip-border:#c7c4fb;
+    --active:#3b82f6; --active-soft:#eef6fe; --ok:#10b981; --wait:#f59e0b; --none:#c4c7d9;
+    --proposal:#fff7ed; --proposal-border:#fdba74; --proposal-fg:#9a3412;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Outfit',system-ui,sans-serif; color:var(--fg); min-height:100vh;
+         background:linear-gradient(135deg,var(--bg-from),var(--bg-to)); }
+  button { font:inherit; cursor:pointer; }
+  input, select { font:inherit; color:var(--fg); }
+  .tour { max-width:1200px; margin:0 auto; padding:14px 20px 0; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .tour .t { font-size:13px; color:var(--muted-fg); margin-right:4px; }
+  .step { border:1px solid var(--chip-border); background:#fff; color:var(--primary); border-radius:999px; padding:5px 12px; font-size:13px; }
+  .step.on { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .step.prop { border-color:var(--proposal-border); color:var(--proposal-fg); background:var(--proposal); }
+  .step.prop.on { background:var(--proposal-fg); color:#fff; }
+  .shell { max-width:1200px; margin:0 auto; display:flex; gap:16px; padding:14px 20px 40px; }
+  aside { width:72px; flex-shrink:0; background:#fff; border-radius:24px; padding:14px 8px; display:flex; flex-direction:column; align-items:center; gap:8px; height:fit-content; position:sticky; top:14px; }
+  .logo { width:40px; height:40px; border-radius:14px; background:linear-gradient(135deg,#4f46e5,#818cf8); color:#fff; display:grid; place-items:center; font-weight:700; margin-bottom:8px; }
+  .nav { width:56px; border:0; background:transparent; border-radius:16px; padding:8px 0; display:grid; justify-items:center; gap:2px; font-size:10px; color:var(--muted-fg); }
+  .nav span { font-size:18px; }
+  .nav.on { background:var(--chip); color:var(--primary); }
+  .nav.new::after { content:'novo'; font-size:9px; background:var(--primary); color:#fff; border-radius:999px; padding:0 5px; }
+  main { flex:1; min-width:0; display:grid; gap:16px; align-content:start; }
+  h1 { font-size:22px; margin:4px 0 0; }
+  .head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .panel { background:var(--card); border-radius:24px; padding:20px; }
+  .panel h2 { font-size:16px; margin:0 0 4px; }
+  .hint { color:var(--muted-fg); font-size:13px; margin:0 0 14px; }
+  .label { font-size:12px; color:var(--muted-fg); text-transform:uppercase; letter-spacing:.04em; margin:10px 0 8px; }
+  .btn { border:1px solid var(--input); background:#fff; border-radius:999px; padding:7px 14px; font-size:13px; color:var(--fg); }
+  .btn.primary { background:var(--primary); border-color:var(--primary); color:#fff; }
+  .btn.ghost { border-color:transparent; background:transparent; color:var(--primary); padding:4px 8px; }
+  .btn.sm { padding:4px 10px; font-size:12px; }
+  .btn:disabled { opacity:.4; cursor:default; }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); }
+  .mcard { border:1px solid var(--border); border-radius:18px; padding:14px; display:grid; gap:10px; }
+  .mcard .top { display:flex; align-items:center; gap:10px; font-weight:600; }
+  .mcard .emoji { width:36px; height:36px; border-radius:12px; background:var(--muted); display:grid; place-items:center; font-size:18px; }
+  .mcard .sub { font-size:12px; color:var(--muted-fg); font-weight:400; }
+  .mcard .acts { display:flex; gap:8px; }
+  .hl { box-shadow:0 0 0 3px #c7c4fb; animation:pulse 1.6s ease-in-out 3; }
+  @keyframes pulse { 50% { box-shadow:0 0 0 6px #e0defd; } }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:left; font-weight:500; font-size:12px; color:var(--muted-fg); padding:8px; border-bottom:1px solid var(--border); }
+  td { padding:9px 8px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  .scroll { overflow-x:auto; }
+  .pos { color:var(--muted-fg); width:28px; }
+  .empty { text-align:center; padding:28px 12px; border:1px dashed var(--input); border-radius:18px; display:grid; gap:10px; justify-items:center; }
+  .back { font-size:13px; color:var(--muted-fg); background:none; border:0; padding:0; }
+  .split { display:flex; gap:16px; }
+  .slist { width:250px; flex-shrink:0; background:#fff; border-radius:24px; padding:10px; display:grid; gap:4px; align-content:start; }
+  .srow { display:flex; align-items:center; gap:10px; padding:8px; border-radius:14px; border:0; background:transparent; text-align:left; width:100%; }
+  .srow.on { background:var(--chip); }
+  .av { width:34px; height:34px; border-radius:999px; display:grid; place-items:center; font-size:12px; font-weight:600; background:#e0e7ff; color:#4338ca; flex-shrink:0; }
+  .av.lg { width:48px; height:48px; font-size:15px; }
+  .tabs { display:flex; gap:18px; border-bottom:1px solid var(--border); margin:14px 0; font-size:14px; }
+  .tabs span { padding:8px 0; color:var(--muted-fg); }
+  .tabs span.on { color:var(--fg); border-bottom:2px solid var(--primary); font-weight:500; }
+  .enr { border-left:3px solid var(--active); background:var(--active-soft); border-radius:14px; padding:12px 14px; display:grid; gap:8px; font-size:14px; }
+  .enr .belt { background:#fff; border-radius:12px; padding:10px; display:grid; gap:6px; }
+  .enr .bname { font-weight:600; }
+  .small { font-size:12px; color:var(--muted-fg); }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:999px; margin-right:6px; vertical-align:middle; }
+  .d-ok { background:var(--ok); } .d-wait { background:var(--wait); } .d-none { background:var(--none); }
+  .s-ok { color:#047857; font-size:13px; } .s-wait, .s-none { color:var(--muted-fg); font-size:13px; }
+  .form { display:grid; gap:14px; }
+  .form label { display:grid; gap:6px; font-size:13px; color:var(--muted-fg); }
+  .form input, .form select { border:1px solid var(--input); border-radius:12px; padding:8px 10px; background:#fff; font-size:14px; }
+  .row2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+  .beltbox { border:1px solid var(--chip-border); background:#fafaff; border-radius:16px; padding:14px; display:grid; gap:10px; }
+  .picker { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; max-height:260px; overflow:auto; padding:2px; }
+  .pick { border:1px solid var(--border); background:#fff; border-radius:12px; padding:8px; display:grid; gap:4px; text-align:left; font-size:12px; }
+  .pick.sel { border-color:var(--primary); box-shadow:0 0 0 2px var(--primary); }
+  .pick .tag { font-size:10px; color:var(--primary); }
+  .overlay { position:fixed; inset:0; background:rgba(30,33,64,.35); display:grid; place-items:center; padding:16px; z-index:10; }
+  .modal { background:#fff; border-radius:24px; padding:20px; width:min(560px,100%); max-height:90vh; overflow:auto; display:grid; gap:14px; }
+  .modal h3 { margin:0; font-size:17px; }
+  .mfoot { display:flex; justify-content:flex-end; gap:8px; }
+  .proposal { background:var(--proposal); border:1px solid var(--proposal-border); color:var(--proposal-fg); border-radius:14px; padding:8px 12px; font-size:13px; }
+  .note { background:var(--chip); color:#3730a3; border-radius:14px; padding:8px 12px; font-size:13px; }
+  .lcard { border:1px solid var(--border); border-radius:18px; padding:14px; display:grid; gap:4px; text-align:left; background:#fff; }
+  .lcard b { font-size:15px; }
+  .chipsel { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border); border-radius:10px; padding:3px 6px; background:#fff; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--fg); color:#fff; padding:10px 16px; border-radius:999px; font-size:13px; z-index:20; }
+  @media (max-width:760px) {
+    .shell { flex-direction:column; padding:12px; } aside { flex-direction:row; width:100%; position:static; justify-content:space-around; }
+    .logo { display:none; } .split { flex-direction:column; } .slist { width:100%; }
+  }
+</style>
+</head>
+<body>
+<div class="tour" id="tour"></div>
+<div class="shell">
+  <aside id="side"></aside>
+  <main id="main"></main>
+</div>
+<div id="layer"></div>
+
+<script>
+// ---------- Dados fictícios (nada é salvo) ----------
+const TODAY = new Date(2026, 9, 20) // 20/10/2026
+const GOLD = '#d4a017'
+const C = { branca:'#f8fafc', cinza:'#9ca3af', amarela:'#facc15', laranja:'#f97316', verde:'#16a34a',
+            azul:'#1d4ed8', vermelha:'#dc2626', preta:'#111827', roxa:'#7c3aed', marrom:'#78350f' }
+const PRESET = [
+  ['Branca', C.branca, null, 0, [3,'m']], ['Cinza', C.cinza, null, 0, [3,'m']],
+  ['Amarela', C.amarela, null, 0, [3,'m']], ['Laranja', C.laranja, null, 0, [3,'m']],
+  ['Verde', C.verde, null, 0, [3,'m']], ['Verde e azul', C.verde, C.azul, 0, [3,'m']],
+  ['Azul', C.azul, null, 0, [3,'m']], ['Azul e vermelha', C.azul, C.vermelha, 0, [3,'m']],
+  ['Vermelha', C.vermelha, null, 0, [3,'m']], ['Vermelha e preta', C.vermelha, C.preta, 0, [6,'m']],
+  ...[1,2,3,4,5,6,8,9,null].map((y, i) => [`Preta ${i+1}º Dan`, C.preta, null, i+1, y ? [y,'y'] : null]),
+]
+let uid = 1
+const S = {
+  screen:'settings', highlight:null,
+  belts:{ tkd:[], jj:[] },
+  students:[
+    { id:'ana', name:'Ana Lima', phone:'(62) 99999-0001', fee:'R$ 150,00 · vence dia 10', hist:[] },
+    { id:'bruno', name:'Bruno Costa', phone:'(62) 99999-0002', fee:'R$ 150,00 · vence dia 5', hist:[] },
+    { id:'caio', name:'Caio Souza', phone:'(62) 99999-0003', fee:'R$ 130,00 · vence dia 15', hist:[] },
+    { id:'duda', name:'Duda Reis', phone:'(62) 99999-0004', fee:'R$ 150,00 · vence dia 10', hist:[] },
+  ],
+  sel:'ana', lists:[], openList:null,
+}
+// Datas que os alunos antigos "já tinham" (usadas na tela de lançar faixas)
+const LEGACY = { ana:['Amarela','2026-07-08'], bruno:['Branca','2026-09-01'], duda:['Verde','2026-05-02'] }
+
+// ---------- Datas ----------
+const iso = d => d.toISOString().slice(0,10)
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d) }
+const br = s => s.split('-').reverse().join('/')
+function addTime(s, [n,u]) {
+  const d = parse(s)
+  if (u === 'd') { d.setDate(d.getDate()+n); return iso(d) }
+  const months = u === 'y' ? n*12 : n
+  const t = new Date(d.getFullYear(), d.getMonth()+months, 1)
+  const last = new Date(t.getFullYear(), t.getMonth()+1, 0).getDate()
+  t.setDate(Math.min(d.getDate(), last)); return iso(t)
+}
+function span(fromS, to) {
+  const a = parse(fromS); let m = (to.getFullYear()-a.getFullYear())*12 + to.getMonth()-a.getMonth()
+  if (to.getDate() < a.getDate()) m--
+  const base = new Date(a.getFullYear(), a.getMonth()+m, a.getDate())
+  return { m:Math.max(m,0), d:Math.max(Math.round((to-base)/864e5),0) }
+}
+const longSpan = (s, to=TODAY) => { const {m,d} = span(s,to); const p=[]; if(m) p.push(`${m} ${m>1?'meses':'mês'}`); if(d||!m) p.push(`${d} ${d===1?'dia':'dias'}`); return 'há ' + p.join(' e ') }
+const shortSpan = (s, to) => { const {m,d} = span(s,to); return `${m}m ${d}d` }
+const timeLabel = t => !t ? 'sem tempo mínimo' : `${t[0]} ${t[1]==='m' ? (t[0]>1?'meses':'mês') : t[1]==='y' ? (t[0]>1?'anos':'ano') : 'dias'}`
+
+// ---------- Faixas ----------
+function belt(b, w=180, h=30) {
+  const edge = b.main === C.branca ? '#cbd5e1' : 'rgba(0,0,0,.25)'
+  let s = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img"><title>${b.name||''}</title>`
+  s += `<rect x=".5" y=".5" width="${w-1}" height="${h-1}" rx="2" fill="${b.main}" stroke="${edge}"/>`
+  if (b.stripe) s += `<rect x="1" y="${h*.36}" width="${w-2}" height="${h*.28}" fill="${b.stripe}"/>`
+  for (const y of [h*.2, h*.8]) s += `<line x1="4" y1="${y}" x2="${w-4}" y2="${y}" stroke="rgba(255,255,255,.18)" stroke-dasharray="3 3"/>`
+  if (b.marks) { const g = Math.max(5,w*.03), mw = Math.max(2,g*.55), fx = w-g*1.6
+    for (let i=0;i<b.marks;i++) s += `<rect x="${fx-i*g*1.5}" y="4" width="${mw}" height="${h-8}" rx="1" fill="${GOLD}"/>` }
+  return s + '</svg>'
+}
+const mk = ([name, main, stripe, marks, time]) => ({ id:uid++, name, main, stripe, marks, time })
+const beltById = id => [...S.belts.tkd, ...S.belts.jj].find(b => b.id === id)
+const current = st => [...st.hist].sort((a,b) => b.date.localeCompare(a.date) || b.n - a.n)[0] || null
+const nextBelt = cur => { const l = S.belts.tkd; if (!cur) return l[0]; const i = l.findIndex(b => b.id === cur.belt); return l[i+1] || null }
+function status(cur, ref) {
+  if (!cur) return { k:'none', html:'<span class="dot d-none"></span><span class="s-none">Sem faixa</span>' }
+  const b = beltById(cur.belt); if (!b.time) return { k:'na', html:'<span class="s-none">—</span>' }
+  const on = addTime(cur.date, b.time)
+  return on <= iso(ref) ? { k:'ok', on, html:'<span class="dot d-ok"></span><span class="s-ok">Apto</span>' }
+                        : { k:'wait', on, html:`<span class="dot d-wait"></span><span class="s-wait">Ainda não</span>` }
+}
+
+// ---------- Navegação ----------
+const STEPS = [
+  ['settings','1 · Cadastrar faixas'], ['new','2 · Aluno novo'], ['students','3 · Ficha do aluno'],
+  ['bulk','4 · Lançar faixas dos alunos antigos', true], ['grads','5 · Graduações'],
+]
+function go(screen, extra={}) { Object.assign(S, { screen, highlight:null }, extra); closeModal(); render() }
+function toast(t) { const el = document.createElement('div'); el.className='toast'; el.textContent=t; document.body.append(el); setTimeout(() => el.remove(), 2200) }
+
+function render() {
+  document.getElementById('tour').innerHTML = `<span class="t">Protótipo clicável · nada é salvo · siga os passos:</span>` +
+    STEPS.map(([k,l,p]) => `<button class="step ${p?'prop':''} ${screenGroup()===k?'on':''}" onclick="go('${k}')">${l}${p?' (proposta)':''}</button>`).join('')
+  const nav = [['dash','▦','Início'],['students','👥','Alunos'],['grads','🥋','Graduações',true],['settings','⚙','Config.']]
+  document.getElementById('side').innerHTML = `<div class="logo">D</div>` + nav.map(([k,i,l,n]) =>
+    `<button class="nav ${n?'new':''} ${navGroup()===k?'on':''}" onclick="${k==='dash'?"toast('Dashboard fora deste protótipo')":`go('${k}')`}"><span>${i}</span>${l}</button>`).join('')
+  document.getElementById('main').innerHTML = ({ settings, belts:beltsPage, students, new:newStudent, bulk, grads, list:listPage })[S.screen]()
+}
+const screenGroup = () => S.screen === 'belts' ? 'settings' : S.screen === 'list' ? 'grads' : S.screen
+const navGroup = () => ({ belts:'settings', new:'students', bulk:'settings', list:'grads' })[S.screen] || S.screen
+
+// ---------- 1. Configurações → Modalidades ----------
+function settings() {
+  const card = (key, emoji, name) => { const n = S.belts[key].length
+    return `<div class="mcard ${key==='tkd'?'hl':''}"><div class="top"><div class="emoji">${emoji}</div><div>${name}<div class="sub">${n ? `${n} faixas` : 'Sem faixas cadastradas'}</div></div></div>
+      <div class="acts"><button class="btn primary sm" onclick="go('belts',{mod:'${key}'})">Faixas</button><button class="btn sm">Remover</button></div></div>` }
+  return `<div class="head"><h1>Configurações</h1></div>
+  <section class="panel"><h2>Modalidades</h2><p class="hint">Escolha quais modalidades sua academia oferece.</p>
+    <div class="label">Oferecidas pela academia (2)</div>
+    <div class="grid">${card('tkd','🥋','Taekwondo')}${card('jj','🥋','Jiu-jitsu')}</div>
+    <div class="label">Catálogo: adicionar à academia</div>
+    <div class="grid"><div class="mcard" style="opacity:.6"><div class="top"><div class="emoji">🏋️</div>Musculação</div></div><div class="mcard" style="opacity:.6"><div class="top"><div class="emoji">💪</div>Crossfit</div></div></div>
+    <p class="note" style="margin:14px 0 0">Novo: cada modalidade oferecida ganha o botão <b>Faixas</b>. Clique no do Taekwondo.</p>
+  </section>`
+}
+
+// ---------- 1b. Faixas da modalidade ----------
+function beltsPage() {
+  const key = S.mod, list = S.belts[key], name = key==='tkd' ? 'Taekwondo' : 'Jiu-jitsu'
+  const noBelt = S.students.filter(s => !s.hist.length).length
+  let body
+  if (!list.length) body = `<div class="empty"><b>Nenhuma faixa cadastrada</b><span class="small">Cadastre da menor para a maior. Graus e dans são faixas próprias (ex.: Preta 1º Dan).</span>
+      ${key==='tkd' ? `<button class="btn primary" onclick="usePreset()">Usar a sequência padrão do Taekwondo</button><span class="small">Cria 19 faixas (Branca até Preta 9º Dan). Tudo editável depois.</span>` : ''}
+      <button class="btn" onclick="beltForm()">+ Cadastrar faixa por faixa</button></div>`
+  else body = `<div class="scroll"><table><tr><th></th><th>Faixa</th><th>Nome</th><th>Tempo mínimo</th><th></th></tr>
+      ${list.map((b,i) => `<tr><td class="pos">${i+1}</td><td>${belt(b,150,24)}</td><td>${b.name}</td><td class="small">${timeLabel(b.time)}</td>
+      <td style="white-space:nowrap"><button class="btn ghost" ${i?'':'disabled'} onclick="move(${i},-1)">↑</button><button class="btn ghost" ${i<list.length-1?'':'disabled'} onclick="move(${i},1)">↓</button><button class="btn ghost" onclick="beltForm(${b.id})">Editar</button></td></tr>`).join('')}
+      </table></div><div style="margin-top:12px"><button class="btn" onclick="beltForm()">+ Nova faixa</button></div>`
+  return `<button class="back" onclick="go('settings')">← Configurações</button>
+  <div class="head"><h1>Faixas · ${name}</h1></div>
+  ${list.length && key==='tkd' && noBelt ? `<div class="proposal">Proposta: <b>${noBelt} alunos de Taekwondo estão sem faixa registrada.</b> <button class="btn sm" onclick="go('bulk')">Lançar faixas de todos</button></div>` : ''}
+  <section class="panel">${body}</section>`
+}
+function usePreset() { S.belts.tkd = PRESET.map(mk); toast('19 faixas criadas'); render() }
+function move(i, d) { const l = S.belts[S.mod]; [l[i], l[i+d]] = [l[i+d], l[i]]; render() }
+function beltForm(id) {
+  const b = id ? beltById(id) : { name:'', main:C.roxa, stripe:null, marks:0, time:[3,'m'] }
+  const sw = (field, allowNone) => `<div style="display:flex;gap:6px;flex-wrap:wrap">${allowNone?`<button class="pick" style="width:30px;height:30px;padding:0;border-radius:999px;background:repeating-linear-gradient(45deg,#fff 0 4px,#e5e7eb 4px 8px)" onclick="F.${field}=null;pv()"></button>`:''}${Object.values(C).map(c => `<button style="width:30px;height:30px;border-radius:999px;border:2px solid #fff;box-shadow:0 0 0 1px #e5e7eb;background:${c}" onclick="F.${field}='${c}';pv()"></button>`).join('')}</div>`
+  window.F = { ...b }
+  modal(`<h3>${id?'Editar faixa':'Nova faixa'}</h3><div class="form">
+    <label>Nome<input value="${b.name}" placeholder="Ex.: Roxa" oninput="F.name=this.value;pv()"></label>
+    <label>Cor principal${sw('main')}</label><label>Cor da listra (opcional)${sw('stripe',true)}</label>
+    <div class="row2"><label>Graus / Dan<input type="number" min="0" max="10" value="${b.marks}" oninput="F.marks=+this.value;pv()"></label>
+    <label>Tempo mínimo<span style="display:flex;gap:6px"><input type="number" min="1" value="${b.time?b.time[0]:''}" style="width:70px" oninput="F.time=this.value?[+this.value,F.time?F.time[1]:'m']:null"><select onchange="if(F.time)F.time[1]=this.value"><option value="d">dias</option><option value="m" selected>meses</option><option value="y">anos</option></select></span></label></div>
+    <div class="beltbox"><span class="small">Prévia</span><div id="pv"></div></div></div>
+    <div class="mfoot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="saveBelt(${id||0})">Salvar</button></div>`)
+  pv()
+}
+function pv() { const el = document.getElementById('pv'); if (el) el.innerHTML = belt(F, 260, 40) + `<div class="small">${F.name||'Sem nome'}</div>` }
+function saveBelt(id) {
+  if (!F.name.trim()) return toast('Dê um nome à faixa')
+  const l = S.belts[S.mod]
+  if (id) Object.assign(beltById(id), F); else l.push({ ...F, id:uid++ })
+  closeModal(); render()
+}
+
+// ---------- 2. Aluno novo ----------
+function newStudent() {
+  const has = S.belts.tkd.length
+  return `<button class="back" onclick="go('students')">← Alunos</button><div class="head"><h1>Novo aluno</h1></div>
+  <section class="panel"><div class="form" style="max-width:640px">
+    <div class="row2"><label>Nome<input id="n-name" value="Gabriel Rocha"></label><label>Telefone<input value="(62) 99999-0010"></label></div>
+    <div class="label">Matrícula</div>
+    <div class="row2"><label>Modalidade<select><option>Taekwondo</option><option>Jiu-jitsu</option></select></label><label>Mensalidade<input value="150,00"></label><label>Vencimento<input value="10"></label></div>
+    ${has ? `<div class="beltbox hl"><b style="font-size:14px">Faixa atual <span class="small">(opcional · aparece porque o Taekwondo tem faixas)</span></b>
+      <div class="picker" id="n-picker">${S.belts.tkd.map((b,i) => `<button class="pick ${i===0?'sel':''}" data-id="${b.id}" onclick="pickIn('n-picker',this)">${belt(b,130,20)}${b.name}</button>`).join('')}</div>
+      <div class="row2"><label>Desde<input id="n-date" type="date" value="${iso(TODAY)}"></label></div>
+      <span class="small">Aluno começando agora: deixe Branca e a data de hoje. Veio de outra academia: escolha a faixa e a data aproximada.</span></div>`
+    : `<div class="note">Cadastre as faixas do Taekwondo (passo 1) para ver o campo "Faixa atual" aqui.</div>`}
+    <div><button class="btn primary" onclick="createStudent()">Cadastrar aluno</button></div>
+  </div></section>`
+}
+function pickIn(boxId, el) { document.querySelectorAll(`#${boxId} .pick`).forEach(p => p.classList.remove('sel')); el.classList.add('sel') }
+function createStudent() {
+  const st = { id:'s'+uid++, name:document.getElementById('n-name').value || 'Aluno novo', phone:'(62) 99999-0010', fee:'R$ 150,00 · vence dia 10', hist:[] }
+  const sel = document.querySelector('#n-picker .pick.sel')
+  if (sel) st.hist.push({ n:uid++, belt:+sel.dataset.id, date:document.getElementById('n-date').value })
+  S.students.push(st); toast('Aluno cadastrado'); go('students', { sel:st.id })
+}
+
+// ---------- 3. Ficha do aluno ----------
+function students() {
+  const st = S.students.find(s => s.id === S.sel) || S.students[0]
+  const cur = current(st), b = cur && beltById(cur.belt), stt = status(cur, TODAY)
+  const initials = st.name.split(' ').map(p => p[0]).slice(0,2).join('')
+  const beltBlock = !S.belts.tkd.length ? `<div class="small">Sem faixas cadastradas no Taekwondo (passo 1).</div>`
+    : cur ? `<div class="belt hl">${belt(b,220,32)}<div><span class="bname">${b.name}</span> · <span class="small">${longSpan(cur.date)} (desde ${br(cur.date)})</span></div>
+        <div>${stt.html}${stt.k==='wait'?` <span class="small">· apto a partir de ${br(stt.on)}</span>`:''}${stt.k==='ok'?` <span class="small">· desde ${br(stt.on)}</span>`:''}</div>
+        <div style="display:flex;gap:8px"><button class="btn primary sm" onclick="gradForm('${st.id}')">Registrar graduação</button><button class="btn sm" onclick="histModal('${st.id}')">Histórico (${st.hist.length})</button></div></div>`
+    : `<div class="belt hl"><div>${status(null).html}</div><span class="small">Ainda não sabemos a faixa deste aluno.</span><div><button class="btn primary sm" onclick="gradForm('${st.id}', true)">Registrar faixa atual</button></div></div>`
+  return `<div class="head"><h1>Alunos</h1><button class="btn primary" onclick="go('new')">+ Novo aluno</button></div>
+  <div class="split"><div class="slist">${S.students.map(s => { const c = current(s), bb = c && beltById(c.belt)
+      return `<button class="srow ${s.id===st.id?'on':''}" onclick="S.sel='${s.id}';render()"><div class="av">${s.name.split(' ').map(p=>p[0]).slice(0,2).join('')}</div><div style="min-width:0"><div style="font-size:14px">${s.name}</div><div>${bb?belt(bb,70,10):'<span class="small">sem faixa</span>'}</div></div></button>` }).join('')}</div>
+  <section class="panel" style="flex:1;min-width:0">
+    <div style="display:flex;gap:12px;align-items:center"><div class="av lg">${initials}</div><div><b style="font-size:18px">${st.name}</b><div class="small">${st.phone}</div></div></div>
+    <div class="tabs"><span class="on">Matrículas</span><span>Dados</span><span>Endereço</span><span>Responsáveis</span></div>
+    <div class="grid"><div class="enr"><b>Taekwondo</b><div>${st.fee}</div>${beltBlock}<div class="small">Ativa</div></div>
+      <div class="enr" style="border-color:#c4c7d9;background:#f6f6fa"><b>Jiu-jitsu</b><div class="small">Sem matrícula neste exemplo</div></div></div>
+  </section></div>`
+}
+function gradForm(sid, first) {
+  const st = S.students.find(s => s.id === sid), cur = current(st), nx = first ? S.belts.tkd[0] : nextBelt(cur)
+  modal(`<h3>${first ? 'Registrar faixa atual' : 'Registrar graduação'} · ${st.name}</h3>
+    <div class="picker" id="g-picker">${S.belts.tkd.map(b => `<button class="pick ${nx&&b.id===nx.id?'sel':''}" data-id="${b.id}" onclick="pickIn('g-picker',this)">${belt(b,130,20)}${b.name}${cur&&b.id===cur.belt?'<span class="tag">atual</span>':''}${nx&&b.id===nx.id&&!first?'<span class="tag">próxima</span>':''}</button>`).join('')}</div>
+    <div class="form"><label>Data da graduação<input id="g-date" type="date" value="${iso(TODAY)}"></label></div>
+    <span class="small">A próxima faixa já vem marcada, mas dá para escolher qualquer uma (inclusive pular).</span>
+    <div class="mfoot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="saveGrad('${sid}')">Salvar</button></div>`)
+}
+function saveGrad(sid) {
+  const sel = document.querySelector('#g-picker .pick.sel'); if (!sel) return toast('Escolha a faixa')
+  S.students.find(s => s.id === sid).hist.push({ n:uid++, belt:+sel.dataset.id, date:document.getElementById('g-date').value })
+  closeModal(); toast('Graduação registrada'); render()
+}
+function histModal(sid) {
+  const st = S.students.find(s => s.id === sid)
+  const rows = [...st.hist].sort((a,b) => b.date.localeCompare(a.date) || b.n - a.n)
+  modal(`<h3>Histórico de faixas · ${st.name}</h3><table>${rows.map(r => { const b = beltById(r.belt)
+      return `<tr><td class="small">${br(r.date)}</td><td>${belt(b,120,20)}</td><td>${b.name}</td><td><button class="btn ghost">Editar</button><button class="btn ghost" onclick="delHist('${sid}',${r.n})">Excluir</button></td></tr>` }).join('')}</table>
+    <div class="mfoot"><button class="btn" onclick="closeModal()">Fechar</button></div>`)
+}
+function delHist(sid, n) { const st = S.students.find(s => s.id === sid); st.hist = st.hist.filter(h => h.n !== n); histModal(sid); render() }
+
+// ---------- 4. Lançar faixas em lote (proposta) ----------
+function bulk() {
+  const pending = S.students.filter(s => !s.hist.length)
+  if (!S.belts.tkd.length) return `<div class="head"><h1>Lançar faixas</h1></div><section class="panel"><div class="note">Primeiro cadastre as faixas do Taekwondo (passo 1).</div></section>`
+  return `<button class="back" onclick="go('belts',{mod:'tkd'})">← Faixas · Taekwondo</button>
+  <div class="head"><h1>Lançar faixas · Taekwondo</h1></div>
+  <div class="proposal"><b>Proposta para decidir:</b> uma tela para o primeiro dia, quando a academia já tem muitos alunos sem faixa. Em vez de abrir ficha por ficha, o mestre preenche tudo aqui de uma vez.</div>
+  <section class="panel">${!pending.length ? '<div class="empty"><b>Todos os alunos de Taekwondo já têm faixa registrada.</b></div>' : `
+    <p class="hint">${pending.length} alunos ativos sem faixa registrada. Preencha só os que souber; os outros continuam pendentes.</p>
+    <div class="scroll"><table><tr><th>Aluno</th><th>Faixa atual</th><th>Desde (aproximado)</th><th></th></tr>
+    ${pending.map(s => { const lg = LEGACY[s.id]
+      return `<tr><td>${s.name}</td><td><select id="b-${s.id}" onchange="bpv('${s.id}')"><option value="">—</option>${S.belts.tkd.map(b => `<option value="${b.id}" ${lg&&lg[0]===b.name?'selected':''}>${b.name}</option>`).join('')}</select> <span id="bp-${s.id}"></span></td>
+      <td><input id="d-${s.id}" type="date" value="${lg?lg[1]:''}"></td><td></td></tr>` }).join('')}
+    </table></div><div style="margin-top:12px"><button class="btn primary" onclick="saveBulk()">Salvar faixas</button></div>`}
+  </section>`
+}
+function bpv(id) { const v = +document.getElementById('b-'+id).value, el = document.getElementById('bp-'+id); if (el) el.innerHTML = v ? belt(beltById(v),80,14) : '' }
+function saveBulk() {
+  let n = 0
+  for (const s of S.students.filter(s => !s.hist.length)) {
+    const b = +document.getElementById('b-'+s.id).value, d = document.getElementById('d-'+s.id).value
+    if (b && d) { s.hist.push({ n:uid++, belt:b, date:d }); n++ }
+  }
+  toast(`${n} faixas lançadas`); render()
+}
+
+// ---------- 5. Graduações ----------
+function grads() {
+  return `<div class="head"><h1>Graduações</h1><button class="btn primary" onclick="newList()">+ Nova lista</button></div>
+  <section class="panel">${!S.lists.length ? `<div class="empty"><b>Nenhuma lista de graduação</b><span class="small">Crie uma lista para conferir quem está apto no dia do exame.</span><button class="btn primary" onclick="newList()">+ Nova lista</button></div>`
+    : `<div class="grid">${S.lists.map(l => `<button class="lcard" onclick="go('list',{openList:${l.id}})"><b>${l.name}</b><span class="small">🥋 Taekwondo · exame ${br(l.exam)}</span><span class="small">${l.entries.length} alunos</span></button>`).join('')}</div>`}</section>`
+}
+function newList() {
+  if (!S.belts.tkd.length) return toast('Nenhuma modalidade com faixas: faça o passo 1')
+  modal(`<h3>Nova lista de graduação</h3><div class="form">
+    <label>Nome<input id="l-name" value="Alunos aptos a graduar em Novembro/2026"></label>
+    <div class="row2"><label>Modalidade<select><option>🥋 Taekwondo</option></select></label><label>Data do exame<input id="l-exam" type="date" value="2026-11-20"></label></div>
+    <span class="small">Só aparecem modalidades oferecidas que têm faixas cadastradas.</span></div>
+    <div class="mfoot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="saveList()">Criar lista</button></div>`)
+}
+function saveList() {
+  const l = { id:uid++, name:document.getElementById('l-name').value, exam:document.getElementById('l-exam').value, entries:[] }
+  S.lists.unshift(l); go('list', { openList:l.id })
+}
+function listPage() {
+  const l = S.lists.find(x => x.id === S.openList), exam = parse(l.exam)
+  const inList = new Set(l.entries.map(e => e.sid))
+  const cands = S.students.filter(s => !inList.has(s.id))
+  const tCell = (c) => c ? `<span title="${beltById(c.belt).name}">${belt(beltById(c.belt),90,16)}</span>` : '<span class="small">—</span>'
+  return `<button class="back" onclick="go('grads')">← Graduações</button>
+  <div class="head"><div><h1>${l.name}</h1><div class="small">🥋 Taekwondo · <b>exame em ${br(l.exam)}</b> · "Apto" e tempo medidos no dia do exame</div></div>
+    <div style="display:flex;gap:8px"><input type="date" value="${l.exam}" onchange="S.lists.find(x=>x.id===${l.id}).exam=this.value;render()" style="border:1px solid var(--input);border-radius:12px;padding:6px 8px"></div></div>
+  <section class="panel"><h2>Na lista (${l.entries.length})</h2><p class="hint">Cada linha guarda a faixa do aluno no momento em que entrou: não muda se ele graduar depois.</p>
+    ${!l.entries.length ? '<div class="small">Adicione alunos abaixo.</div>' : `<div class="scroll"><table><tr><th>Aluno</th><th>Faixa</th><th>Tempo</th><th>Situação</th><th>Vai para</th><th></th></tr>
+    ${l.entries.map(e => { const s = S.students.find(x => x.id === e.sid), snap = e.snap
+      return `<tr><td>${s.name}</td><td>${tCell(snap)}</td><td class="small">${snap?shortSpan(snap.date,exam):'—'}</td><td>${status(snap,exam).html}</td>
+      <td><select onchange="setTarget(${l.id},'${e.sid}',+this.value)">${S.belts.tkd.map(b => `<option value="${b.id}" ${b.id===e.target?'selected':''}>${b.name}</option>`).join('')}</select> ${belt(beltById(e.target),70,14)}</td>
+      <td><button class="btn ghost" onclick="rmEntry(${l.id},'${e.sid}')">Remover</button></td></tr>` }).join('')}</table></div>`}
+  </section>
+  <section class="panel"><h2>Adicionar alunos</h2><p class="hint">Todos os alunos ativos de Taekwondo. "Ainda não" é só um aviso: dá para adicionar mesmo assim.</p>
+    ${!cands.length ? '<div class="small">Todos já estão na lista.</div>' : `<div class="scroll"><table><tr><th>Aluno</th><th>Faixa</th><th>Tempo</th><th>Situação</th><th></th></tr>
+    ${cands.map(s => { const c = current(s), stt = status(c, exam)
+      return `<tr><td>${s.name}</td><td>${tCell(c)}</td><td class="small">${c?shortSpan(c.date,exam):'—'}</td><td>${stt.html}${stt.k==='wait'?` <span class="small">(${br(stt.on)})</span>`:''}</td><td><button class="btn sm" onclick="addEntry(${l.id},'${s.id}')">+ Adicionar</button></td></tr>` }).join('')}</table></div>`}
+  </section>`
+}
+function addEntry(lid, sid) {
+  const l = S.lists.find(x => x.id === lid), s = S.students.find(x => x.id === sid), c = current(s), nx = nextBelt(c)
+  l.entries.push({ sid, snap: c ? { ...c } : null, target: (nx || beltById(c.belt)).id }); render()
+}
+function setTarget(lid, sid, b) { S.lists.find(x => x.id === lid).entries.find(e => e.sid === sid).target = b; render() }
+function rmEntry(lid, sid) { const l = S.lists.find(x => x.id === lid); l.entries = l.entries.filter(e => e.sid !== sid); render() }
+
+// ---------- Modal ----------
+function modal(html) { document.getElementById('layer').innerHTML = `<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>` }
+function closeModal() { document.getElementById('layer').innerHTML = '' }
+
+render()
+</script>
+</body>
+</html>
