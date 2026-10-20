@@ -209,3 +209,6 @@ __marimo__/
 
 # Superpowers brainstorming companion
 .superpowers/
+
+# A regra "lib/" acima (template Python) pegaria o código do frontend
+!frontend/src/lib/
