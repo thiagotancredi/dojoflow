@@ -73,3 +73,14 @@ def test_eligible_on() -> None:
         2026, 11, 1
     )
     assert eligible_on(date(2026, 8, 1), None, None) is None
+
+
+def test_add_duration_saturates_instead_of_crashing() -> None:
+    assert add_duration(date(9999, 12, 1), 3, DurationUnit.MONTHS) == date.max
+    assert add_duration(date(9999, 12, 1), 90, DurationUnit.DAYS) == date.max
+    assert (
+        evaluate_eligibility(
+            date(9999, 12, 1), 3, DurationUnit.MONTHS, date(2026, 1, 1)
+        )
+        == Eligibility.NOT_YET
+    )

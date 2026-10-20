@@ -92,6 +92,7 @@ async def test_belt_name_unique_within_modality(
         {'min_time_unit': 'months'},
         {'min_time_amount': 0, 'min_time_unit': 'months'},
         {'marks': 11},
+        {'min_time_amount': 1201, 'min_time_unit': 'days'},
         {'primary_color': 'red'},
         {'name': '   '},
     ],

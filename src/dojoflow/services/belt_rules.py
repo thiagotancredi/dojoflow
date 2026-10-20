@@ -13,19 +13,30 @@ def local_today() -> date:
 
 
 def add_duration(start: date, amount: int, unit: DurationUnit) -> date:
-    if unit is DurationUnit.DAYS:
-        return start + timedelta(days=amount)
+    # Data além do calendário (dado ruim já gravado) fica em date.max,
+    # em vez de derrubar a tela
+    try:
+        if unit is DurationUnit.DAYS:
+            return start + timedelta(days=amount)
 
-    months = amount * MONTHS_PER_YEAR if unit is DurationUnit.YEARS else amount
-    # Soma pelo calendário; dia inexistente cai no último dia do mês
-    year, month_index = divmod(
-        start.year * MONTHS_PER_YEAR + start.month - 1 + months,
-        MONTHS_PER_YEAR,
-    )
-    month = month_index + 1
-    last_day = calendar.monthrange(year, month)[1]
+        months = (
+            amount * MONTHS_PER_YEAR if unit is DurationUnit.YEARS else amount
+        )
+        # Soma pelo calendário; dia inexistente cai no último dia do mês
+        year, month_index = divmod(
+            start.year * MONTHS_PER_YEAR + start.month - 1 + months,
+            MONTHS_PER_YEAR,
+        )
 
-    return date(year, month, min(start.day, last_day))
+        if year > date.max.year:
+            return date.max
+
+        month = month_index + 1
+        last_day = calendar.monthrange(year, month)[1]
+
+        return date(year, month, min(start.day, last_day))
+    except OverflowError:
+        return date.max
 
 
 def eligible_on(

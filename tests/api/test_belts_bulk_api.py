@@ -22,7 +22,7 @@ async def _setup(client: AsyncClient, db_session: AsyncSession) -> dict:
     ana = await create_student(client, headers, taekwondo, 'Ana Lima')
     bruno = await create_student(client, headers, taekwondo, 'Bruno Costa')
     caio = await create_student(client, headers, taekwondo, 'Caio Souza')
-    await create_student(
+    duda = await create_student(
         client, headers, taekwondo, 'Duda Reis', status='inactive'
     )
     response = await client.post(
@@ -39,7 +39,9 @@ async def _setup(client: AsyncClient, db_session: AsyncSession) -> dict:
         'white': white,
         'yellow': yellow,
         'ana': ana,
+        'bruno': bruno,
         'caio': caio,
+        'duda': duda,
         'base': f'/api/v1/academy/modalities/{taekwondo}/belts',
     }
 
@@ -195,3 +197,27 @@ async def test_bulk_empty_is_422(
     response = await _bulk(client, ctx, [])
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('student', ['bruno', 'duda'])
+async def test_bulk_rejects_enrollment_not_pending(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    student: str,
+) -> None:
+    # Bruno já tem faixa; Duda está com a matrícula inativa
+    ctx = await _setup(client, db_session)
+
+    response = await _bulk(
+        client,
+        ctx,
+        [
+            _item(ctx['ana'], ctx['white'], '2026-07-08'),
+            _item(ctx[student], ctx['yellow'], '2026-08-08'),
+        ],
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'ENROLLMENT_NOT_PENDING'
+    assert len(await _pending(client, ctx)) == 2  # noqa: PLR2004

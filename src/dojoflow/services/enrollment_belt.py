@@ -151,24 +151,30 @@ class EnrollmentBeltService:
                 code='DUPLICATE_ENROLLMENT_IN_BATCH',
             )
 
-        modality_by_enrollment = dict(
-            (
-                await self.db_session.execute(
-                    select(Enrollment.id, Enrollment.modality_id).where(
-                        Enrollment.academy_id == academy_id,
-                        Enrollment.id.in_(enrollment_ids),
-                    )
-                )
+        rows = await self.db_session.execute(
+            select(Enrollment.id, Enrollment.modality_id).where(
+                Enrollment.academy_id == academy_id,
+                Enrollment.id.in_(enrollment_ids),
             )
-            .tuples()
-            .all()
         )
+        modality_by_enrollment = dict(rows.tuples().all())
+        pending_ids = {
+            pending.enrollment_id
+            for pending in await self.list_pending(academy_id, modality_id)
+        }
 
         for enrollment_id, data in items:
             if modality_by_enrollment.get(enrollment_id) != modality_id:
                 raise ConflictError(
                     'This enrollment belongs to another modality.',
                     code='ENROLLMENT_MODALITY_MISMATCH',
+                )
+
+            # Só matrícula ativa e ainda sem faixa (tela pode estar velha)
+            if enrollment_id not in pending_ids:
+                raise ConflictError(
+                    'This enrollment is inactive or already has a belt.',
+                    code='ENROLLMENT_NOT_PENDING',
                 )
 
             await self.add(academy_id, enrollment_id, data)

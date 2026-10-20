@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -10,10 +11,16 @@ from dojoflow.schemas.enrollment_belt import (
 )
 from dojoflow.shared.enums import Eligibility
 
+# Faixa de datas aceitável para uma graduação (evita datas absurdas)
+GraduationDate = Annotated[
+    date,
+    Field(ge=date(1900, 1, 1), le=date(2100, 12, 31)),
+]
+
 
 class EnrollmentBeltApiPayload(BaseModel):
     belt_id: UUID
-    graduated_on: date
+    graduated_on: GraduationDate
 
 
 class BeltRecordApiRead(BaseModel):
@@ -59,7 +66,7 @@ MAX_BULK_ITEMS = 200
 class BulkBeltItemApi(BaseModel):
     enrollment_id: UUID
     belt_id: UUID
-    graduated_on: date
+    graduated_on: GraduationDate
 
 
 class BulkBeltRequest(BaseModel):

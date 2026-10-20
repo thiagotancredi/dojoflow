@@ -7,6 +7,7 @@ from dojoflow.models.belt import DEFAULT_MARKS_COLOR
 from dojoflow.shared.enums import DurationUnit
 
 MAX_MARKS = 10
+MAX_MIN_TIME_AMOUNT = 1200
 
 HexColor = Annotated[
     str,
@@ -25,7 +26,9 @@ class BeltPayload(BaseModel):
     marks: int = Field(default=0, ge=0, le=MAX_MARKS)
     marks_color: HexColor = DEFAULT_MARKS_COLOR
     tip_color: HexColor | None = None
-    min_time_amount: int | None = Field(default=None, gt=0)
+    min_time_amount: int | None = Field(
+        default=None, gt=0, le=MAX_MIN_TIME_AMOUNT
+    )
     min_time_unit: DurationUnit | None = None
 
     @model_validator(mode='after')

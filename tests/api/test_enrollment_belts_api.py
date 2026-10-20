@@ -252,3 +252,21 @@ async def test_belt_in_history_cannot_be_deleted(
 
     assert response.status_code == HTTPStatus.CONFLICT
     assert response.json()['code'] == 'BELT_IN_USE'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('graduated_on', ['9999-12-01', '1800-01-01'])
+async def test_graduated_on_out_of_range_is_422(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    graduated_on: str,
+) -> None:
+    ctx = await _setup(client, db_session)
+
+    response = await client.post(
+        ctx['url'],
+        headers=ctx['headers'],
+        json={'belt_id': ctx['white']['id'], 'graduated_on': graduated_on},
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
