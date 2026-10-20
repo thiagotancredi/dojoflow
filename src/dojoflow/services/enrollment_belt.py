@@ -1,16 +1,22 @@
 from typing import Any
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.database.transaction import transactional
 from dojoflow.models.belt import Belt
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.enrollment_belt import EnrollmentBelt
+from dojoflow.models.student import Student
 from dojoflow.repositories.enrollment_belt import EnrollmentBeltRepository
 from dojoflow.schemas.belt import BeltRead
-from dojoflow.schemas.enrollment_belt import BeltRecord, EnrollmentBeltPayload
+from dojoflow.schemas.enrollment_belt import (
+    BeltRecord,
+    EnrollmentBeltPayload,
+    PendingBeltEnrollment,
+)
 from dojoflow.services.belt import BeltService
+from dojoflow.shared.enums import EnrollmentStatus
 from dojoflow.shared.exceptions import ConflictError, NotFoundError
 
 BELT_PREFIX = 'belt_'
@@ -99,6 +105,75 @@ class EnrollmentBeltService:
             record.enrollment_id: record
             for record in (_to_record(row) for row in result.mappings().all())
         }
+
+    async def list_pending(
+        self,
+        academy_id: int,
+        modality_id: int,
+    ) -> list[PendingBeltEnrollment]:
+        has_belt = exists().where(
+            EnrollmentBelt.enrollment_id == Enrollment.id
+        )
+        stmt = (
+            select(
+                Enrollment.id.label('enrollment_id'),
+                Enrollment.public_id.label('enrollment_public_id'),
+                Student.public_id.label('student_public_id'),
+                Student.name.label('student_name'),
+            )
+            .join(Student, Student.id == Enrollment.student_id)
+            .where(
+                Enrollment.academy_id == academy_id,
+                Enrollment.modality_id == modality_id,
+                Enrollment.status == EnrollmentStatus.ACTIVE,
+                ~has_belt,
+            )
+            .order_by(Student.name, Enrollment.id)
+        )
+        result = await self.db_session.execute(stmt)
+
+        return [
+            PendingBeltEnrollment(**row) for row in result.mappings().all()
+        ]
+
+    @transactional
+    async def bulk_add(
+        self,
+        academy_id: int,
+        modality_id: int,
+        items: list[tuple[int, EnrollmentBeltPayload]],
+    ) -> int:
+        enrollment_ids = [enrollment_id for enrollment_id, _ in items]
+
+        if len(enrollment_ids) != len(set(enrollment_ids)):
+            raise ConflictError(
+                'The same enrollment appears more than once.',
+                code='DUPLICATE_ENROLLMENT_IN_BATCH',
+            )
+
+        modality_by_enrollment = dict(
+            (
+                await self.db_session.execute(
+                    select(Enrollment.id, Enrollment.modality_id).where(
+                        Enrollment.academy_id == academy_id,
+                        Enrollment.id.in_(enrollment_ids),
+                    )
+                )
+            )
+            .tuples()
+            .all()
+        )
+
+        for enrollment_id, data in items:
+            if modality_by_enrollment.get(enrollment_id) != modality_id:
+                raise ConflictError(
+                    'This enrollment belongs to another modality.',
+                    code='ENROLLMENT_MODALITY_MISMATCH',
+                )
+
+            await self.add(academy_id, enrollment_id, data)
+
+        return len(items)
 
     @transactional
     async def add(

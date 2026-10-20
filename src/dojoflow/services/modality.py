@@ -1,13 +1,16 @@
-from sqlalchemy import distinct, func, select
+from sqlalchemy import distinct, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.database.transaction import transactional
 from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.belt import Belt
+from dojoflow.models.enrollment import Enrollment
+from dojoflow.models.enrollment_belt import EnrollmentBelt
 from dojoflow.models.modality import Modality
 from dojoflow.repositories.academy_modality import AcademyModalityRepository
 from dojoflow.repositories.modality import ModalityRepository
 from dojoflow.schemas.modality import ModalityOptionRead, ModalityRead
+from dojoflow.shared.enums import EnrollmentStatus
 from dojoflow.shared.exceptions import NotFoundError
 
 
@@ -70,6 +73,7 @@ class ModalityService:
         selected_modality_ids = await self.get_selected_modality_ids(
             academy_id
         )
+        pending_counts = await self._count_enrollments_without_belt(academy_id)
         modality_ids_with_belts = set(
             await self.db_session.scalars(
                 select(distinct(Belt.modality_id)).where(
@@ -86,9 +90,30 @@ class ModalityService:
                 emoji=modality.emoji,
                 is_selected=modality.id in selected_modality_ids,
                 has_belts=modality.id in modality_ids_with_belts,
+                pending_belt_count=pending_counts.get(modality.id, 0),
             )
             for modality in modalities
         ]
+
+    async def _count_enrollments_without_belt(
+        self,
+        academy_id: int,
+    ) -> dict[int, int]:
+        has_belt = exists().where(
+            EnrollmentBelt.enrollment_id == Enrollment.id
+        )
+        stmt = (
+            select(Enrollment.modality_id, func.count(Enrollment.id))
+            .where(
+                Enrollment.academy_id == academy_id,
+                Enrollment.status == EnrollmentStatus.ACTIVE,
+                ~has_belt,
+            )
+            .group_by(Enrollment.modality_id)
+        )
+        result = await self.db_session.execute(stmt)
+
+        return dict(result.tuples().all())
 
     async def get_selected_modality_ids(
         self,

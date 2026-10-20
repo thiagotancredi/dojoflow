@@ -25,6 +25,7 @@ class ModalityOptionApiRead(BaseModel):
     emoji: str
     is_selected: bool
     has_belts: bool
+    pending_belt_count: int
 
     @classmethod
     def from_internal(
@@ -37,6 +38,7 @@ class ModalityOptionApiRead(BaseModel):
             emoji=option.emoji,
             is_selected=option.is_selected,
             has_belts=option.has_belts,
+            pending_belt_count=option.pending_belt_count,
         )
 
 

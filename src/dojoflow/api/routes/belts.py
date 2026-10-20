@@ -4,13 +4,22 @@ from sqlalchemy import select
 from dojoflow.api.dependencies.auth import CurrentMasterDep
 from dojoflow.api.dependencies.belt import BeltServiceDep
 from dojoflow.api.dependencies.db_session import DbSessionDep
+from dojoflow.api.dependencies.enrollment_belt import EnrollmentBeltServiceDep
 from dojoflow.api.dependencies.public_ids import (
     BeltIdDep,
     EnabledModalityIdDep,
+    resolve_academy_enrollment_id,
+    resolve_belt_id,
 )
 from dojoflow.models.belt import Belt
 from dojoflow.schemas.belt import BeltPayload
 from dojoflow.schemas.belt_api import BeltApiRead, BeltOrderRequest
+from dojoflow.schemas.enrollment_belt import EnrollmentBeltPayload
+from dojoflow.schemas.enrollment_belt_api import (
+    BulkBeltRequest,
+    BulkBeltResultApiRead,
+    PendingBeltEnrollmentApiRead,
+)
 from dojoflow.shared.exceptions import ConflictError
 
 router = APIRouter(prefix='/academy', tags=['Belts'])
@@ -63,6 +72,56 @@ async def apply_taekwondo_preset(
     )
 
     return [BeltApiRead.from_internal(belt) for belt in belts]
+
+
+@router.get(
+    path='/modalities/{modality_id}/belts/pending-enrollments',
+    status_code=status.HTTP_200_OK,
+)
+async def list_enrollments_without_belt(
+    modality_id: EnabledModalityIdDep,
+    current_master: CurrentMasterDep,
+    enrollment_belt_service_dep: EnrollmentBeltServiceDep,
+) -> list[PendingBeltEnrollmentApiRead]:
+    pending = await enrollment_belt_service_dep.list_pending(
+        current_master.academy_id, modality_id
+    )
+
+    return [PendingBeltEnrollmentApiRead.from_internal(p) for p in pending]
+
+
+@router.post(
+    path='/modalities/{modality_id}/belts/bulk',
+    status_code=status.HTTP_200_OK,
+)
+async def register_belts_in_bulk(
+    modality_id: EnabledModalityIdDep,
+    data: BulkBeltRequest,
+    current_master: CurrentMasterDep,
+    enrollment_belt_service_dep: EnrollmentBeltServiceDep,
+    db_session_dep: DbSessionDep,
+) -> BulkBeltResultApiRead:
+    academy_id = current_master.academy_id
+    items = [
+        (
+            await resolve_academy_enrollment_id(
+                db_session_dep, item.enrollment_id, academy_id
+            ),
+            EnrollmentBeltPayload(
+                belt_id=await resolve_belt_id(
+                    db_session_dep, item.belt_id, academy_id
+                ),
+                graduated_on=item.graduated_on,
+            ),
+        )
+        for item in data.items
+    ]
+
+    saved = await enrollment_belt_service_dep.bulk_add(
+        academy_id, modality_id, items
+    )
+
+    return BulkBeltResultApiRead(saved=saved)
 
 
 @router.put(

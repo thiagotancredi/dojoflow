@@ -19,3 +19,12 @@ class BeltRecord(BaseModel):
     enrollment_id: int
     graduated_on: date
     belt: BeltRead
+
+
+class PendingBeltEnrollment(BaseModel):
+    """Matrícula ativa ainda sem nenhuma faixa registrada."""
+
+    enrollment_id: int
+    enrollment_public_id: UUID
+    student_public_id: UUID
+    student_name: str
