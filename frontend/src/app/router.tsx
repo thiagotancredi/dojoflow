@@ -3,6 +3,7 @@ import { Navigate, createBrowserRouter } from 'react-router'
 import { AppLayout } from '@/app/layouts/AppLayout'
 import { NotFoundPage } from '@/app/NotFoundPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { RequireAuth } from '@/features/auth/RequireAuth'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { ModalitiesPage } from '@/features/modalities/pages/ModalitiesPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
@@ -18,7 +19,12 @@ export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   {
     path: '/app',
-    element: <AppLayout />,
+    // RequireAuth manda para /login quem não tem sessão
+    element: (
+      <RequireAuth>
+        <AppLayout />
+      </RequireAuth>
+    ),
     children: [
       { index: true, element: <DashboardPage /> },
       {
