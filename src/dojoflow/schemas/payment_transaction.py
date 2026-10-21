@@ -10,7 +10,7 @@ from dojoflow.shared.enums import PaymentMethod
 class PaymentTransactionCreate(BaseModel):
     academy_id: int = Field(gt=0)
     student_id: int = Field(gt=0)
-    payment_method: PaymentMethod = PaymentMethod.PIX
+    payment_method: PaymentMethod | None = None
     gross_amount: Decimal = Field(gt=0)
     fee_amount: Decimal | None = Field(default=None, ge=0)
     net_amount: Decimal | None = Field(default=None, ge=0)
@@ -21,7 +21,7 @@ class PaymentTransactionCreate(BaseModel):
 class PaymentTransactionRead(ReadBase):
     academy_id: int
     student_id: int
-    payment_method: PaymentMethod
+    payment_method: PaymentMethod | None
     gross_amount: Decimal
     fee_amount: Decimal | None
     net_amount: Decimal | None

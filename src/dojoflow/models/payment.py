@@ -11,7 +11,7 @@ from dojoflow.database.helper_mapped_columns import (
     money_column,
 )
 from dojoflow.models.base_model import BaseModel
-from dojoflow.shared.enums import PaymentStatus
+from dojoflow.shared.enums import PaymentKind, PaymentStatus
 
 
 class Payment(BaseModel):
@@ -21,13 +21,19 @@ class Payment(BaseModel):
         UniqueConstraint(
             'academy_id',
             'enrollment_id',
+            'kind',
             'reference_month',
-            name='uq_payment_academy_enrollment_reference_month',
+            name='uq_payment_enrollment_kind_month',
         ),
     )
 
     academy_id: Mapped[int] = int_fk('academy.id')
     enrollment_id: Mapped[int] = int_fk('enrollment.id')
+
+    kind: Mapped[PaymentKind] = enum_column(
+        PaymentKind,
+        default=PaymentKind.MONTHLY,
+    )
 
     reference_month: Mapped[date] = date_column()
     due_date: Mapped[date | None] = date_column(nullable=True)

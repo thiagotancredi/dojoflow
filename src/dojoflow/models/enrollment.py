@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import UniqueConstraint
@@ -5,6 +6,7 @@ from sqlalchemy.orm import Mapped
 
 from dojoflow.database.helper_mapped_columns import (
     bool_column,
+    date_column,
     enum_column,
     int_column,
     int_fk,
@@ -39,3 +41,6 @@ class Enrollment(BaseModel):
     due_day: Mapped[int | None] = int_column(nullable=True)
 
     is_exempt: Mapped[bool] = bool_column(default=False)
+
+    # Primeiro mês (dia 1) com mensalidade automática; nulo = não cobra
+    billing_start_month: Mapped[date | None] = date_column(nullable=True)
