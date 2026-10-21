@@ -141,10 +141,12 @@ export function LoginPage({
     <div className="grid min-h-dvh place-items-center p-4">
       <div className="flex w-full max-w-4xl overflow-hidden rounded-3xl bg-card shadow-xl shadow-primary/10">
         {/* Painel da marca (cores em styles/theme.css): só no desktop */}
-        <aside className="hidden w-[44%] flex-col bg-gradient-to-br from-brand-from to-brand-to p-8 text-brand-foreground md:flex">
+        {/* Mesmo recuo do formulário (p-10): o topo da logo fica na linha
+            do "Entrar" */}
+        <aside className="hidden w-1/2 flex-col justify-between gap-8 bg-gradient-to-br from-brand-from to-brand-to p-10 text-brand-foreground md:flex">
           {/* O painel é escuro nos dois temas: sempre a logo de tinta clara */}
-          <BrandLogo tone="on-dark" className="w-72" />
-          <div className="mt-auto space-y-3">
+          <BrandLogo tone="on-dark" className="w-full" />
+          <div className="space-y-3">
             <h2 className="text-2xl leading-tight font-semibold">
               As mensalidades do seu dojo, sem caderno e sem planilha.
             </h2>
