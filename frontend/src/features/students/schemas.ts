@@ -161,29 +161,52 @@ export const enrollmentSchema = z
     is_exempt: z.boolean(),
     monthly_fee: z.string(),
     due_day: z.string(),
+    // Taxa de matrícula: só aparece (e só vale) ao criar a matrícula
+    enrollment_fee: z.string(),
+    waive_enrollment_fee: z.boolean(),
   })
   // .check: validações que dependem de mais de um campo (isenta desliga as outras)
   .check((context) => {
     const values = context.value
-    if (values.is_exempt) return
-
-    if (values.monthly_fee.trim() && parseMoney(values.monthly_fee) === null) {
+    const issue = (path: keyof EnrollmentValues, message: string) =>
       context.issues.push({
         code: 'custom',
-        path: ['monthly_fee'],
-        message: 'Valor inválido. Use o formato 150,00.',
-        input: values.monthly_fee,
+        path: [path],
+        message,
+        input: values[path],
       })
+
+    // Igual ao backend: ativa e não isenta precisa de valor e dia.
+    // Inativa pode ficar sem (matrícula antiga que só vai ser encerrada).
+    const needsBilling = !values.is_exempt && values.status === 'active'
+
+    if (!values.is_exempt) {
+      const fee = values.monthly_fee.trim()
+      const parsed = fee ? parseMoney(fee) : null
+
+      if (fee && parsed === null) {
+        issue('monthly_fee', 'Valor inválido. Use o formato 150,00.')
+      } else if (needsBilling && !fee) {
+        issue('monthly_fee', 'Informe o valor da mensalidade.')
+      } else if (needsBilling && Number(parsed) <= 0) {
+        issue('monthly_fee', 'A mensalidade precisa ser maior que zero (ou marque Isenta).')
+      }
+
+      const day = values.due_day.trim()
+      if (day && !(/^\d+$/.test(day) && Number(day) >= 1 && Number(day) <= 28)) {
+        issue('due_day', 'O vencimento vai de 1 a 28.')
+      } else if (needsBilling && !day) {
+        issue('due_day', 'Informe o dia de vencimento.')
+      }
     }
 
-    const day = values.due_day.trim()
-    if (day && !(/^\d+$/.test(day) && Number(day) >= 1 && Number(day) <= 28)) {
-      context.issues.push({
-        code: 'custom',
-        path: ['due_day'],
-        message: 'O vencimento vai de 1 a 28.',
-        input: values.due_day,
-      })
+    if (!values.waive_enrollment_fee) {
+      const fee = values.enrollment_fee.trim()
+      if (!fee) {
+        issue('enrollment_fee', 'Informe a taxa de matrícula (ou marque Isentar taxa).')
+      } else if (parseMoney(fee) === null) {
+        issue('enrollment_fee', 'Valor inválido. Use o formato 80,00.')
+      }
     }
   })
 
@@ -196,8 +219,17 @@ export function emptyEnrollment(modalityId = ''): EnrollmentValues {
     is_exempt: false,
     monthly_fee: '',
     due_day: '',
+    enrollment_fee: '',
+    waive_enrollment_fee: false,
   }
 }
+
+// Edição: a taxa já foi lançada na criação, então o campo fica "isento"
+// só para não pedir nada (ele nem aparece e não é enviado)
+export const NO_ENROLLMENT_FEE = {
+  enrollment_fee: '',
+  waive_enrollment_fee: true,
+} as const
 
 export function toEnrollmentPayload(values: EnrollmentValues) {
   const exempt = values.is_exempt
@@ -210,5 +242,15 @@ export function toEnrollmentPayload(values: EnrollmentValues) {
     due_day: exempt || !values.due_day.trim() ? null : Number(values.due_day),
     is_exempt: exempt,
     status: values.status,
+  }
+}
+
+// Matrícula nova: o mesmo de cima + a taxa ("Isentar taxa" envia 0)
+export function toNewEnrollmentPayload(values: EnrollmentValues) {
+  return {
+    ...toEnrollmentPayload(values),
+    enrollment_fee: values.waive_enrollment_fee
+      ? '0.00'
+      : parseMoney(values.enrollment_fee),
   }
 }

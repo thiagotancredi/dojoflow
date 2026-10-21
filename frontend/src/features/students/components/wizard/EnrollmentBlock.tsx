@@ -94,6 +94,7 @@ export function EnrollmentBlock({
         modalities={modalities}
         idPrefix={`enrollment-${index}`}
         onModalityChange={onModalityChange}
+        showEnrollmentFee
       />
 
       {belts.length > 0 ? (

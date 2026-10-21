@@ -503,6 +503,161 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/students/{student_id}/billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Student Billing */
+        get: operations["read_student_billing_api_v1_students__student_id__billing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{student_id}/billing/charges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Launch Past Charge */
+        post: operations["launch_past_charge_api_v1_students__student_id__billing_charges_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{student_id}/billing/charges/{charge_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Charge */
+        patch: operations["update_charge_api_v1_students__student_id__billing_charges__charge_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/students/{student_id}/billing/charges/{charge_id}/waive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Waive Charge */
+        post: operations["waive_charge_api_v1_students__student_id__billing_charges__charge_id__waive_post"];
+        /** Unwaive Charge */
+        delete: operations["unwaive_charge_api_v1_students__student_id__billing_charges__charge_id__waive_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{student_id}/billing/payments/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Payment */
+        post: operations["preview_payment_api_v1_students__student_id__billing_payments_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{student_id}/billing/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Payment */
+        post: operations["create_payment_api_v1_students__student_id__billing_payments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{student_id}/billing/payments/{payment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Payment */
+        delete: operations["delete_payment_api_v1_students__student_id__billing_payments__payment_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academy/billing-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Billing Settings */
+        get: operations["read_billing_settings_api_v1_academy_billing_settings_get"];
+        /** Save Billing Settings */
+        put: operations["save_billing_settings_api_v1_academy_billing_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Billing Overview */
+        get: operations["read_billing_overview_api_v1_billing_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard/summary": {
         parameters: {
             query?: never;
@@ -680,6 +835,32 @@ export interface components {
             /** Complement */
             complement: string | null;
         };
+        /** AllocationApiRead */
+        AllocationApiRead: {
+            /**
+             * Charge Id
+             * Format: uuid
+             */
+            charge_id: string;
+            /** Label */
+            label: string;
+            /** Amount */
+            amount: string;
+        };
+        /** AllocationPreviewApiRead */
+        AllocationPreviewApiRead: {
+            /**
+             * Charge Id
+             * Format: uuid
+             */
+            charge_id: string;
+            /** Label */
+            label: string;
+            /** Amount */
+            amount: string;
+            /** Settles */
+            settles: boolean;
+        };
         /** AuthLoginRequest */
         AuthLoginRequest: {
             /** Email */
@@ -778,6 +959,63 @@ export interface components {
             graduated_on: string;
             belt: components["schemas"]["BeltApiRead"];
         };
+        /** BillingOverviewItemRead */
+        BillingOverviewItemRead: {
+            /**
+             * Student Id
+             * Format: uuid
+             */
+            student_id: string;
+            /** Name */
+            name: string;
+            /** Responsible Name */
+            responsible_name: string | null;
+            /** Modalities */
+            modalities: string[];
+            /** Open Amount */
+            open_amount: string;
+            /** Days Late */
+            days_late: number | null;
+            /** Whatsapp Url */
+            whatsapp_url: string | null;
+        };
+        /** BillingOverviewRead */
+        BillingOverviewRead: {
+            /** Month Expected */
+            month_expected: string;
+            /** Month Received */
+            month_received: string;
+            /** Overdue Total */
+            overdue_total: string;
+            /** Overdue Students */
+            overdue_students: number;
+            /** Due Soon Total */
+            due_soon_total: string;
+            /** Due Soon Students */
+            due_soon_students: number;
+            /** Items */
+            items: components["schemas"]["BillingOverviewItemRead"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /**
+         * BillingSettingsApi
+         * @description Dados de cobrança da academia (Configurações → Cobrança).
+         */
+        BillingSettingsApi: {
+            /** Pix Key */
+            pix_key?: string | null;
+            /** Recipient Name */
+            recipient_name?: string | null;
+            /** Bank Details */
+            bank_details?: string | null;
+            /** Message Template */
+            message_template?: string | null;
+        };
         /** BulkBeltItemApi */
         BulkBeltItemApi: {
             /**
@@ -821,6 +1059,54 @@ export interface components {
             /** Provider */
             provider: string;
         };
+        /** ChargeApiRead */
+        ChargeApiRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["PaymentKind"];
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /** Modality Name */
+            modality_name: string;
+            /**
+             * Reference Month
+             * Format: date
+             */
+            reference_month: string;
+            /**
+             * Due Date
+             * Format: date
+             */
+            due_date: string;
+            /** Amount */
+            amount: string;
+            /** Paid */
+            paid: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "paid" | "partial" | "overdue" | "upcoming" | "waived";
+        };
+        /** CreatePaymentApiPayload */
+        CreatePaymentApiPayload: {
+            /** Amount */
+            amount: number | string;
+            /**
+             * Paid On
+             * Format: date
+             */
+            paid_on: string;
+            method?: components["schemas"]["PaymentMethod"] | null;
+            /** Notes */
+            notes?: string | null;
+        };
         /** DashboardSummaryRead */
         DashboardSummaryRead: {
             /** Active Students */
@@ -831,6 +1117,29 @@ export interface components {
             recent_enrollments: components["schemas"]["RecentEnrollmentRead"][];
             /** Registration Pending */
             registration_pending: components["schemas"]["PendingEnrollmentRead"][];
+            /** Overdue */
+            overdue: components["schemas"]["OverdueStudentRead"][];
+            /** Due Soon */
+            due_soon: components["schemas"]["DueSoonChargeRead"][];
+        };
+        /** DueSoonChargeRead */
+        DueSoonChargeRead: {
+            /**
+             * Student Id
+             * Format: uuid
+             */
+            student_id: string;
+            /** Name */
+            name: string;
+            /** Modality */
+            modality: string;
+            /** Amount */
+            amount: string;
+            /**
+             * Due Date
+             * Format: date
+             */
+            due_date: string;
         };
         /**
          * DurationUnit
@@ -860,6 +1169,8 @@ export interface components {
             is_exempt: boolean;
             /** @default active */
             status: components["schemas"]["EnrollmentStatus"];
+            /** Enrollment Fee */
+            enrollment_fee?: number | string | null;
             current_belt?: components["schemas"]["EnrollmentBeltApiPayload"] | null;
         };
         /** EnrollmentApiRead */
@@ -1032,6 +1343,26 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** LaunchChargeApiPayload */
+        LaunchChargeApiPayload: {
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /**
+             * Reference Month
+             * Format: date
+             */
+            reference_month: string;
+            /** Amount */
+            amount: number | string;
+            /**
+             * Due Date
+             * Format: date
+             */
+            due_date: string;
+        };
         /** MasterContextApiRead */
         MasterContextApiRead: {
             /**
@@ -1129,6 +1460,62 @@ export interface components {
             telegram_user_id: number;
             /** Phone */
             phone?: string | null;
+        };
+        /** OverdueStudentRead */
+        OverdueStudentRead: {
+            /**
+             * Student Id
+             * Format: uuid
+             */
+            student_id: string;
+            /** Name */
+            name: string;
+            /** Modality */
+            modality: string;
+            /** Amount */
+            amount: string;
+            /** Days Late */
+            days_late: number;
+        };
+        /** PaymentApiRead */
+        PaymentApiRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Amount */
+            amount: string;
+            /**
+             * Paid On
+             * Format: date
+             */
+            paid_on: string;
+            method: components["schemas"]["PaymentMethod"] | null;
+            /** Notes */
+            notes: string | null;
+            /** Allocations */
+            allocations: components["schemas"]["AllocationApiRead"][];
+        };
+        /**
+         * PaymentKind
+         * @enum {string}
+         */
+        PaymentKind: "monthly" | "enrollment_fee";
+        /**
+         * PaymentMethod
+         * @enum {string}
+         */
+        PaymentMethod: "cash" | "pix" | "credit_card" | "debit_card" | "bank_transfer" | "other";
+        /** PaymentPreviewApiPayload */
+        PaymentPreviewApiPayload: {
+            /** Amount */
+            amount: number | string;
+        };
+        /** PaymentPreviewApiRead */
+        PaymentPreviewApiRead: {
+            /** Allocations */
+            allocations: components["schemas"]["AllocationPreviewApiRead"][];
         };
         /** PendingBeltEnrollmentApiRead */
         PendingBeltEnrollmentApiRead: {
@@ -1274,6 +1661,19 @@ export interface components {
             /** Birth Date */
             birth_date?: string | null;
             sex?: components["schemas"]["StudentSex"] | null;
+        };
+        /** StudentBillingApiRead */
+        StudentBillingApiRead: {
+            /** Open Total */
+            open_total: string;
+            /** Open Months */
+            open_months: string;
+            /** Whatsapp Url */
+            whatsapp_url: string | null;
+            /** Charges */
+            charges: components["schemas"]["ChargeApiRead"][];
+            /** Payments */
+            payments: components["schemas"]["PaymentApiRead"][];
         };
         /** StudentCreateApiRequest */
         StudentCreateApiRequest: {
@@ -1435,6 +1835,13 @@ export interface components {
             first_name?: string | null;
             /** Username */
             username?: string | null;
+        };
+        /** UpdateChargeApiPayload */
+        UpdateChargeApiPayload: {
+            /** Amount */
+            amount?: number | string | null;
+            /** Due Date */
+            due_date?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -2507,6 +2914,360 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_student_billing_api_v1_students__student_id__billing_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentBillingApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    launch_past_charge_api_v1_students__student_id__billing_charges_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LaunchChargeApiPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_charge_api_v1_students__student_id__billing_charges__charge_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                charge_id: string;
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateChargeApiPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    waive_charge_api_v1_students__student_id__billing_charges__charge_id__waive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                charge_id: string;
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unwaive_charge_api_v1_students__student_id__billing_charges__charge_id__waive_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                charge_id: string;
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_payment_api_v1_students__student_id__billing_payments_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentPreviewApiPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentPreviewApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_payment_api_v1_students__student_id__billing_payments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePaymentApiPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_payment_api_v1_students__student_id__billing_payments__payment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_billing_settings_api_v1_academy_billing_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingSettingsApi"];
+                };
+            };
+        };
+    };
+    save_billing_settings_api_v1_academy_billing_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingSettingsApi"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingSettingsApi"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_billing_overview_api_v1_billing_overview_get: {
+        parameters: {
+            query?: {
+                month?: string | null;
+                filter?: "overdue" | "upcoming" | "paid" | "all";
+                search?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingOverviewRead"];
+                };
             };
             /** @description Validation Error */
             422: {

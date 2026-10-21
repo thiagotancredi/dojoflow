@@ -29,7 +29,9 @@ import {
 import {
   emptyEnrollment,
   enrollmentSchema,
+  NO_ENROLLMENT_FEE,
   toEnrollmentPayload,
+  toNewEnrollmentPayload,
 } from '@/features/students/schemas'
 import type { EnrollmentValues } from '@/features/students/schemas'
 import { applyFieldErrors, showApiError } from '@/lib/api/errors'
@@ -166,6 +168,7 @@ function EditEnrollmentForm({
       is_exempt: enrollment.is_exempt,
       monthly_fee: moneyToInput(enrollment.monthly_fee),
       due_day: enrollment.due_day?.toString() ?? '',
+      ...NO_ENROLLMENT_FEE,
     },
   })
 
@@ -211,7 +214,7 @@ function NewEnrollmentForm({
       // Matrícula e faixa atual numa gravação só (tudo ou nada)
       await mutate({
         modality_id: values.modality_id,
-        ...toEnrollmentPayload(values),
+        ...toNewEnrollmentPayload(values),
         current_belt: beltId ? { belt_id: beltId, graduated_on: since } : null,
       })
       toast.success('Matrícula criada')
@@ -224,7 +227,11 @@ function NewEnrollmentForm({
 
   return (
     <form noValidate onSubmit={form.handleSubmit(save)} className="space-y-4">
-      <EnrollmentFields form={form} modalities={modalities} />
+      <EnrollmentFields
+        form={form}
+        modalities={modalities}
+        showEnrollmentFee
+      />
       {belts.length > 0 ? (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">

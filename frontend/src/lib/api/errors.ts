@@ -38,11 +38,26 @@ export const ERROR_MESSAGES: Record<string, string> = {
   SETUP_TOKEN_INVALID:
     'Este link é inválido ou expirou. Envie /web para o bot no Telegram e receba outro.',
   EMAIL_ALREADY_REGISTERED: 'Esse e-mail já é usado por outra conta.',
+  ENROLLMENT_BILLING_INCOMPLETE:
+    'Matrícula ativa precisa de mensalidade e dia de vencimento, ou ser marcada como isenta.',
+  CHARGE_ALREADY_EXISTS: 'Esse mês já tem cobrança nesta matrícula.',
+  CHARGE_NOT_PAST:
+    'Só dá para lançar meses anteriores ao início da cobrança automática.',
+  CHARGE_HAS_PAYMENTS:
+    'Essa cobrança já tem pagamento. Exclua a baixa antes de mudar.',
+  CHARGE_NOT_FOUND: 'Cobrança não encontrada.',
+  PAYMENT_EXCEEDS_OPEN: 'O valor é maior que o total em aberto.',
+  NOTHING_TO_PAY: 'Este aluno não tem nada em aberto.',
+  PAYMENT_NOT_FOUND: 'Pagamento não encontrado. Recarregue a página.',
   NOT_FOUND: 'Não encontrado.',
   CONFLICT: 'Esse registro conflita com outro já existente.',
 }
 
 const GENERIC_MESSAGE = 'Não foi possível falar com o servidor. Tente de novo.'
+
+// Códigos cujo "detail" já vem em português e diz mais que o texto fixo
+// (ex.: "O máximo é R$ 200,00.")
+const DETAIL_IS_MESSAGE = new Set(['PAYMENT_EXCEEDS_OPEN', 'NOTHING_TO_PAY'])
 
 // Erro de validação do FastAPI (422): uma lista de problemas por campo
 type ValidationIssue = { loc: (string | number)[]; msg: string; type: string }
@@ -71,6 +86,10 @@ export function isValidationError(error: unknown) {
 // Texto para o usuário a partir de qualquer erro (API, rede ou código)
 export function messageFor(error: unknown, fallback = GENERIC_MESSAGE) {
   const code = errorCode(error)
+  if (code && DETAIL_IS_MESSAGE.has(code)) {
+    const { detail } = error as { detail?: unknown }
+    if (typeof detail === 'string' && detail) return detail
+  }
   if (code && ERROR_MESSAGES[code]) return ERROR_MESSAGES[code]
   // 422: algum dado não passou na validação (ex.: data com ano errado)
   if (validationIssues(error)) return 'Revise os dados informados (datas e campos).'
