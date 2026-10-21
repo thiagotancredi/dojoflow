@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.models.academy import Academy
 from dojoflow.models.master import Master
+from tests.helpers.auth import SEED
 from tests.helpers.onboarding import register_onboarding
 
 
@@ -62,10 +63,14 @@ async def test_register_onboarding_conflict_when_telegram_exists(
     }
 
     academy_count = await db_session.scalar(
-        select(func.count()).select_from(Academy)
+        select(func.count())
+        .select_from(Academy)
+        .where(Academy.id != SEED.academy_id)
     )
     master_count = await db_session.scalar(
-        select(func.count()).select_from(Master)
+        select(func.count())
+        .select_from(Master)
+        .where(Master.id != SEED.master_id)
     )
 
     assert academy_count == 1
@@ -85,10 +90,14 @@ async def test_register_onboarding_invalid_payload_should_return_422(
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
     academy_count = await db_session.scalar(
-        select(func.count()).select_from(Academy)
+        select(func.count())
+        .select_from(Academy)
+        .where(Academy.id != SEED.academy_id)
     )
     master_count = await db_session.scalar(
-        select(func.count()).select_from(Master)
+        select(func.count())
+        .select_from(Master)
+        .where(Master.id != SEED.master_id)
     )
 
     assert academy_count == 0

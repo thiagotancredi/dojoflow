@@ -4,7 +4,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.helpers.auth import auth_headers, create_modality
+from tests.helpers.auth import (
+    auth_headers,
+    create_modality,
+    other_academy_headers,
+)
 from tests.helpers.graduation import (
     create_belt,
     enable_modality,
@@ -287,9 +291,7 @@ async def test_other_academy_cannot_touch_belt(
     headers = await auth_headers(client)
     taekwondo = await enable_modality(client, db_session, headers, 'Taekwondo')
     belt = await create_belt(client, headers, taekwondo, 'Branca')
-    other = await auth_headers(
-        client, email='outro@dojoflow.test', phone='62988880000'
-    )
+    other = await other_academy_headers(db_session)
 
     update = await client.put(
         f'/api/v1/academy/belts/{belt["id"]}',

@@ -47,34 +47,3 @@ async def create_belt(
     assert response.status_code == 201, response.text  # noqa: PLR2004
 
     return response.json()
-
-
-async def create_student(
-    client: AsyncClient,
-    headers: dict[str, str],
-    modality_id: str,
-    name: str = 'Ana Lima',
-    status: str = 'active',
-) -> tuple[str, str]:
-    response = await client.post(
-        '/api/v1/students',
-        headers=headers,
-        json={
-            'name': name,
-            'enrollment': {'modality_id': modality_id, 'status': status},
-        },
-    )
-    assert response.status_code == 201, response.text  # noqa: PLR2004
-    student_id = response.json()['id']
-
-    detail = await client.get(
-        f'/api/v1/students/{student_id}',
-        headers=headers,
-    )
-    enrollment = next(
-        item
-        for item in detail.json()['enrollments']
-        if item['modality_id'] == modality_id
-    )
-
-    return student_id, enrollment['id']

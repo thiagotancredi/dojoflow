@@ -5,32 +5,28 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.helpers.auth import auth_headers
-from tests.helpers.graduation import (
-    create_belt,
-    create_student,
-    enable_modality,
+from tests.helpers.scenario import (
+    add_belt,
+    add_belt_record,
+    add_modality,
+    add_student,
 )
 
 
 async def _setup(client: AsyncClient, db_session: AsyncSession) -> dict:
     """Taekwondo: Ana e Caio sem faixa, Bruno com Branca, Duda inativa."""
+    # Montado direto no banco (os endpoints usados aqui têm testes próprios)
+    db = db_session
     headers = await auth_headers(client)
-    taekwondo = await enable_modality(client, db_session, headers, 'Taekwondo')
-    jiu_jitsu = await enable_modality(client, db_session, headers, 'Jiu-jitsu')
-    white = await create_belt(client, headers, taekwondo, 'Branca')
-    yellow = await create_belt(client, headers, taekwondo, 'Amarela')
-    ana = await create_student(client, headers, taekwondo, 'Ana Lima')
-    bruno = await create_student(client, headers, taekwondo, 'Bruno Costa')
-    caio = await create_student(client, headers, taekwondo, 'Caio Souza')
-    duda = await create_student(
-        client, headers, taekwondo, 'Duda Reis', status='inactive'
-    )
-    response = await client.post(
-        f'/api/v1/students/{bruno[0]}/enrollments/{bruno[1]}/belts',
-        headers=headers,
-        json={'belt_id': white['id'], 'graduated_on': '2026-01-01'},
-    )
-    assert response.status_code == HTTPStatus.NO_CONTENT
+    taekwondo = await add_modality(db, 'Taekwondo')
+    jiu_jitsu = await add_modality(db, 'Jiu-jitsu')
+    white = await add_belt(db, taekwondo, 'Branca')
+    yellow = await add_belt(db, taekwondo, 'Amarela')
+    ana = await add_student(db, taekwondo, 'Ana Lima')
+    bruno = await add_student(db, taekwondo, 'Bruno Costa')
+    caio = await add_student(db, taekwondo, 'Caio Souza')
+    duda = await add_student(db, taekwondo, 'Duda Reis', status='inactive')
+    await add_belt_record(db, bruno, white, '2026-01-01')
 
     return {
         'headers': headers,
@@ -130,9 +126,7 @@ async def test_bulk_is_all_or_nothing(
     db_session: AsyncSession,
 ) -> None:
     ctx = await _setup(client, db_session)
-    blue_jj = await create_belt(
-        client, ctx['headers'], ctx['jiu_jitsu'], 'Azul'
-    )
+    blue_jj = await add_belt(db_session, ctx['jiu_jitsu'], 'Azul')
 
     response = await _bulk(
         client,
@@ -154,9 +148,7 @@ async def test_bulk_rejects_enrollment_of_other_modality(
     db_session: AsyncSession,
 ) -> None:
     ctx = await _setup(client, db_session)
-    edu = await create_student(
-        client, ctx['headers'], ctx['jiu_jitsu'], 'Edu Lima'
-    )
+    edu = await add_student(db_session, ctx['jiu_jitsu'], 'Edu Lima')
 
     response = await _bulk(
         client, ctx, [_item(edu, ctx['white'], '2026-07-08')]

@@ -5,7 +5,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.helpers.auth import auth_headers, create_modality
+from tests.helpers.auth import (
+    auth_headers,
+    create_modality,
+    other_academy_headers,
+)
 
 
 async def _enable_modality(
@@ -180,11 +184,7 @@ async def test_student_from_other_academy_is_not_found(
         headers=owner_headers,
         json=_create_payload(modality_id),
     )
-    other_headers = await auth_headers(
-        client,
-        email='outro@dojoflow.test',
-        academy_name='Outra Academia',
-    )
+    other_headers = await other_academy_headers(db_session)
 
     response = await client.get(
         f'/api/v1/students/{created.json()["id"]}',
