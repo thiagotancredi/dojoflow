@@ -102,6 +102,8 @@ export function ModalityBeltsPage() {
     }
   }
 
+  // Trava até salvar E a lista nova chegar (o próximo movimento parte dela)
+  const reordering = reorder.isPending || belts.isLoading
   const pending = modality?.pending_belt_count ?? 0
   const isTaekwondo = modality?.name.trim().toLowerCase() === 'taekwondo'
 
@@ -203,7 +205,7 @@ export function ModalityBeltsPage() {
                   variant="ghost"
                   size="icon"
                   aria-label={`Subir ${belt.name}`}
-                  disabled={index === 0 || reorder.isPending}
+                  disabled={index === 0 || reordering}
                   onClick={() => void move(index, -1)}
                 >
                   <ArrowUp />
@@ -212,7 +214,7 @@ export function ModalityBeltsPage() {
                   variant="ghost"
                   size="icon"
                   aria-label={`Descer ${belt.name}`}
-                  disabled={index === list.length - 1 || reorder.isPending}
+                  disabled={index === list.length - 1 || reordering}
                   onClick={() => void move(index, 1)}
                 >
                   <ArrowDown />

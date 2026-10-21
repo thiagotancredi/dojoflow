@@ -17,21 +17,37 @@ export function todayIso() {
   return toIsoDate(new Date())
 }
 
-// Anos, meses e dias entre duas datas (meses pelo calendário)
-function elapsed(isoDate: string, today: Date) {
-  const start = parseDate(isoDate)
-  let months =
-    (today.getFullYear() - start.getFullYear()) * 12 +
-    today.getMonth() -
-    start.getMonth()
-  if (today.getDate() < start.getDate()) months -= 1
-  months = Math.max(months, 0)
+// Data + N meses, com o dia limitado ao fim do mês (31/01 + 1 = 28/02),
+// a mesma regra do backend
+function addMonthsClamped(start: Date, months: number) {
+  const target = new Date(start.getFullYear(), start.getMonth() + months, 1)
+  const lastDay = new Date(
+    target.getFullYear(),
+    target.getMonth() + 1,
+    0,
+  ).getDate()
+  target.setDate(Math.min(start.getDate(), lastDay))
+  return target
+}
 
-  const base = new Date(
-    start.getFullYear(),
-    start.getMonth() + months,
-    start.getDate(),
+// Só a data (sem a hora), para a conta de dias não arredondar à tarde
+function atMidnight(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+// Anos, meses e dias entre duas datas (meses pelo calendário)
+function elapsed(isoDate: string, until: Date) {
+  const start = parseDate(isoDate)
+  const today = atMidnight(until)
+  let months = Math.max(
+    (today.getFullYear() - start.getFullYear()) * 12 +
+      today.getMonth() -
+      start.getMonth(),
+    0,
   )
+  while (months > 0 && addMonthsClamped(start, months) > today) months -= 1
+
+  const base = addMonthsClamped(start, months)
   const days = Math.max(
     Math.round((today.getTime() - base.getTime()) / 86_400_000),
     0,
@@ -47,11 +63,9 @@ export function timeSince(isoDate: string, today = new Date()) {
   const parts: string[] = []
   if (years) parts.push(`${years} ${years > 1 ? 'anos' : 'ano'}`)
   if (months) parts.push(`${months} ${months > 1 ? 'meses' : 'mês'}`)
-  if (!years && (days || parts.length === 0)) {
-    parts.push(`${days} ${days === 1 ? 'dia' : 'dias'}`)
-  }
+  if (!years && days) parts.push(`${days} ${days === 1 ? 'dia' : 'dias'}`)
 
-  return `há ${parts.join(' e ')}`
+  return parts.length ? `há ${parts.join(' e ')}` : 'desde hoje'
 }
 
 const UNIT_LABELS = {

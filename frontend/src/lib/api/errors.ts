@@ -65,7 +65,10 @@ export function isValidationError(error: unknown) {
 // Texto para o usuário a partir de qualquer erro (API, rede ou código)
 export function messageFor(error: unknown, fallback = GENERIC_MESSAGE) {
   const code = errorCode(error)
-  return (code && ERROR_MESSAGES[code]) || fallback
+  if (code && ERROR_MESSAGES[code]) return ERROR_MESSAGES[code]
+  // 422: algum dado não passou na validação (ex.: data com ano errado)
+  if (validationIssues(error)) return 'Revise os dados informados (datas e campos).'
+  return fallback
 }
 
 // Mostra o erro num toast (404, 409, 500, falha de rede)

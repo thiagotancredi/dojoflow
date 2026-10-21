@@ -21,6 +21,7 @@ import {
 } from '@/features/belts/api'
 import type {
   Belt,
+  GraduationCandidate,
   GraduationEntry,
   GraduationListDetail,
 } from '@/features/belts/api'
@@ -37,9 +38,13 @@ import { formatDate } from '@/lib/format'
 export function GraduationListPage() {
   const { listId } = useParams()
   const navigate = useNavigate()
-  const { data, error, refetch } = useGraduationList(listId)
+  const { data, error, refetch, isLoading } = useGraduationList(listId)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const [saving, setSaving] = useState(false)
+  // Aluno sem próxima faixa (já na última): escolher a pretendida antes
+  const [choosingFor, setChoosingFor] = useState<GraduationCandidate | null>(null)
+  // Travado enquanto salva e até a lista nova chegar
+  const busy = saving || isLoading
 
   if (!data) {
     return (
@@ -63,7 +68,7 @@ export function GraduationListPage() {
 
   // Toda ação: trava os botões, chama a API, recarrega a lista
   async function run(action: () => Promise<unknown>, success?: string) {
-    setBusy(true)
+    setSaving(true)
     try {
       await action()
       if (success) toast.success(success)
@@ -71,7 +76,7 @@ export function GraduationListPage() {
     } catch (caught) {
       showApiError(caught)
     } finally {
-      setBusy(false)
+      setSaving(false)
     }
   }
 
@@ -196,9 +201,15 @@ export function GraduationListPage() {
                         className="h-7 rounded-full text-xs"
                         disabled={busy}
                         onClick={() =>
-                          void run(() =>
-                            addGraduationEntry(id, candidate.enrollment_id),
-                          )
+                          candidate.suggested_target
+                            ? void run(() =>
+                                addGraduationEntry(
+                                  id,
+                                  candidate.enrollment_id,
+                                  candidate.suggested_target?.id,
+                                ),
+                              )
+                            : setChoosingFor(candidate)
                         }
                       >
                         <Plus /> Adicionar
@@ -211,6 +222,40 @@ export function GraduationListPage() {
           </div>
         )}
       </section>
+
+      <Dialog
+        open={choosingFor !== null}
+        onOpenChange={(open) => !open && setChoosingFor(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Faixa pretendida · {choosingFor?.student_name}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            {choosingFor?.current
+              ? 'O aluno já está na última faixa cadastrada: escolha para qual vai.'
+              : 'Escolha a faixa pretendida.'}
+          </p>
+          <BeltPicker
+            belts={data.belts}
+            value={null}
+            tags={
+              choosingFor?.current ? { [choosingFor.current.belt.id]: 'atual' } : {}
+            }
+            onChange={(beltId) => {
+              const candidate = choosingFor
+              setChoosingFor(null)
+              if (candidate) {
+                void run(() =>
+                  addGraduationEntry(id, candidate.enrollment_id, beltId),
+                )
+              }
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={confirmDelete}
