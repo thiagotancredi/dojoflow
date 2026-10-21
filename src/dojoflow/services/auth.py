@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.core.settings import settings
 from dojoflow.database.transaction import transactional
+from dojoflow.repositories.audit_log import AuditLogRepository
 from dojoflow.repositories.one_time_token import OneTimeTokenRepository
 from dojoflow.repositories.refresh_session import RefreshSessionRepository
 from dojoflow.schemas.auth import (
@@ -14,11 +15,13 @@ from dojoflow.schemas.auth import (
     AuthResult,
     AuthTokenResponse,
     SetCredentialsRequest,
+    SupportEntryRead,
     TelegramLinkTokenResponse,
     TelegramSetupTokenResponse,
 )
 from dojoflow.schemas.master_context import MasterContextRead
 from dojoflow.schemas.onboarding import OnboardingWebCreate
+from dojoflow.services.admin_access import is_admin_email
 from dojoflow.services.master import MasterService
 from dojoflow.services.onboarding import OnboardingService
 from dojoflow.services.security import (
@@ -28,11 +31,14 @@ from dojoflow.services.security import (
     hash_refresh_token,
     verify_password,
 )
-from dojoflow.shared.enums import AcademyStatus
+from dojoflow.shared.enums import AcademyStatus, AuditAction
 from dojoflow.shared.exceptions import ForbiddenError, UnauthorizedError
 
 PURPOSE_TELEGRAM_LINK = 'telegram_link'
 PURPOSE_TELEGRAM_SETUP = 'telegram_setup'
+PURPOSE_SUPPORT_ENTRY = 'support_entry'
+SUPPORT_CODE_TTL = timedelta(seconds=60)
+SUPPORT_SESSION_TTL = timedelta(hours=8)
 REFRESH_REUSE_GRACE_SECONDS = 30
 REFRESH_CHAIN_MAX_HOPS = 20
 
@@ -151,7 +157,9 @@ class AuthService:
                 code='REFRESH_TOKEN_INVALID',
             )
 
-        return await self._start_session_for_master(master_id)
+        return await self._start_session_for_master(
+            master_id, **self._support_scope(tail)
+        )
 
     @transactional
     async def logout(self, refresh_token: str | None) -> None:
@@ -198,10 +206,21 @@ class AuthService:
 
         return None
 
+    @staticmethod
+    def _support_scope(session: dict[str, Any]) -> dict[str, Any]:
+        """Sessão de suporte renova na mesma academia e no mesmo prazo."""
+        if session.get('acting_academy_id') is None:
+            return {}
+
+        return {
+            'acting_academy_id': int(session['acting_academy_id']),
+            'expires_at': session['expires_at'],
+        }
+
     @transactional
     async def _rotate_session(self, session: dict[str, Any]) -> AuthResult:
         result, new_session_id = await self._create_session(
-            int(session['master_id'])
+            int(session['master_id']), **self._support_scope(session)
         )
 
         await self.refresh_session_repository.update_by_id(
@@ -215,16 +234,37 @@ class AuthService:
         return result
 
     @transactional
-    async def _start_session_for_master(self, master_id: int) -> AuthResult:
-        result, _ = await self._create_session(master_id)
+    async def _start_session_for_master(
+        self,
+        master_id: int,
+        *,
+        acting_academy_id: int | None = None,
+        expires_at: datetime | None = None,
+    ) -> AuthResult:
+        result, _ = await self._create_session(
+            master_id,
+            acting_academy_id=acting_academy_id,
+            expires_at=expires_at,
+        )
 
         return result
 
     async def _start_session(self, context: MasterContextRead) -> AuthResult:
         return await self._start_session_for_master(context.master_id)
 
-    async def _create_session(self, master_id: int) -> tuple[AuthResult, int]:
-        context = await self.master_service.get_context_by_id(master_id)
+    async def _create_session(
+        self,
+        master_id: int,
+        *,
+        acting_academy_id: int | None = None,
+        expires_at: datetime | None = None,
+    ) -> tuple[AuthResult, int]:
+        if acting_academy_id is None:
+            context = await self.master_service.get_context_by_id(master_id)
+        else:
+            context = await self.master_service.get_support_context(
+                master_id, acting_academy_id
+            )
 
         if context is None:
             raise UnauthorizedError(
@@ -232,18 +272,26 @@ class AuthService:
                 code='REFRESH_TOKEN_INVALID',
             )
 
-        ensure_academy_active(context)
+        if acting_academy_id is None:
+            ensure_academy_active(context)
+        elif not is_admin_email(context.email):
+            raise UnauthorizedError(
+                'Support session is no longer valid.',
+                code='SUPPORT_SESSION_INVALID',
+            )
 
         refresh_token = generate_refresh_token()
         session_id = await self.refresh_session_repository.create({
             'master_id': master_id,
             'token_hash': hash_refresh_token(refresh_token),
-            'expires_at': datetime.now(UTC)
+            'expires_at': expires_at
+            or datetime.now(UTC)
             + timedelta(days=settings.JWT_REFRESH_TTL_DAYS),
+            'acting_academy_id': acting_academy_id,
         })
 
         response = AuthTokenResponse(
-            access_token=create_access_token(master_id),
+            access_token=create_access_token(master_id, acting_academy_id),
         )
 
         return AuthResult(response, refresh_token), session_id
@@ -266,7 +314,7 @@ class AuthService:
         token, expires_at = await self._issue_one_time_token(
             master_id=master_id,
             purpose=PURPOSE_TELEGRAM_LINK,
-            ttl_minutes=settings.JWT_TELEGRAM_LINK_TTL_MINUTES,
+            ttl=timedelta(minutes=settings.JWT_TELEGRAM_LINK_TTL_MINUTES),
         )
         deep_link = None
 
@@ -289,7 +337,7 @@ class AuthService:
         token, expires_at = await self._issue_one_time_token(
             master_id=master_id,
             purpose=PURPOSE_TELEGRAM_SETUP,
-            ttl_minutes=settings.JWT_TELEGRAM_SETUP_TTL_MINUTES,
+            ttl=timedelta(minutes=settings.JWT_TELEGRAM_SETUP_TTL_MINUTES),
         )
 
         return TelegramSetupTokenResponse(
@@ -364,10 +412,11 @@ class AuthService:
         self,
         master_id: int,
         purpose: str,
-        ttl_minutes: int,
+        ttl: timedelta,
+        academy_id: int | None = None,
     ) -> tuple[str, datetime]:
         token = secrets.token_urlsafe(16)
-        expires_at = datetime.now(UTC) + timedelta(minutes=ttl_minutes)
+        expires_at = datetime.now(UTC) + ttl
 
         await self.one_time_token_repository.create({
             'master_id': master_id,
@@ -375,6 +424,7 @@ class AuthService:
             'purpose': purpose,
             'expires_at': expires_at,
             'used_at': None,
+            'academy_id': academy_id,
         })
 
         return token, expires_at
@@ -385,6 +435,20 @@ class AuthService:
         token: str,
         purpose: str,
     ) -> int:
+        record = await self._consume_one_time_token_record(
+            token, purpose, error_code='SETUP_TOKEN_INVALID'
+        )
+
+        return int(record['master_id'])
+
+    @transactional
+    async def _consume_one_time_token_record(
+        self,
+        token: str,
+        purpose: str,
+        *,
+        error_code: str,
+    ) -> dict[str, Any]:
         record = await self.one_time_token_repository.get_valid_by_token(
             token=token,
             purpose=purpose,
@@ -393,7 +457,7 @@ class AuthService:
         if record is None:
             raise UnauthorizedError(
                 'Invalid or expired token.',
-                code='SETUP_TOKEN_INVALID',
+                code=error_code,
             )
 
         await self.one_time_token_repository.update_by_id(
@@ -401,4 +465,47 @@ class AuthService:
             data={'used_at': datetime.now(UTC)},
         )
 
-        return int(record['master_id'])
+        return record
+
+    @transactional
+    async def create_support_entry(
+        self,
+        admin_master_id: int,
+        academy_id: int,
+    ) -> SupportEntryRead:
+        """Código de uso único para abrir o modo suporte numa aba nova."""
+        code, expires_at = await self._issue_one_time_token(
+            master_id=admin_master_id,
+            purpose=PURPOSE_SUPPORT_ENTRY,
+            ttl=SUPPORT_CODE_TTL,
+            academy_id=academy_id,
+        )
+        await AuditLogRepository(db_session=self.db_session).create({
+            'academy_id': academy_id,
+            'master_id': admin_master_id,
+            'action': AuditAction.SUPPORT_ENTRY,
+            'entity_name': 'academy',
+            'entity_id': academy_id,
+            'description': 'Support mode entry',
+        })
+
+        return SupportEntryRead(code=code, expires_at=expires_at)
+
+    @transactional
+    async def exchange_support_code(self, code: str) -> AuthResult:
+        record = await self._consume_one_time_token_record(
+            code, PURPOSE_SUPPORT_ENTRY, error_code='SUPPORT_CODE_INVALID'
+        )
+
+        if record.get('academy_id') is None:
+            raise UnauthorizedError(
+                'Invalid or expired token.', code='SUPPORT_CODE_INVALID'
+            )
+
+        result, _ = await self._create_session(
+            int(record['master_id']),
+            acting_academy_id=int(record['academy_id']),
+            expires_at=datetime.now(UTC) + SUPPORT_SESSION_TTL,
+        )
+
+        return result

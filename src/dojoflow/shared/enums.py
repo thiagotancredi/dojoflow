@@ -100,6 +100,7 @@ class AuditAction(str, enum.Enum):
     PAYMENT_ALLOCATED = 'payment_allocated'
     NOTIFICATION_SENT = 'notification_sent'
     STATUS_CHANGED = 'status_changed'
+    SUPPORT_ENTRY = 'support_entry'
 
 
 class DurationUnit(str, enum.Enum):

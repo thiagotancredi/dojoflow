@@ -12,17 +12,11 @@ from dojoflow.api.dependencies.db_session import DbSessionDep
 from dojoflow.api.dependencies.master import MasterRepositoryDep
 from dojoflow.api.dependencies.onboarding import OnboardingServiceDep
 from dojoflow.api.dependencies.public_ids import resolve_public_id
-from dojoflow.core.settings import settings
 from dojoflow.models.academy import Academy
 from dojoflow.schemas.master_context import MasterContextRead
 from dojoflow.services.admin import AdminService
+from dojoflow.services.admin_access import is_admin
 from dojoflow.shared.exceptions import ForbiddenError
-
-
-def is_admin(context: MasterContextRead) -> bool:
-    admin_email = settings.ADMIN_EMAIL.strip().lower()
-
-    return bool(admin_email) and (context.email or '') == admin_email
 
 
 def _get_current_admin(current_master: CurrentMasterDep) -> MasterContextRead:

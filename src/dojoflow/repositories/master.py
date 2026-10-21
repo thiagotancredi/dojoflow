@@ -27,7 +27,10 @@ class MasterRepository(BaseRepository[Master]):
     async def get_context_by_id(
         self,
         master_id: int,
+        academy_id: int | None = None,
     ) -> dict[str, Any] | None:
+        """Mestre + academia. Com academy_id, usa essa academia no lugar
+        da academia do mestre (modo suporte)."""
         stmt = (
             select(
                 Master.id.label('master_id'),
@@ -41,7 +44,13 @@ class MasterRepository(BaseRepository[Master]):
                 Academy.name.label('academy_name'),
                 Academy.status.label('academy_status'),
             )
-            .join(Academy, Academy.id == Master.academy_id)
+            .join(
+                Academy,
+                Academy.id
+                == (
+                    academy_id if academy_id is not None else Master.academy_id
+                ),
+            )
             .where(Master.id == master_id)
         )
 

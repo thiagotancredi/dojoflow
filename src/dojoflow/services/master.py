@@ -66,6 +66,21 @@ class MasterService:
 
         return MasterContextRead(**context)
 
+    async def get_support_context(
+        self,
+        master_id: int,
+        academy_id: int,
+    ) -> MasterContextRead | None:
+        """O administrador (master_id) vendo os dados de academy_id."""
+        context = await self.master_repository.get_context_by_id(
+            master_id, academy_id=academy_id
+        )
+
+        if context is None:
+            return None
+
+        return MasterContextRead(**context, support_mode=True)
+
     @transactional
     async def link_telegram_user(
         self,

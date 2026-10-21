@@ -1,7 +1,6 @@
 from http import HTTPStatus
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,19 +15,6 @@ NEW_ACADEMY = {
     'email': '  Novo@Dojo.TEST ',
     'phone': '62988887777',
 }
-
-
-@pytest.fixture
-def _admin_is_seed(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, 'ADMIN_EMAIL', SEED.email)
-
-
-@pytest_asyncio.fixture
-async def admin_headers(
-    client: AsyncClient,
-    _admin_is_seed: None,
-) -> dict[str, str]:
-    return await auth_headers(client)
 
 
 async def _create(

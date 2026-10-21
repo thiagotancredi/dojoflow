@@ -69,3 +69,12 @@ class SetCredentialsRequest(BaseModel):
 class TelegramSetupTokenResponse(BaseModel):
     token: str
     expires_at: datetime
+
+
+class SupportEntryRead(BaseModel):
+    code: str
+    expires_at: datetime
+
+
+class SupportExchangeRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=128)

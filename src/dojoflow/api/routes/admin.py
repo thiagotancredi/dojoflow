@@ -7,6 +7,7 @@ from dojoflow.api.dependencies.admin import (
     AdminServiceDep,
     CurrentAdminDep,
 )
+from dojoflow.api.dependencies.auth import AuthServiceDep
 from dojoflow.schemas.admin_api import (
     AdminAcademyCreate,
     AdminAcademyRead,
@@ -15,6 +16,7 @@ from dojoflow.schemas.admin_api import (
     AdminPasswordRead,
     AdminStatusUpdate,
 )
+from dojoflow.schemas.auth import SupportEntryRead
 from dojoflow.schemas.master_context import MasterContextApiRead
 
 router = APIRouter(prefix='/admin', tags=['Admin'])
@@ -71,3 +73,18 @@ async def set_academy_status(
     admin_service_dep: AdminServiceDep,
 ) -> AdminAcademyRead:
     return await admin_service_dep.set_status(academy_id, data.status)
+
+
+@router.post(
+    path='/academies/{academy_id}/support-entry',
+    status_code=status.HTTP_200_OK,
+)
+async def create_support_entry(
+    academy_id: AcademyIdDep,
+    current_admin: CurrentAdminDep,
+    auth_service_dep: AuthServiceDep,
+) -> SupportEntryRead:
+    """Código de uso único (60 s) para entrar na academia em modo suporte."""
+    return await auth_service_dep.create_support_entry(
+        current_admin.master_id, academy_id
+    )

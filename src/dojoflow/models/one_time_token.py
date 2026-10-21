@@ -18,3 +18,5 @@ class OneTimeToken(BaseModel):
     purpose: Mapped[str] = str_column(length=40)
     expires_at: Mapped[datetime] = datetime_column()
     used_at: Mapped[datetime | None] = datetime_column(nullable=True)
+    # Código de entrada no modo suporte: academia a ser vista
+    academy_id: Mapped[int | None] = int_fk('academy.id', nullable=True)

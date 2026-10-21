@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Cookie, Response, status
 
 from dojoflow.api.dependencies.auth import (
+    AccountMasterDep,
     AuthServiceDep,
     BearerCredentialsDep,
     CurrentMasterDep,
@@ -15,11 +16,13 @@ from dojoflow.schemas.auth import (
     AuthRegisterRequest,
     AuthTokenResponse,
     SetCredentialsRequest,
+    SupportExchangeRequest,
     TelegramLinkTokenResponse,
     TelegramSetupTokenResponse,
 )
 from dojoflow.schemas.master_context import MasterContextApiRead
-from dojoflow.shared.exceptions import UnauthorizedError
+from dojoflow.services.auth import SUPPORT_SESSION_TTL
+from dojoflow.shared.exceptions import ForbiddenError, UnauthorizedError
 
 router = APIRouter(prefix='/auth', tags=['Auth'])
 
@@ -32,11 +35,15 @@ RefreshCookie = Annotated[
 ]
 
 
-def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+def _set_refresh_cookie(
+    response: Response,
+    refresh_token: str,
+    max_age: int = settings.JWT_REFRESH_TTL_DAYS * 24 * 60 * 60,
+) -> None:
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=refresh_token,
-        max_age=settings.JWT_REFRESH_TTL_DAYS * 24 * 60 * 60,
+        max_age=max_age,
         path=REFRESH_COOKIE_PATH,
         httponly=True,
         secure=settings.cookie_secure,
@@ -133,7 +140,7 @@ async def me(
     status_code=status.HTTP_200_OK,
 )
 async def create_telegram_link_token(
-    current_master: CurrentMasterDep,
+    current_master: AccountMasterDep,
     auth_service_dep: AuthServiceDep,
 ) -> TelegramLinkTokenResponse:
     return await auth_service_dep.create_telegram_link_token_for_master(
@@ -146,7 +153,7 @@ async def create_telegram_link_token(
     status_code=status.HTTP_200_OK,
 )
 async def create_telegram_setup_token(
-    current_master: CurrentMasterDep,
+    current_master: AccountMasterDep,
     auth_service_dep: AuthServiceDep,
 ) -> TelegramSetupTokenResponse:
     """Issue a short-lived token for Telegram-linked masters.
@@ -177,6 +184,11 @@ async def set_credentials(
         optional_master = await resolve_optional_master(
             master_service_dep, credentials
         )
+
+        if optional_master is not None and optional_master.support_mode:
+            raise ForbiddenError(
+                'Not available in support mode.', code='SUPPORT_MODE'
+            )
         authenticated_master_id = (
             optional_master.master_id if optional_master is not None else None
         )
@@ -186,5 +198,25 @@ async def set_credentials(
         authenticated_master_id=authenticated_master_id,
     )
     _set_refresh_cookie(response, result.refresh_token)
+
+    return result.response
+
+
+@router.post(
+    path='/support/exchange',
+    status_code=status.HTTP_200_OK,
+)
+async def exchange_support_code(
+    data: SupportExchangeRequest,
+    response: Response,
+    auth_service_dep: AuthServiceDep,
+) -> AuthTokenResponse:
+    """Troca o código de uso único do painel por uma sessão de suporte."""
+    result = await auth_service_dep.exchange_support_code(data.code)
+    _set_refresh_cookie(
+        response,
+        result.refresh_token,
+        max_age=int(SUPPORT_SESSION_TTL.total_seconds()),
+    )
 
     return result.response

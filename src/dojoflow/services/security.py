@@ -55,12 +55,21 @@ def _create_token(
     return token, expires_at
 
 
-def create_access_token(master_id: int) -> str:
+def create_access_token(
+    master_id: int,
+    acting_academy_id: int | None = None,
+) -> str:
+    claims: dict[str, Any] = {'role': MASTER_ROLE}
+
+    if acting_academy_id is not None:
+        # Modo suporte: o administrador vê os dados desta academia
+        claims['acting_academy_id'] = acting_academy_id
+
     token, _ = _create_token(
         subject=str(master_id),
         purpose='access',
         expires_delta=timedelta(minutes=settings.JWT_ACCESS_TTL_MINUTES),
-        extra_claims={'role': MASTER_ROLE},
+        extra_claims=claims,
     )
     return token
 
