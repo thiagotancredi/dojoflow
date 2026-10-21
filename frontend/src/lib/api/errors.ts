@@ -11,6 +11,27 @@ export const ERROR_MESSAGES: Record<string, string> = {
   MODALITY_NOT_ENABLED: 'Essa modalidade não é oferecida pela academia.',
   RESPONSIBLE_LINK_NOT_FOUND: 'Responsável não encontrado.',
   CEP_NOT_FOUND: 'CEP não encontrado.',
+  BELT_NAME_TAKEN: 'Já existe uma faixa com esse nome nesta modalidade.',
+  BELT_IN_USE:
+    'Essa faixa está no histórico de algum aluno ou numa lista de graduação e não pode ser excluída. Você pode renomeá-la.',
+  BELT_ORDER_MISMATCH: 'A lista de faixas mudou. Recarregue a página.',
+  BELTS_ALREADY_EXIST: 'Esta modalidade já tem faixas cadastradas.',
+  PRESET_NOT_AVAILABLE: 'A sequência padrão existe só para o Taekwondo.',
+  BELT_NOT_FOUND: 'Faixa não encontrada.',
+  BELT_MODALITY_MISMATCH: 'Essa faixa é de outra modalidade.',
+  BELT_RECORD_NOT_FOUND: 'Registro de faixa não encontrado.',
+  MODALITY_HAS_NO_BELTS: 'Cadastre as faixas da modalidade antes de criar a lista.',
+  GRADUATION_LIST_NOT_FOUND: 'Lista de graduação não encontrada.',
+  GRADUATION_ENTRY_NOT_FOUND: 'Esse aluno não está mais na lista.',
+  ALREADY_IN_LIST: 'Esse aluno já está na lista.',
+  ENROLLMENT_NOT_CANDIDATE:
+    'Só alunos com matrícula ativa nesta modalidade podem entrar na lista.',
+  TARGET_BELT_REQUIRED:
+    'O aluno já está na última faixa: escolha a faixa pretendida.',
+  ENROLLMENT_MODALITY_MISMATCH: 'Uma das matrículas é de outra modalidade.',
+  DUPLICATE_ENROLLMENT_IN_BATCH: 'O mesmo aluno aparece duas vezes.',
+  ENROLLMENT_NOT_PENDING:
+    'Um dos alunos já tem faixa ou está inativo. Recarregue a página.',
   NOT_FOUND: 'Não encontrado.',
   CONFLICT: 'Esse registro conflita com outro já existente.',
 }

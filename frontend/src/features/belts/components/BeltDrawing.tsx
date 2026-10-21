@@ -2,13 +2,14 @@
 // retângulo de cantos retos na cor principal, listra central opcional,
 // marcas (graus/dan) contadas a partir da ponta, ponta colorida opcional.
 
+// Os mesmos campos da faixa na API (BeltApiRead)
 export type BeltLook = {
   name: string
-  primaryColor: string
-  stripeColor: string | null
+  primary_color: string
+  stripe_color: string | null
   marks: number
-  marksColor: string
-  tipColor: string | null
+  marks_color: string
+  tip_color: string | null
 }
 
 const WHITE = '#f8fafc'
@@ -21,7 +22,7 @@ type BeltDrawingProps = {
 
 export function BeltDrawing({ belt, width = 180, height = 28 }: BeltDrawingProps) {
   // Faixa branca ganha borda para não sumir no fundo claro
-  const edge = belt.primaryColor === WHITE ? '#cbd5e1' : 'rgba(0,0,0,.25)'
+  const edge = belt.primary_color === WHITE ? '#cbd5e1' : 'rgba(0,0,0,.25)'
   const gap = Math.max(5, width * 0.03)
   const markWidth = Math.max(2, gap * 0.55)
   const firstX = width - gap * 1.6
@@ -42,16 +43,16 @@ export function BeltDrawing({ belt, width = 180, height = 28 }: BeltDrawingProps
         width={width - 1}
         height={height - 1}
         rx={2}
-        fill={belt.primaryColor}
+        fill={belt.primary_color}
         stroke={edge}
       />
-      {belt.stripeColor && (
+      {belt.stripe_color && (
         <rect
           x={1}
           y={height * 0.36}
           width={width - 2}
           height={height * 0.28}
-          fill={belt.stripeColor}
+          fill={belt.stripe_color}
         />
       )}
       {/* Costuras discretas */}
@@ -66,13 +67,13 @@ export function BeltDrawing({ belt, width = 180, height = 28 }: BeltDrawingProps
           strokeDasharray="3 3"
         />
       ))}
-      {belt.marks > 0 && belt.tipColor && (
+      {belt.marks > 0 && belt.tip_color && (
         <rect
           x={lastX - gap}
           y={1}
           width={width - (lastX - gap) - 1}
           height={height - 2}
-          fill={belt.tipColor}
+          fill={belt.tip_color}
         />
       )}
       {Array.from({ length: belt.marks }, (_, index) => (
@@ -83,7 +84,7 @@ export function BeltDrawing({ belt, width = 180, height = 28 }: BeltDrawingProps
           width={markWidth}
           height={height - 8}
           rx={1}
-          fill={belt.marksColor}
+          fill={belt.marks_color}
         />
       ))}
     </svg>

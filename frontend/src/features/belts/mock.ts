@@ -21,11 +21,11 @@ function belt(
 ): MockBelt {
   return {
     name,
-    primaryColor,
-    stripeColor: null,
+    primary_color: primaryColor,
+    stripe_color: null,
     marks: 0,
-    marksColor: GOLD,
-    tipColor: null,
+    marks_color: GOLD,
+    tip_color: null,
     minMonths,
     ...options,
   }
