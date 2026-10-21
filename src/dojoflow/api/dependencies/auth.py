@@ -10,7 +10,7 @@ from dojoflow.core.settings import settings
 from dojoflow.repositories.one_time_token import OneTimeTokenRepository
 from dojoflow.repositories.refresh_session import RefreshSessionRepository
 from dojoflow.schemas.master_context import MasterContextRead
-from dojoflow.services.auth import AuthService
+from dojoflow.services.auth import AuthService, ensure_academy_active
 from dojoflow.services.master import MasterService
 from dojoflow.services.security import MASTER_ROLE, get_master_id_from_token
 from dojoflow.shared.exceptions import UnauthorizedError
@@ -64,6 +64,26 @@ AuthServiceDep = Annotated[
 ]
 
 
+async def resolve_master_context(
+    master_service: MasterService,
+    token: str,
+) -> MasterContextRead:
+    """Único ponto que transforma o token no contexto (mestre + academia)."""
+    master_id = get_master_id_from_token(
+        token,
+        expected_purpose='access',
+        expected_role=MASTER_ROLE,
+    )
+    context = await master_service.get_context_by_id(master_id)
+
+    if context is None:
+        raise UnauthorizedError('Master not found.')
+
+    ensure_academy_active(context)
+
+    return context
+
+
 async def _get_current_master(
     master_service_dep: MasterServiceDep,
     credentials: Annotated[
@@ -74,17 +94,9 @@ async def _get_current_master(
     if credentials is None or credentials.scheme.lower() != 'bearer':
         raise UnauthorizedError('Authentication required.')
 
-    master_id = get_master_id_from_token(
-        credentials.credentials,
-        expected_purpose='access',
-        expected_role=MASTER_ROLE,
+    return await resolve_master_context(
+        master_service_dep, credentials.credentials
     )
-    context = await master_service_dep.get_context_by_id(master_id)
-
-    if context is None:
-        raise UnauthorizedError('Master not found.')
-
-    return context
 
 
 CurrentMasterDep = Annotated[
@@ -106,13 +118,9 @@ async def resolve_optional_master(
     if credentials is None or credentials.scheme.lower() != 'bearer':
         return None
 
-    master_id = get_master_id_from_token(
-        credentials.credentials,
-        expected_purpose='access',
-        expected_role=MASTER_ROLE,
+    return await resolve_master_context(
+        master_service, credentials.credentials
     )
-
-    return await master_service.get_context_by_id(master_id)
 
 
 def require_internal_api_key(

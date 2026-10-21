@@ -28,12 +28,18 @@ from dojoflow.services.security import (
     hash_refresh_token,
     verify_password,
 )
+from dojoflow.shared.enums import AcademyStatus
 from dojoflow.shared.exceptions import ForbiddenError, UnauthorizedError
 
 PURPOSE_TELEGRAM_LINK = 'telegram_link'
 PURPOSE_TELEGRAM_SETUP = 'telegram_setup'
 REFRESH_REUSE_GRACE_SECONDS = 30
 REFRESH_CHAIN_MAX_HOPS = 20
+
+
+def ensure_academy_active(context: MasterContextRead) -> None:
+    if context.academy_status == AcademyStatus.BLOCKED:
+        raise UnauthorizedError('Academy is blocked.', code='ACADEMY_BLOCKED')
 
 
 class AuthService:
@@ -101,6 +107,8 @@ class AuthService:
                 'Invalid email or password.',
                 code='INVALID_CREDENTIALS',
             )
+
+        ensure_academy_active(context)
 
         return await self._start_session(context)
 
@@ -223,6 +231,8 @@ class AuthService:
                 'Invalid or expired token.',
                 code='REFRESH_TOKEN_INVALID',
             )
+
+        ensure_academy_active(context)
 
         refresh_token = generate_refresh_token()
         session_id = await self.refresh_session_repository.create({
