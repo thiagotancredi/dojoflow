@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BeltPicker } from '@/features/belts/components/BeltPicker'
 import { EnrollmentBeltBlock } from '@/features/belts/components/EnrollmentBeltBlock'
-import { mockBeltsFor, setMockCurrentBelt } from '@/features/belts/mock'
+import { useBelts } from '@/features/belts/hooks'
 import { todayIso } from '@/features/belts/rules'
 import { useAcademyModalities } from '@/features/modalities/hooks'
 import type { Enrollment, StudentDetail } from '@/features/students/api'
@@ -69,6 +69,7 @@ export function EnrollmentsTab({ student: detail, onChanged }: StudentTabProps) 
           >
             <EnrollmentBeltBlock
               studentId={studentId}
+              enrollmentId={enrollment.id}
               modalityId={enrollment.modality_id}
               modalityName={enrollment.modality_name}
             />
@@ -83,10 +84,6 @@ export function EnrollmentsTab({ student: detail, onChanged }: StudentTabProps) 
       >
         <Plus /> Nova matrícula
       </Button>
-      <p className="text-xs text-muted-foreground">
-        Faixas com valores de exemplo nesta etapa; a integração vem com a parte
-        das faixas.
-      </p>
 
       <Dialog
         open={editing !== null}
@@ -183,25 +180,20 @@ function NewEnrollmentForm({
     defaultValues: emptyEnrollment(modalities[0].id),
   })
   const modalityId = useWatch({ control: form.control, name: 'modality_id' })
-  const modalityName =
-    modalities.find((item) => item.id === modalityId)?.name ?? ''
-  const belts = mockBeltsFor(modalityName)
-  // Faixa atual (exemplo): escolhida por modalidade; padrão a primeira
+  const belts = useBelts(modalityId || null).data ?? []
+  // Faixa atual escolhida por modalidade; padrão a primeira (Branca)
   const [beltChoice, setBeltChoice] = useState<Record<string, string>>({})
   const [since, setSince] = useState(todayIso())
-  const belt = beltChoice[modalityId] ?? belts[0]?.name ?? null
+  const beltId = belts.length ? (beltChoice[modalityId] ?? belts[0].id) : null
 
   async function save(values: EnrollmentValues) {
     try {
+      // Matrícula e faixa atual numa gravação só (tudo ou nada)
       await mutate({
         modality_id: values.modality_id,
         ...toEnrollmentPayload(values),
+        current_belt: beltId ? { belt_id: beltId, graduated_on: since } : null,
       })
-      setMockCurrentBelt(
-        studentId,
-        values.modality_id,
-        belt ? { belt, graduatedOn: since } : null,
-      )
       toast.success('Matrícula criada')
       onSaved()
       onClose()
@@ -216,13 +208,13 @@ function NewEnrollmentForm({
       {belts.length > 0 ? (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            Faixa atual (exemplo; aluno começando agora: Branca e hoje)
+            Faixa atual (aluno começando agora: a primeira faixa e hoje)
           </p>
           <BeltPicker
             belts={belts}
-            value={belt}
-            onChange={(name) =>
-              setBeltChoice((current) => ({ ...current, [modalityId]: name }))
+            value={beltId}
+            onChange={(id) =>
+              setBeltChoice((current) => ({ ...current, [modalityId]: id }))
             }
           />
           <div className="space-y-1.5">

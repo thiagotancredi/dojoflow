@@ -7,15 +7,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BeltPicker } from '@/features/belts/components/BeltPicker'
-import { mockBeltsFor } from '@/features/belts/mock'
+import { useBelts } from '@/features/belts/hooks'
 import { EnrollmentFields } from '@/features/students/components/EnrollmentFields'
 import { enrollmentSchema } from '@/features/students/schemas'
 import type { EnrollmentValues } from '@/features/students/schemas'
 
-// Uma matrícula do cadastro + faixa atual (exemplo, só na tela por enquanto)
+// Uma matrícula do cadastro + faixa atual (id da faixa) e desde quando
 export type EnrollmentDraft = {
   values: EnrollmentValues
-  belt: string | null
+  beltId: string | null
   since: string
 }
 
@@ -52,24 +52,24 @@ export function EnrollmentBlock({
   const modalityId = useWatch({ control: form.control, name: 'modality_id' })
   const modalityName =
     modalities.find((item) => item.id === modalityId)?.name ?? ''
-  const belts = mockBeltsFor(modalityName)
+  const belts = useBelts(modalityId || null).data ?? []
 
   // Faixa escolhida por modalidade (trocar de modalidade não mistura faixas)
   const [beltChoice, setBeltChoice] = useState<Record<string, string>>(
-    initial.belt ? { [initial.values.modality_id]: initial.belt } : {},
+    initial.beltId ? { [initial.values.modality_id]: initial.beltId } : {},
   )
   const [since, setSince] = useState(initial.since)
-  const belt = belts.length
-    ? (beltChoice[modalityId] ?? belts[0].name)
+  const beltId = belts.length
+    ? (beltChoice[modalityId] ?? belts[0].id)
     : null
 
   // React 19: "ref" chega como prop; o pai chama collect/snapshot no clique
   useImperativeHandle(ref, () => ({
     collect: async () => {
       const valid = await form.trigger()
-      return valid ? { values: form.getValues(), belt, since } : null
+      return valid ? { values: form.getValues(), beltId, since } : null
     },
-    snapshot: () => ({ values: form.getValues(), belt, since }),
+    snapshot: () => ({ values: form.getValues(), beltId, since }),
   }))
 
   return (
@@ -99,13 +99,13 @@ export function EnrollmentBlock({
       {belts.length > 0 ? (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            Faixa atual (exemplo; aluno começando agora: Branca e hoje)
+            Faixa atual (aluno começando agora: a primeira faixa e hoje)
           </p>
           <BeltPicker
             belts={belts}
-            value={belt}
-            onChange={(name) =>
-              setBeltChoice((current) => ({ ...current, [modalityId]: name }))
+            value={beltId}
+            onChange={(id) =>
+              setBeltChoice((current) => ({ ...current, [modalityId]: id }))
             }
           />
           <div className="max-w-xs space-y-1.5">

@@ -1,5 +1,6 @@
-// Regras de tempo das faixas (as mesmas do backend: meses somados pelo
-// calendário; dia inexistente cai no último dia do mês).
+import type { Belt } from '@/features/belts/api'
+
+// Datas e textos de tempo das faixas. A aptidão ("apto") vem pronta da API.
 
 function parseDate(isoDate: string) {
   const [year, month, day] = isoDate.split('-').map(Number)
@@ -14,19 +15,6 @@ export function toIsoDate(date: Date) {
 
 export function todayIso() {
   return toIsoDate(new Date())
-}
-
-// "2026-01-31" + 1 mês → "2026-02-28"
-export function addMonths(isoDate: string, months: number) {
-  const start = parseDate(isoDate)
-  const target = new Date(start.getFullYear(), start.getMonth() + months, 1)
-  const lastDay = new Date(
-    target.getFullYear(),
-    target.getMonth() + 1,
-    0,
-  ).getDate()
-  target.setDate(Math.min(start.getDate(), lastDay))
-  return toIsoDate(target)
 }
 
 // Anos, meses e dias entre duas datas (meses pelo calendário)
@@ -66,23 +54,6 @@ export function timeSince(isoDate: string, today = new Date()) {
   return `há ${parts.join(' e ')}`
 }
 
-export type Eligibility =
-  | { kind: 'eligible'; since: string }
-  | { kind: 'not_yet'; on: string }
-  | { kind: 'no_requirement' }
-
-// Apto quando faixa + tempo mínimo ≤ a data de referência (hoje)
-export function eligibility(
-  graduatedOn: string,
-  minMonths: number | null,
-  reference = todayIso(),
-): Eligibility {
-  if (minMonths === null) return { kind: 'no_requirement' }
-
-  const on = addMonths(graduatedOn, minMonths)
-  return on <= reference ? { kind: 'eligible', since: on } : { kind: 'not_yet', on }
-}
-
 const UNIT_LABELS = {
   days: ['dia', 'dias'],
   months: ['mês', 'meses'],
@@ -109,4 +80,11 @@ export function shortTimeSince(isoDate: string, reference: string) {
   ].filter(Boolean)
 
   return parts.length ? parts.join(' ') : '0d'
+}
+
+// Próxima faixa da sequência (sem faixa → a primeira; última → nenhuma)
+export function nextBeltId(belts: Belt[], currentId: string | null) {
+  if (!currentId) return belts[0]?.id ?? null
+  const index = belts.findIndex((belt) => belt.id === currentId)
+  return belts[index + 1]?.id ?? null
 }

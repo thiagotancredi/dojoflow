@@ -8,7 +8,6 @@ import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
-import { setMockCurrentBelt } from '@/features/belts/mock'
 import { todayIso } from '@/features/belts/rules'
 import { useAcademyModalities } from '@/features/modalities/hooks'
 import { AddressFields } from '@/features/students/components/AddressFields'
@@ -51,7 +50,7 @@ type Block = { key: number; draft: EnrollmentDraft }
 
 const newDraft = (modalityId: string): EnrollmentDraft => ({
   values: emptyEnrollment(modalityId),
-  belt: null,
+  beltId: null,
   since: todayIso(),
 })
 
@@ -131,6 +130,9 @@ export function NewStudentPage() {
               enrollments: drafts.map((draft) => ({
                 modality_id: draft.values.modality_id,
                 ...toEnrollmentPayload(draft.values),
+                current_belt: draft.beltId
+                  ? { belt_id: draft.beltId, graduated_on: draft.since }
+                  : null,
               })),
             })}
           />
@@ -524,14 +526,6 @@ function EnrollmentsStep({
 
     try {
       const student = await mutate(buildPayload(drafts))
-      // Faixa atual escolhida em cada matrícula (exemplo, só na tela)
-      for (const draft of drafts) {
-        setMockCurrentBelt(
-          student.id,
-          draft.values.modality_id,
-          draft.belt ? { belt: draft.belt, graduatedOn: draft.since } : null,
-        )
-      }
       toast.success('Aluno cadastrado')
       navigate(`/app/alunos/${student.id}`)
     } catch (error) {
@@ -595,8 +589,8 @@ function EnrollmentsStep({
       )}
 
       <p className="text-xs text-muted-foreground">
-        Tudo é gravado junto ao clicar em Cadastrar. Faixas com valores de
-        exemplo nesta etapa.
+        Tudo é gravado junto ao clicar em Cadastrar (aluno, matrículas e
+        faixas).
       </p>
 
       <StepNav
