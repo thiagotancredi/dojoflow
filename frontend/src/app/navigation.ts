@@ -1,4 +1,10 @@
-import { LayoutGrid, Medal, SlidersHorizontal, Users } from 'lucide-react'
+import {
+  LayoutGrid,
+  Medal,
+  SlidersHorizontal,
+  Users,
+  Wallet,
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 export type NavItem = {
@@ -13,6 +19,7 @@ export type NavItem = {
 export const mainNavItems: NavItem[] = [
   { to: '/app', label: 'Dashboard', icon: LayoutGrid, end: true },
   { to: '/app/alunos', label: 'Alunos', icon: Users },
+  { to: '/app/mensalidades', label: 'Mensalidades', icon: Wallet },
   { to: '/app/graduacoes', label: 'Graduações', icon: Medal },
 ]
 

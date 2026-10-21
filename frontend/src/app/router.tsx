@@ -6,6 +6,7 @@ import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { SetAccessPage } from '@/features/auth/pages/SetAccessPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { BulkBeltsPage } from '@/features/belts/pages/BulkBeltsPage'
+import { BillingPage } from '@/features/billing/pages/BillingPage'
 import { ModalityBeltsPage } from '@/features/belts/pages/ModalityBeltsPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { GraduationListPage } from '@/features/graduations/pages/GraduationListPage'
@@ -49,6 +50,7 @@ export const router = createBrowserRouter([
         path: 'modalidades',
         element: <Navigate to="/app/configuracoes" replace />,
       },
+      { path: 'mensalidades', element: <BillingPage /> },
       { path: 'graduacoes', element: <GraduationListsPage /> },
       { path: 'graduacoes/:listId', element: <GraduationListPage /> },
       { path: 'configuracoes', element: <SettingsPage /> },
