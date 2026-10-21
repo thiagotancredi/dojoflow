@@ -7,6 +7,7 @@ A ação que o teste quer verificar continua indo pela API.
 
 import uuid
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select
@@ -83,22 +84,37 @@ async def add_belt(  # noqa: PLR0913
     return {'id': str(belt.public_id), 'name': name}
 
 
-async def add_student(
+async def add_student(  # noqa: PLR0913
     session: AsyncSession,
     modality_id: str,
     name: str = 'Ana Lima',
     status: str = 'active',
+    *,
+    monthly_fee: str | None = None,
+    due_day: int | None = None,
+    billing_start_month: str | None = None,
+    is_exempt: bool = False,
+    academy_id: int | None = None,
 ) -> tuple[str, str]:
     """Aluno com matrícula; devolve (student_id, enrollment_id)."""
+    academy_id = academy_id or SEED.academy_id
     modality = await _one(session, Modality, modality_id)
-    student = Student(academy_id=SEED.academy_id, name=name)
+    student = Student(academy_id=academy_id, name=name)
     session.add(student)
     await session.flush()
     enrollment = Enrollment(
-        academy_id=SEED.academy_id,
+        academy_id=academy_id,
         student_id=student.id,
         modality_id=modality.id,
         status=EnrollmentStatus(status),
+        monthly_fee=Decimal(monthly_fee) if monthly_fee else None,
+        due_day=due_day,
+        billing_start_month=(
+            date.fromisoformat(billing_start_month)
+            if billing_start_month
+            else None
+        ),
+        is_exempt=is_exempt,
     )
     session.add(enrollment)
     await session.commit()

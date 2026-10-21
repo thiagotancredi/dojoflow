@@ -95,16 +95,21 @@ def allocate_oldest_first(
     return allocations
 
 
-def months_label(months: list[date], current_year: int | None = None) -> str:
-    """Ex.: "janeiro e fevereiro"; meses de outro ano levam o ano."""
-    year = current_year if current_year is not None else local_today().year
-    names = [
-        MONTH_NAMES[month.month - 1]
-        if month.year == year
-        else f'{MONTH_NAMES[month.month - 1]} de {month.year}'
-        for month in sorted(set(months))
-    ]
-
+def join_names(names: list[str]) -> str:
+    """Ex.: ["a", "b", "c"] → "a, b e c"."""
     if len(names) <= 1:
         return ''.join(names)
     return f'{", ".join(names[:-1])} e {names[-1]}'
+
+
+def month_name(month: date, current_year: int) -> str:
+    name = MONTH_NAMES[month.month - 1]
+    return name if month.year == current_year else f'{name} de {month.year}'
+
+
+def months_label(months: list[date], current_year: int | None = None) -> str:
+    """Ex.: "janeiro e fevereiro"; meses de outro ano levam o ano."""
+    year = current_year if current_year is not None else local_today().year
+    return join_names([
+        month_name(month, year) for month in sorted(set(months))
+    ])
