@@ -1,4 +1,6 @@
+import uuid
 from datetime import date
+from decimal import Decimal
 from http import HTTPStatus
 
 import pytest
@@ -7,7 +9,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.models.academy import Academy
+from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.payment import Payment
+from dojoflow.models.payment_allocation import PaymentAllocation
+from dojoflow.models.payment_transaction import PaymentTransaction
 from dojoflow.services import billing as billing_module
 from dojoflow.services.billing import BillingService
 from tests.helpers.auth import auth_headers, other_academy_headers
@@ -190,3 +195,260 @@ async def test_job_generates_for_every_academy(db_session: AsyncSession):
 
     assert created == 2  # noqa: PLR2004
     assert again == 0
+
+
+async def _billing_student(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict:
+    """Aluno cobrando desde março/2027 (vencimento dia 15), hoje 02/03."""
+    headers = await auth_headers(client)
+    taekwondo = await add_modality(db_session, 'Taekwondo')
+    student_id, enrollment_id = await add_student(
+        db_session,
+        taekwondo,
+        monthly_fee='100',
+        due_day=15,
+        billing_start_month='2027-03-01',
+    )
+    _freeze_today(monkeypatch, date(2027, 3, 2))
+    body = await _read(client, student_id, headers)
+
+    return {
+        'headers': headers,
+        'student_id': student_id,
+        'enrollment_id': enrollment_id,
+        'march': body['charges'][0],
+        'url': _url(student_id),
+    }
+
+
+async def _launch(client: AsyncClient, ctx: dict, month: str, **extra):
+    return await client.post(
+        f'{ctx["url"]}/charges',
+        headers=ctx['headers'],
+        json={
+            'enrollment_id': ctx['enrollment_id'],
+            'reference_month': month,
+            'amount': '90',
+            'due_date': month[:8] + '15',
+            **extra,
+        },
+    )
+
+
+async def _pay_directly(
+    db_session: AsyncSession, charge_public_id: str, amount: str
+) -> None:
+    # A baixa pela API entra na Tarefa 5; aqui ela é gravada direto
+    charge = await db_session.scalar(
+        select(Payment).where(Payment.public_id == uuid.UUID(charge_public_id))
+    )
+    enrollment = await db_session.get(Enrollment, charge.enrollment_id)
+    transaction = PaymentTransaction(
+        academy_id=charge.academy_id,
+        student_id=enrollment.student_id,
+        gross_amount=Decimal(amount),
+        received_at=date(2027, 3, 2),
+    )
+    db_session.add(transaction)
+    await db_session.flush()
+    db_session.add(
+        PaymentAllocation(
+            academy_id=charge.academy_id,
+            payment_transaction_id=transaction.id,
+            payment_id=charge.id,
+            allocated_amount=Decimal(amount),
+        )
+    )
+    charge.amount_paid = Decimal(amount)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_launch_past_month(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _billing_student(client, db_session, monkeypatch)
+
+    response = await _launch(client, ctx, '2027-01-01')
+
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    charge = response.json()
+    assert charge['reference_month'] == '2027-01-01'
+    assert charge['due_date'] == '2027-01-15'
+    assert charge['amount'] == '90.00'
+    assert charge['kind'] == 'monthly'
+    assert charge['status'] == 'overdue'
+    assert charge['enrollment_id'] == ctx['enrollment_id']
+
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    assert [c['reference_month'] for c in body['charges']] == [
+        '2027-03-01',
+        '2027-01-01',
+    ]
+    assert body['open_total'] == '190.00'
+
+
+@pytest.mark.asyncio
+async def test_launch_existing_month_conflicts(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _billing_student(client, db_session, monkeypatch)
+    first = await _launch(client, ctx, '2027-01-01')
+    assert first.status_code == HTTPStatus.CREATED
+
+    again = await _launch(client, ctx, '2027-01-01')
+
+    assert again.status_code == HTTPStatus.CONFLICT
+    assert again.json()['code'] == 'CHARGE_ALREADY_EXISTS'
+
+
+@pytest.mark.asyncio
+async def test_launch_month_not_before_billing_start_conflicts(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _billing_student(client, db_session, monkeypatch)
+
+    response = await _launch(client, ctx, '2027-04-01')
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'CHARGE_NOT_PAST'
+
+
+@pytest.mark.asyncio
+async def test_launch_rejects_month_not_on_first_day(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _billing_student(client, db_session, monkeypatch)
+
+    response = await _launch(client, ctx, '2027-01-10')
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.asyncio
+async def test_launch_for_enrollment_of_other_student_is_not_found(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _billing_student(client, db_session, monkeypatch)
+    judo = await add_modality(db_session, 'Judô')
+    _, other_enrollment = await add_student(
+        db_session, judo, name='Bruno Dias'
+    )
+
+    response = await _launch(
+        client, ctx, '2027-01-01', enrollment_id=other_enrollment
+    )
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.json()['code'] == 'ENROLLMENT_NOT_FOUND'
+
+
+@pytest.mark.asyncio
+async def test_waive_and_unwaive(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _billing_student(client, db_session, monkeypatch)
+    waive_url = f'{ctx["url"]}/charges/{ctx["march"]["id"]}/waive'
+
+    waived = await client.post(waive_url, headers=ctx['headers'])
+
+    assert waived.status_code == HTTPStatus.OK, waived.text
+    assert waived.json()['status'] == 'waived'
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    assert body['open_total'] == '0.00'
+
+    restored = await client.delete(waive_url, headers=ctx['headers'])
+
+    assert restored.status_code == HTTPStatus.OK, restored.text
+    assert restored.json()['status'] == 'upcoming'
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    assert body['open_total'] == '100.00'
+
+
+@pytest.mark.asyncio
+async def test_edit_charge_without_payments(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _billing_student(client, db_session, monkeypatch)
+
+    response = await client.patch(
+        f'{ctx["url"]}/charges/{ctx["march"]["id"]}',
+        headers=ctx['headers'],
+        json={'amount': '80', 'due_date': '2027-03-20'},
+    )
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert response.json()['amount'] == '80.00'
+    assert response.json()['due_date'] == '2027-03-20'
+
+    only_amount = await client.patch(
+        f'{ctx["url"]}/charges/{ctx["march"]["id"]}',
+        headers=ctx['headers'],
+        json={'amount': '85'},
+    )
+    assert only_amount.json()['amount'] == '85.00'
+    assert only_amount.json()['due_date'] == '2027-03-20'
+
+
+@pytest.mark.asyncio
+async def test_edit_or_waive_charge_with_payment_conflicts(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _billing_student(client, db_session, monkeypatch)
+    await _pay_directly(db_session, ctx['march']['id'], '40')
+    charge_url = f'{ctx["url"]}/charges/{ctx["march"]["id"]}'
+
+    edit = await client.patch(
+        charge_url, headers=ctx['headers'], json={'amount': '80'}
+    )
+    waive = await client.post(f'{charge_url}/waive', headers=ctx['headers'])
+
+    assert edit.status_code == HTTPStatus.CONFLICT
+    assert edit.json()['code'] == 'CHARGE_HAS_PAYMENTS'
+    assert waive.status_code == HTTPStatus.CONFLICT
+    assert waive.json()['code'] == 'CHARGE_HAS_PAYMENTS'
+
+
+@pytest.mark.asyncio
+async def test_charge_of_other_student_is_not_found(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _billing_student(client, db_session, monkeypatch)
+    judo = await add_modality(db_session, 'Judô')
+    other_student, _ = await add_student(
+        db_session,
+        judo,
+        name='Bruno Dias',
+        monthly_fee='100',
+        due_day=15,
+        billing_start_month='2027-03-01',
+    )
+
+    response = await client.post(
+        f'{_url(other_student)}/charges/{ctx["march"]["id"]}/waive',
+        headers=ctx['headers'],
+    )
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.json()['code'] == 'CHARGE_NOT_FOUND'

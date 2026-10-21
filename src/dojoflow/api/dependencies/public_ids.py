@@ -18,6 +18,7 @@ from dojoflow.models.graduation_list import (
     GraduationListEntry,
 )
 from dojoflow.models.modality import Modality
+from dojoflow.models.payment import Payment
 from dojoflow.models.student import Student
 from dojoflow.shared.exceptions import NotFoundError
 
@@ -107,6 +108,42 @@ async def _resolve_belt_record_id(
 
 
 BeltRecordIdDep = Annotated[int, Depends(_resolve_belt_record_id)]
+
+
+async def resolve_student_enrollment_id(
+    db_session: AsyncSession,
+    public_id: UUID,
+    student_id: int,
+) -> int:
+    return await resolve_public_id(
+        db_session,
+        Enrollment,
+        public_id,
+        code='ENROLLMENT_NOT_FOUND',
+        extra_filters=[Enrollment.student_id == student_id],
+    )
+
+
+async def _resolve_charge_id(
+    charge_id: UUID,
+    student_id: StudentIdDep,
+    db_session_dep: DbSessionDep,
+) -> int:
+    # Cobrança só é achada pelo aluno dono da matrícula
+    student_enrollments = select(Enrollment.id).where(
+        Enrollment.student_id == student_id
+    )
+
+    return await resolve_public_id(
+        db_session_dep,
+        Payment,
+        charge_id,
+        code='CHARGE_NOT_FOUND',
+        extra_filters=[Payment.enrollment_id.in_(student_enrollments)],
+    )
+
+
+ChargeIdDep = Annotated[int, Depends(_resolve_charge_id)]
 
 
 async def _resolve_enabled_modality_id(

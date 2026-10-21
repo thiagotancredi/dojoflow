@@ -1,8 +1,9 @@
 from datetime import date
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from dojoflow.schemas.billing import (
     AllocationRead,
@@ -97,3 +98,31 @@ class StudentBillingApiRead(BaseModel):
                 PaymentApiRead.from_internal(p) for p in billing.payments
             ],
         )
+
+
+# Valor de cobrança: positivo, até 99.999.999,99 com 2 casas
+Money = Annotated[Decimal, Field(gt=0, max_digits=10, decimal_places=2)]
+# Faixa de datas aceitável para cobranças (evita datas absurdas)
+ChargeDate = Annotated[
+    date,
+    Field(ge=date(2000, 1, 1), le=date(2100, 12, 31)),
+]
+
+
+class LaunchChargeApiPayload(BaseModel):
+    enrollment_id: UUID
+    reference_month: ChargeDate
+    amount: Money
+    due_date: ChargeDate
+
+    @field_validator('reference_month')
+    @classmethod
+    def _first_day(cls, value: date) -> date:
+        if value.day != 1:
+            raise ValueError('reference_month must be the first day.')
+        return value
+
+
+class UpdateChargeApiPayload(BaseModel):
+    amount: Money | None = None
+    due_date: ChargeDate | None = None
