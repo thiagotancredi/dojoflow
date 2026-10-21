@@ -1,4 +1,6 @@
-from fastapi import APIRouter, status
+from datetime import date
+
+from fastapi import APIRouter, Query, status
 
 from dojoflow.api.dependencies.auth import CurrentMasterDep
 from dojoflow.api.dependencies.billing import BillingServiceDep
@@ -9,6 +11,7 @@ from dojoflow.api.dependencies.public_ids import (
     StudentIdDep,
     resolve_student_enrollment_id,
 )
+from dojoflow.schemas.billing import BillingOverviewRead, OverviewFilter
 from dojoflow.schemas.billing_api import (
     AllocationPreviewApiRead,
     ChargeApiRead,
@@ -23,9 +26,32 @@ from dojoflow.schemas.billing_api import (
 from dojoflow.schemas.billing_settings_api import BillingSettingsApi
 
 router = APIRouter(prefix='/students/{student_id}/billing', tags=['Billing'])
+overview_router = APIRouter(prefix='/billing', tags=['Billing'])
 settings_router = APIRouter(
     prefix='/academy/billing-settings', tags=['Billing']
 )
+
+
+@overview_router.get(path='/overview', status_code=status.HTTP_200_OK)
+async def read_billing_overview(  # noqa: PLR0913, PLR0917
+    current_master: CurrentMasterDep,
+    billing_service_dep: BillingServiceDep,
+    month: str | None = Query(
+        default=None, pattern=r'^\d{4}-(0[1-9]|1[0-2])$'
+    ),
+    status_filter: OverviewFilter = Query(default='overdue', alias='filter'),
+    search: str | None = Query(default=None, max_length=120),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> BillingOverviewRead:
+    return await billing_service_dep.overview(
+        current_master.academy_id,
+        month=date.fromisoformat(f'{month}-01') if month else None,
+        status_filter=status_filter,
+        search=search,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @settings_router.get(path='', status_code=status.HTTP_200_OK)

@@ -5,12 +5,14 @@ import pytest
 
 from dojoflow.services.billing_rules import (
     OpenCharge,
+    age_on,
     allocate_oldest_first,
     billing_status,
     due_date_for,
     first_monthly_month,
     format_brl,
     months_label,
+    whatsapp_phone,
 )
 
 T0 = datetime(2026, 10, 1, tzinfo=UTC)
@@ -141,3 +143,18 @@ def test_format_brl():
     assert format_brl(Decimal('150')) == 'R$ 150,00'
     assert format_brl(Decimal('1234.5')) == 'R$ 1.234,50'
     assert format_brl(Decimal('0.05')) == 'R$ 0,05'
+
+
+def test_whatsapp_phone():
+    assert whatsapp_phone('(62) 99999-0001') == '5562999990001'
+    assert whatsapp_phone('6233330001') == '556233330001'
+    assert whatsapp_phone('+55 62 99999-0001') == '5562999990001'
+    assert whatsapp_phone('') is None
+    assert whatsapp_phone(None) is None
+    assert whatsapp_phone('123') is None
+
+
+def test_age_on():
+    assert age_on(date(2010, 10, 21), date(2026, 10, 20)) == 15  # noqa: PLR2004
+    assert age_on(date(2010, 10, 21), date(2026, 10, 21)) == 16  # noqa: PLR2004
+    assert age_on(date(2008, 2, 29), date(2026, 2, 28)) == 17  # noqa: PLR2004

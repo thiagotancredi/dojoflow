@@ -1,30 +1,42 @@
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
+from urllib.parse import quote
+from uuid import UUID
 
-from sqlalchemy import delete, exists, func, select, update
+from sqlalchemy import and_, delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
 from dojoflow.database.transaction import transactional
+from dojoflow.models.academy import Academy
 from dojoflow.models.academy_billing_settings import AcademyBillingSettings
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.modality import Modality
 from dojoflow.models.payment import Payment
 from dojoflow.models.payment_allocation import PaymentAllocation
 from dojoflow.models.payment_transaction import PaymentTransaction
+from dojoflow.models.responsible import Responsible
+from dojoflow.models.student import Student
+from dojoflow.models.student_responsible import StudentResponsible
 from dojoflow.schemas.billing import (
     AllocationPreview,
     AllocationRead,
+    BillingOverviewItemRead,
+    BillingOverviewRead,
     ChargeRead,
+    OverviewFilter,
     PaymentRead,
     StudentBillingRead,
 )
 from dojoflow.schemas.billing_settings_api import BillingSettingsApi
+from dojoflow.schemas.dashboard import DueSoonChargeRead, OverdueStudentRead
 from dojoflow.services.belt_rules import local_today
 from dojoflow.services.billing_rules import (
     OpenCharge,
+    age_on,
     allocate_oldest_first,
     billing_status,
     due_date_for,
@@ -32,6 +44,7 @@ from dojoflow.services.billing_rules import (
     format_brl,
     join_names,
     month_name,
+    whatsapp_phone,
 )
 from dojoflow.shared.enums import (
     EnrollmentStatus,
@@ -78,6 +91,80 @@ def open_label(charges: list[ChargeRead], current_year: int) -> str:
     })
     names = [month_name(month, current_year) for month in months]
     return join_names([ENROLLMENT_FEE_LABEL, *names] if has_fee else names)
+
+
+ADULT_AGE = 18
+DUE_SOON_DAYS = 7
+DASHBOARD_LIMIT = 5
+
+
+@dataclass(frozen=True)
+class Contact:
+    name: str
+    phone: str | None
+
+
+@dataclass(frozen=True)
+class StudentContact:
+    public_id: UUID
+    name: str
+    phone: str | None
+    birth_date: date | None
+    responsibles: tuple[Contact, ...]
+
+
+def choose_recipient(
+    student: StudentContact, today: date
+) -> tuple[Contact, bool] | None:
+    """Quem recebe a cobrança: (contato, é responsável?).
+
+    Menor de 18 com responsável com telefone: o primeiro responsável.
+    Senão o próprio aluno; sem telefone dele, um responsável.
+    """
+    own = [(Contact(student.name, student.phone), False)]
+    responsibles = [(contact, True) for contact in student.responsibles]
+    is_minor = (
+        student.birth_date is not None
+        and age_on(student.birth_date, today) < ADULT_AGE
+    )
+    candidates = responsibles + own if is_minor else own + responsibles
+
+    for contact, is_responsible in candidates:
+        if whatsapp_phone(contact.phone):
+            return contact, is_responsible
+
+    return None
+
+
+def whatsapp_url(  # noqa: PLR0913, PLR0917
+    student: StudentContact,
+    overdue_charges: list[ChargeRead],
+    settings: BillingSettingsApi,
+    academy_name: str,
+    today: date,
+) -> str | None:
+    """Link wa.me com a mensagem de cobrança; None sem atraso ou telefone."""
+    recipient = choose_recipient(student, today)
+
+    if not overdue_charges or recipient is None:
+        return None
+
+    contact, _ = recipient
+    overdue_total = sum((c.open_amount for c in overdue_charges), ZERO)
+    values = {
+        '{nome}': contact.name.split()[0],
+        '{academia}': academy_name,
+        '{valor}': format_brl(overdue_total),
+        '{meses}': open_label(overdue_charges, today.year),
+        '{pix}': settings.pix_key or '',
+        '{recebedor}': settings.recipient_name or academy_name,
+    }
+    text = settings.message_template or DEFAULT_MESSAGE_TEMPLATE
+    # Troca simples: chaves que o mestre escrever no texto não quebram nada
+    for marker, value in values.items():
+        text = text.replace(marker, value)
+
+    return f'https://wa.me/{whatsapp_phone(contact.phone)}?text={quote(text)}'
 
 
 def _refresh_paid_status(charge: Payment, paid_on: date | None) -> None:
@@ -308,7 +395,9 @@ class BillingService:
         return StudentBillingRead(
             open_total=open_total.quantize(CENTS),
             open_months=open_label(open_charges, today.year),
-            whatsapp_url=None,
+            whatsapp_url=await self._whatsapp_url_for(
+                academy_id, student_id, charges, today
+            ),
             charges=charges,
             payments=await self._payments(
                 academy_id, today, PaymentTransaction.student_id == student_id
@@ -324,6 +413,7 @@ class BillingService:
         stmt = (
             select(
                 Payment,
+                Enrollment.student_id,
                 Enrollment.public_id.label('enrollment_public_id'),
                 Modality.name.label('modality_name'),
             )
@@ -335,7 +425,7 @@ class BillingService:
         rows = (await self.db_session.execute(stmt)).all()
         charges = []
 
-        for payment, enrollment_public_id, modality_name in rows:
+        for payment, student_id, enrollment_public_id, modality_name in rows:
             amount = (
                 payment.amount_due if payment.amount_due is not None else ZERO
             )
@@ -345,6 +435,7 @@ class BillingService:
                     id=payment.id,
                     public_id=payment.public_id,
                     kind=payment.kind,
+                    student_id=student_id,
                     enrollment_public_id=enrollment_public_id,
                     modality_name=modality_name,
                     reference_month=payment.reference_month,
@@ -630,6 +721,276 @@ class BillingService:
                 PaymentTransaction.academy_id == academy_id,
             )
         )
+
+    async def _contacts(
+        self, academy_id: int, student_ids: set[int]
+    ) -> dict[int, StudentContact]:
+        if not student_ids:
+            return {}
+
+        students = (
+            await self.db_session.execute(
+                select(
+                    Student.id,
+                    Student.public_id,
+                    Student.name,
+                    Student.phone,
+                    Student.birth_date,
+                ).where(
+                    Student.academy_id == academy_id,
+                    Student.id.in_(student_ids),
+                )
+            )
+        ).all()
+        links = (
+            await self.db_session.execute(
+                select(
+                    StudentResponsible.student_id,
+                    Responsible.name,
+                    Responsible.phone,
+                )
+                .join(
+                    Responsible,
+                    Responsible.id == StudentResponsible.responsible_id,
+                )
+                .where(
+                    StudentResponsible.academy_id == academy_id,
+                    StudentResponsible.student_id.in_(student_ids),
+                )
+                .order_by(StudentResponsible.id)
+            )
+        ).all()
+
+        responsibles: dict[int, list[Contact]] = {}
+        for link in links:
+            responsibles.setdefault(link.student_id, []).append(
+                Contact(link.name, link.phone)
+            )
+
+        return {
+            row.id: StudentContact(
+                public_id=row.public_id,
+                name=row.name,
+                phone=row.phone,
+                birth_date=row.birth_date,
+                responsibles=tuple(responsibles.get(row.id, [])),
+            )
+            for row in students
+        }
+
+    async def _academy_name(self, academy_id: int) -> str:
+        return (
+            await self.db_session.scalar(
+                select(Academy.name).where(Academy.id == academy_id)
+            )
+            or ''
+        )
+
+    async def _whatsapp_url_for(
+        self,
+        academy_id: int,
+        student_id: int,
+        charges: list[ChargeRead],
+        today: date,
+    ) -> str | None:
+        overdue = [c for c in charges if c.status == 'overdue']
+        if not overdue:
+            return None
+
+        contacts = await self._contacts(academy_id, {student_id})
+        return whatsapp_url(
+            contacts[student_id],
+            overdue,
+            await self.get_settings(academy_id),
+            await self._academy_name(academy_id),
+            today,
+        )
+
+    async def _open_or_month_charges(
+        self, academy_id: int, month: date, today: date
+    ) -> list[ChargeRead]:
+        """Tudo em aberto (qualquer mês) e tudo do mês escolhido."""
+        await self.ensure_monthly_charges(academy_id, today)
+        return await self._charges(
+            academy_id,
+            today,
+            or_(
+                and_(
+                    Payment.status != PaymentStatus.WAIVED,
+                    Payment.amount_paid < Payment.amount_due,
+                ),
+                Payment.reference_month == month,
+            ),
+        )
+
+    async def overview(  # noqa: PLR0913, PLR0914
+        self,
+        academy_id: int,
+        *,
+        month: date | None,
+        status_filter: OverviewFilter,
+        search: str | None,
+        page: int,
+        page_size: int,
+    ) -> BillingOverviewRead:
+        """Página Mensalidades: números do mês e alunos do filtro."""
+        today = local_today()
+        month = month or today.replace(day=1)
+        charges = await self._open_or_month_charges(academy_id, month, today)
+
+        in_month = [c for c in charges if c.reference_month == month]
+        overdue = [c for c in charges if c.status == 'overdue']
+        due_soon = [
+            c
+            for c in charges
+            if c.status in {'upcoming', 'partial'}
+            and c.due_date <= today + timedelta(days=DUE_SOON_DAYS)
+        ]
+        scopes: dict[str, list[ChargeRead]] = {
+            'overdue': overdue,
+            'upcoming': [
+                c for c in in_month if c.status in {'upcoming', 'partial'}
+            ],
+            'paid': [c for c in in_month if c.status == 'paid'],
+            'all': in_month,
+        }
+        scope = scopes[status_filter]
+
+        by_student: dict[int, list[ChargeRead]] = {}
+        for charge in scope:
+            by_student.setdefault(charge.student_id, []).append(charge)
+
+        contacts = await self._contacts(academy_id, set(by_student))
+        normalized = ' '.join(search.split()).casefold() if search else ''
+        settings = await self.get_settings(academy_id)
+        academy_name = await self._academy_name(academy_id)
+        items = []
+
+        for student_id, student_charges in by_student.items():
+            contact = contacts[student_id]
+            if normalized and normalized not in contact.name.casefold():
+                continue
+
+            student_overdue = [
+                c for c in overdue if c.student_id == student_id
+            ]
+            recipient = choose_recipient(contact, today)
+            items.append(
+                BillingOverviewItemRead(
+                    student_id=contact.public_id,
+                    name=contact.name,
+                    responsible_name=(
+                        recipient[0].name
+                        if recipient and recipient[1] and student_overdue
+                        else None
+                    ),
+                    modalities=sorted({
+                        c.modality_name for c in student_charges
+                    }),
+                    open_amount=sum(
+                        (
+                            c.open_amount
+                            for c in student_charges
+                            if c.status not in CLOSED_STATUSES
+                        ),
+                        ZERO,
+                    ),
+                    days_late=(
+                        (today - min(c.due_date for c in student_overdue)).days
+                        if student_overdue
+                        else None
+                    ),
+                    whatsapp_url=whatsapp_url(
+                        contact, student_overdue, settings, academy_name, today
+                    ),
+                )
+            )
+
+        if status_filter == 'overdue':
+            items.sort(key=lambda item: (-(item.days_late or 0), item.name))
+        else:
+            items.sort(key=lambda item: item.name.casefold())
+
+        start = (page - 1) * page_size
+        return BillingOverviewRead(
+            month_expected=sum(
+                (c.amount for c in in_month if c.status != 'waived'), ZERO
+            ),
+            month_received=await self._received_in(academy_id, month),
+            overdue_total=sum((c.open_amount for c in overdue), ZERO),
+            overdue_students=len({c.student_id for c in overdue}),
+            due_soon_total=sum((c.open_amount for c in due_soon), ZERO),
+            due_soon_students=len({c.student_id for c in due_soon}),
+            items=items[start : start + page_size],
+            total=len(items),
+            page=page,
+            page_size=page_size,
+        )
+
+    async def _received_in(self, academy_id: int, month: date) -> Decimal:
+        received = await self.db_session.scalar(
+            select(func.sum(PaymentTransaction.gross_amount)).where(
+                PaymentTransaction.academy_id == academy_id,
+                PaymentTransaction.received_at >= month,
+                PaymentTransaction.received_at < first_monthly_month(month),
+            )
+        )
+        return (received or ZERO).quantize(CENTS)
+
+    async def dashboard_lists(
+        self, academy_id: int
+    ) -> tuple[list[OverdueStudentRead], list[DueSoonChargeRead]]:
+        """Inadimplentes (mais atrasados primeiro) e vencem em 7 dias."""
+        today = local_today()
+        charges = await self._open_or_month_charges(
+            academy_id, today.replace(day=1), today
+        )
+        overdue = [c for c in charges if c.status == 'overdue']
+        due_soon = sorted(
+            (
+                c
+                for c in charges
+                if c.status in {'upcoming', 'partial'}
+                and c.due_date <= today + timedelta(days=DUE_SOON_DAYS)
+            ),
+            key=lambda c: (c.due_date, c.id),
+        )
+        contacts = await self._contacts(
+            academy_id, {c.student_id for c in [*overdue, *due_soon]}
+        )
+
+        by_student: dict[int, list[ChargeRead]] = {}
+        for charge in overdue:
+            by_student.setdefault(charge.student_id, []).append(charge)
+
+        overdue_students = sorted(
+            (
+                OverdueStudentRead(
+                    student_id=contacts[student_id].public_id,
+                    name=contacts[student_id].name,
+                    modality=join_names(
+                        sorted({c.modality_name for c in student_charges})
+                    ),
+                    amount=sum((c.open_amount for c in student_charges), ZERO),
+                    days_late=(
+                        today - min(c.due_date for c in student_charges)
+                    ).days,
+                )
+                for student_id, student_charges in by_student.items()
+            ),
+            key=lambda item: (-item.days_late, item.name),
+        )
+
+        return overdue_students[:DASHBOARD_LIMIT], [
+            DueSoonChargeRead(
+                student_id=contacts[c.student_id].public_id,
+                name=contacts[c.student_id].name,
+                modality=c.modality_name,
+                amount=c.open_amount,
+                due_date=c.due_date,
+            )
+            for c in due_soon[:DASHBOARD_LIMIT]
+        ]
 
     async def _payments(
         self,

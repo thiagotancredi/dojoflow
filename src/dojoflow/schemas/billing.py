@@ -16,6 +16,7 @@ class ChargeRead(BaseModel):
     id: int
     public_id: UUID
     kind: PaymentKind
+    student_id: int
     enrollment_public_id: UUID
     modality_name: str
     reference_month: date
@@ -58,3 +59,30 @@ class StudentBillingRead(BaseModel):
     whatsapp_url: str | None
     charges: list[ChargeRead]
     payments: list[PaymentRead]
+
+
+OverviewFilter = Literal['overdue', 'upcoming', 'paid', 'all']
+
+
+class BillingOverviewItemRead(BaseModel):
+    student_id: UUID
+    name: str
+    # Preenchido quando a cobrança vai para o responsável (aluno menor)
+    responsible_name: str | None
+    modalities: list[str]
+    open_amount: Decimal
+    days_late: int | None
+    whatsapp_url: str | None
+
+
+class BillingOverviewRead(BaseModel):
+    month_expected: Decimal
+    month_received: Decimal
+    overdue_total: Decimal
+    overdue_students: int
+    due_soon_total: Decimal
+    due_soon_students: int
+    items: list[BillingOverviewItemRead]
+    total: int
+    page: int
+    page_size: int

@@ -2,6 +2,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 from http import HTTPStatus
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from httpx import AsyncClient
@@ -16,7 +17,11 @@ from dojoflow.models.payment_transaction import PaymentTransaction
 from dojoflow.services import billing as billing_module
 from dojoflow.services.billing import BillingService
 from tests.helpers.auth import auth_headers, other_academy_headers
-from tests.helpers.scenario import add_modality, add_student
+from tests.helpers.scenario import (
+    add_modality,
+    add_responsible,
+    add_student,
+)
 
 
 def _freeze_today(monkeypatch: pytest.MonkeyPatch, today: date) -> None:
@@ -723,3 +728,229 @@ async def test_new_student_gets_fee_now_and_first_monthly_next_month(
         ('monthly', '2026-11-10'),
         ('enrollment_fee', '2026-10-20'),
     ]
+
+
+async def _overdue_student(  # noqa: PLR0913
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    name: str = 'Ana Lima',
+    phone: str | None = '(62) 99999-0001',
+    birth_date: str | None = '1990-05-01',
+    modality: str = 'Taekwondo',
+) -> dict:
+    """Jan e fev/2027 de R$ 100 (dia 15); hoje 20/02: os dois atrasados."""
+    headers = await auth_headers(client)
+    modality_id = await add_modality(db_session, modality)
+    student_id, _ = await add_student(
+        db_session,
+        modality_id,
+        name=name,
+        monthly_fee='100',
+        due_day=15,
+        billing_start_month='2027-01-01',
+        phone=phone,
+        birth_date=birth_date,
+    )
+    _freeze_today(monkeypatch, date(2027, 2, 20))
+    return {'headers': headers, 'student_id': student_id}
+
+
+def _message(url: str) -> tuple[str, str]:
+    parsed = urlparse(url)
+    return parsed.path.strip('/'), parse_qs(parsed.query)['text'][0]
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_url_only_for_overdue(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _overdue_student(client, db_session, monkeypatch)
+
+    # 10/01: janeiro ainda a vencer → sem link
+    _freeze_today(monkeypatch, date(2027, 1, 10))
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    assert body['whatsapp_url'] is None
+
+    _freeze_today(monkeypatch, date(2027, 2, 20))
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    assert body['whatsapp_url'].startswith('https://wa.me/5562999990001?text=')
+
+    # Tudo pago → sem link de novo
+    paid = await _pay(
+        client,
+        {'headers': ctx['headers'], 'url': _url(ctx['student_id'])},
+        '200',
+    )
+    assert paid.status_code == HTTPStatus.CREATED, paid.text
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    assert body['whatsapp_url'] is None
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_without_phone_has_no_link(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _overdue_student(client, db_session, monkeypatch, phone=None)
+
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+
+    assert body['whatsapp_url'] is None
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_goes_to_responsible_for_minor(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _overdue_student(
+        client, db_session, monkeypatch, birth_date='2015-03-10'
+    )
+    await add_responsible(db_session, ctx['student_id'], 'Maria Lima')
+
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    phone, text = _message(body['whatsapp_url'])
+
+    assert phone == '5562988880001'
+    assert text.startswith('Olá, Maria!')
+
+    overview = await client.get(
+        '/api/v1/billing/overview', headers=ctx['headers']
+    )
+    (item,) = overview.json()['items']
+    assert item['responsible_name'] == 'Maria Lima'
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_adult_goes_to_student(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _overdue_student(client, db_session, monkeypatch)
+    await add_responsible(db_session, ctx['student_id'], 'Maria Lima')
+
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    phone, text = _message(body['whatsapp_url'])
+
+    assert phone == '5562999990001'
+    assert text.startswith('Olá, Ana!')
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_message_uses_template(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _overdue_student(client, db_session, monkeypatch)
+    await client.put(
+        '/api/v1/academy/billing-settings',
+        headers=ctx['headers'],
+        json={
+            'pix_key': 'pix@dojo.com',
+            'recipient_name': 'Mestre Web',
+            'message_template': (
+                '{nome}|{academia}|{valor}|{meses}|{pix}|{recebedor}'
+            ),
+        },
+    )
+
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    _, text = _message(body['whatsapp_url'])
+
+    assert text == (
+        'Ana|Academia Web Teste|R$ 200,00|janeiro e fevereiro|'
+        'pix@dojo.com|Mestre Web'
+    )
+
+
+@pytest.mark.asyncio
+async def test_overview_counts_and_filters(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ana = await _overdue_student(client, db_session, monkeypatch)
+    headers = ana['headers']
+    judo = await add_modality(db_session, 'Judô')
+    # Bruno: fevereiro vence dia 25 (a vencer, dentro de 7 dias)
+    await add_student(
+        db_session,
+        judo,
+        name='Bruno Dias',
+        monthly_fee='80',
+        due_day=25,
+        billing_start_month='2027-02-01',
+    )
+    # Carla: fevereiro vence dia 10 e foi paga
+    carla, _ = await add_student(
+        db_session,
+        judo,
+        name='Carla Reis',
+        monthly_fee='90',
+        due_day=10,
+        billing_start_month='2027-02-01',
+    )
+    await _read(client, carla, headers)
+    paid = await _pay(client, {'headers': headers, 'url': _url(carla)}, '90')
+    assert paid.status_code == HTTPStatus.CREATED, paid.text
+
+    url = '/api/v1/billing/overview'
+    overdue = (await client.get(url, headers=headers)).json()
+
+    assert overdue['month_expected'] == '270.00'  # fev: 100 + 80 + 90
+    assert overdue['month_received'] == '90.00'
+    assert overdue['overdue_total'] == '200.00'
+    assert overdue['overdue_students'] == 1
+    assert overdue['due_soon_total'] == '80.00'
+    assert overdue['due_soon_students'] == 1
+    assert overdue['total'] == 1
+    (item,) = overdue['items']
+    assert item['name'] == 'Ana Lima'
+    assert item['modalities'] == ['Taekwondo']
+    assert item['open_amount'] == '200.00'
+    assert item['days_late'] == 36  # noqa: PLR2004  (15/01 → 20/02)
+    assert item['whatsapp_url'].startswith('https://wa.me/5562999990001')
+    assert item['responsible_name'] is None
+
+    async def names(**params: str) -> list[str]:
+        response = await client.get(url, headers=headers, params=params)
+        assert response.status_code == HTTPStatus.OK, response.text
+        return [i['name'] for i in response.json()['items']]
+
+    assert await names(filter='upcoming') == ['Bruno Dias']
+    assert await names(filter='paid') == ['Carla Reis']
+    assert await names(filter='all') == [
+        'Ana Lima',
+        'Bruno Dias',
+        'Carla Reis',
+    ]
+    assert await names(filter='all', search='car') == ['Carla Reis']
+    assert await names(filter='all', month='2027-01') == ['Ana Lima']
+    assert await names(filter='all', page='2', page_size='2') == ['Carla Reis']
+    bad = await client.get(url, headers=headers, params={'month': '2027-13'})
+    assert bad.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.asyncio
+async def test_overview_is_scoped_to_academy(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    await _overdue_student(client, db_session, monkeypatch)
+    other_headers = await other_academy_headers(db_session)
+
+    response = await client.get(
+        '/api/v1/billing/overview', headers=other_headers
+    )
+
+    assert response.json()['items'] == []
+    assert response.json()['overdue_total'] == '0.00'

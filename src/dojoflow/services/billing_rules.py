@@ -119,3 +119,29 @@ def format_brl(value: Decimal) -> str:
     """Ex.: Decimal('1234.5') → "R$ 1.234,50"."""
     text = f'{value.quantize(Decimal("0.01")):,.2f}'
     return 'R$ ' + text.replace(',', '_').replace('.', ',').replace('_', '.')
+
+
+# Telefone brasileiro sem o país: DDD + 8 ou 9 dígitos
+LOCAL_PHONE_LENGTHS = (10, 11)
+# Com o país (55) na frente
+FULL_PHONE_LENGTHS = (12, 13)
+BRAZIL_CODE = '55'
+
+
+def whatsapp_phone(phone: str | None) -> str | None:
+    """Número para o wa.me: só dígitos, com 55; inválido → None."""
+    digits = ''.join(ch for ch in phone or '' if ch.isdigit())
+
+    if len(digits) in LOCAL_PHONE_LENGTHS:
+        return BRAZIL_CODE + digits
+    if len(digits) in FULL_PHONE_LENGTHS and digits.startswith(BRAZIL_CODE):
+        return digits
+    return None
+
+
+def age_on(birth_date: date, today: date) -> int:
+    had_birthday = (today.month, today.day) >= (
+        birth_date.month,
+        birth_date.day,
+    )
+    return today.year - birth_date.year - (0 if had_birthday else 1)
