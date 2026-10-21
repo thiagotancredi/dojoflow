@@ -7,6 +7,8 @@ import { RequireAuth } from '@/features/auth/RequireAuth'
 import { BulkBeltsPage } from '@/features/belts/pages/BulkBeltsPage'
 import { ModalityBeltsPage } from '@/features/belts/pages/ModalityBeltsPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
+import { GraduationListPage } from '@/features/graduations/pages/GraduationListPage'
+import { GraduationListsPage } from '@/features/graduations/pages/GraduationListsPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 import { NewStudentPage } from '@/features/students/pages/NewStudentPage'
 import { StudentDetailPage } from '@/features/students/pages/StudentDetailPage'
@@ -44,6 +46,8 @@ export const router = createBrowserRouter([
         path: 'modalidades',
         element: <Navigate to="/app/configuracoes" replace />,
       },
+      { path: 'graduacoes', element: <GraduationListsPage /> },
+      { path: 'graduacoes/:listId', element: <GraduationListPage /> },
       { path: 'configuracoes', element: <SettingsPage /> },
       {
         path: 'configuracoes/modalidades/:modalityId/faixas',
