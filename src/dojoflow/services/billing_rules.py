@@ -1,0 +1,110 @@
+import calendar
+from dataclasses import dataclass
+from datetime import date, datetime
+from decimal import Decimal
+
+from dojoflow.services.belt_rules import local_today
+
+DECEMBER = 12
+
+MONTH_NAMES = (
+    'janeiro',
+    'fevereiro',
+    'março',
+    'abril',
+    'maio',
+    'junho',
+    'julho',
+    'agosto',
+    'setembro',
+    'outubro',
+    'novembro',
+    'dezembro',
+)
+
+
+def first_monthly_month(enrolled_on: date) -> date:
+    # A primeira mensalidade é sempre a do mês seguinte à matrícula
+    if enrolled_on.month == DECEMBER:
+        return date(enrolled_on.year + 1, 1, 1)
+    return date(enrolled_on.year, enrolled_on.month + 1, 1)
+
+
+def due_date_for(reference_month: date, due_day: int) -> date:
+    # Dia que não existe no mês (ex.: 31 em fevereiro) cai no último dia
+    last_day = calendar.monthrange(
+        reference_month.year, reference_month.month
+    )[1]
+    return reference_month.replace(day=min(due_day, last_day))
+
+
+def billing_status(
+    amount: Decimal,
+    paid: Decimal,
+    waived: bool,
+    due_date: date,
+    today: date,
+) -> str:
+    if waived:
+        return 'waived'
+    if paid >= amount:
+        return 'paid'
+    # Vencida (mesmo com parte paga) é atrasada; vence hoje ainda não
+    if due_date < today:
+        return 'overdue'
+    if paid > 0:
+        return 'partial'
+    return 'upcoming'
+
+
+@dataclass(frozen=True)
+class OpenCharge:
+    id: int
+    due_date: date
+    created_at: datetime
+    open_amount: Decimal
+
+
+def allocate_oldest_first(
+    charges: list[OpenCharge],
+    amount: Decimal,
+) -> list[tuple[int, Decimal]]:
+    """Distribui a baixa pelas cobranças, da mais antiga para a mais nova."""
+    open_charges = [charge for charge in charges if charge.open_amount > 0]
+    open_total = sum(
+        (charge.open_amount for charge in open_charges), Decimal(0)
+    )
+
+    if amount <= 0:
+        raise ValueError('O valor da baixa precisa ser maior que zero.')
+    if amount > open_total:
+        raise ValueError('O valor da baixa é maior que o total em aberto.')
+
+    allocations: list[tuple[int, Decimal]] = []
+    remaining = amount
+
+    for charge in sorted(
+        open_charges, key=lambda c: (c.due_date, c.created_at)
+    ):
+        if remaining <= 0:
+            break
+        part = min(charge.open_amount, remaining)
+        allocations.append((charge.id, part))
+        remaining -= part
+
+    return allocations
+
+
+def months_label(months: list[date], current_year: int | None = None) -> str:
+    """Ex.: "janeiro e fevereiro"; meses de outro ano levam o ano."""
+    year = current_year if current_year is not None else local_today().year
+    names = [
+        MONTH_NAMES[month.month - 1]
+        if month.year == year
+        else f'{MONTH_NAMES[month.month - 1]} de {month.year}'
+        for month in sorted(set(months))
+    ]
+
+    if len(names) <= 1:
+        return ''.join(names)
+    return f'{", ".join(names[:-1])} e {names[-1]}'
