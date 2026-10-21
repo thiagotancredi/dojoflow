@@ -65,6 +65,18 @@ def create_access_token(master_id: int) -> str:
     return token
 
 
+# Sem 0/O, 1/l/I: a senha vai por WhatsApp e é digitada à mão
+PASSWORD_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789'
+GENERATED_PASSWORD_LENGTH = 12
+
+
+def generate_password() -> str:
+    return ''.join(
+        secrets.choice(PASSWORD_ALPHABET)
+        for _ in range(GENERATED_PASSWORD_LENGTH)
+    )
+
+
 def generate_refresh_token() -> str:
     return secrets.token_urlsafe(48)
 
