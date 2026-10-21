@@ -1,6 +1,7 @@
 import {
   addEnrollment,
   addResponsible,
+  createStudent,
   getStudent,
   listStudents,
   removeAddress,
@@ -15,6 +16,7 @@ import type {
   EnrollmentPayload,
   EnrollmentUpdatePayload,
   ResponsiblePayload,
+  StudentCreatePayload,
 } from '@/features/students/api'
 import type { StudentFilters } from '@/features/students/api'
 import { useMutation } from '@/lib/hooks/useMutation'
@@ -74,4 +76,8 @@ export function useAddEnrollment(studentId: string) {
   return useMutation((payload: EnrollmentPayload) =>
     addEnrollment(studentId, payload),
   )
+}
+
+export function useCreateStudent() {
+  return useMutation((payload: StudentCreatePayload) => createStudent(payload))
 }

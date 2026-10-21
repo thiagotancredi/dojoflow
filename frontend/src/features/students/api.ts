@@ -131,3 +131,11 @@ export function addEnrollment(studentId: string, payload: EnrollmentPayload) {
     }),
   )
 }
+
+export type StudentCreatePayload = Schemas['StudentCreateApiRequest']
+
+// Cadastro completo numa gravação só (aluno, endereço, responsáveis e
+// matrículas): se algo falhar, nada é gravado
+export function createStudent(payload: StudentCreatePayload) {
+  return unwrap(api.POST('/api/v1/students', { body: payload }))
+}

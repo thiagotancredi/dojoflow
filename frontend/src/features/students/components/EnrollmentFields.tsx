@@ -24,6 +24,8 @@ type EnrollmentFieldsProps = {
   showStatus?: boolean
   // id único por bloco (o cadastro pode ter vários na mesma tela)
   idPrefix?: string
+  // Avisa quem está fora quando a modalidade muda (ex.: esconder nos outros blocos)
+  onModalityChange?: (modalityId: string) => void
 }
 
 // Campos de uma matrícula (ficha e cadastro)
@@ -32,6 +34,7 @@ export function EnrollmentFields({
   modalities,
   showStatus = false,
   idPrefix = 'enrollment',
+  onModalityChange,
 }: EnrollmentFieldsProps) {
   const {
     register,
@@ -51,7 +54,13 @@ export function EnrollmentFields({
               control={control}
               name="modality_id"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={(value) => {
+                    field.onChange(value)
+                    onModalityChange?.(value)
+                  }}
+                >
                   <SelectTrigger className="w-full rounded-xl">
                     <SelectValue placeholder="Escolha a modalidade" />
                   </SelectTrigger>

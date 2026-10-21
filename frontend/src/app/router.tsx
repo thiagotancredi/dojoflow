@@ -6,6 +6,7 @@ import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
+import { NewStudentPage } from '@/features/students/pages/NewStudentPage'
 import { StudentDetailPage } from '@/features/students/pages/StudentDetailPage'
 import { StudentsEmptyDetail } from '@/features/students/pages/StudentsEmptyDetail'
 import { StudentsPage } from '@/features/students/pages/StudentsPage'
@@ -26,6 +27,8 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <DashboardPage /> },
+      // Cadastro em tela própria (fora do mestre-detalhe da lista)
+      { path: 'alunos/novo', element: <NewStudentPage /> },
       {
         path: 'alunos',
         element: <StudentsPage />,
