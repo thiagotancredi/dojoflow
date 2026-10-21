@@ -1,6 +1,10 @@
+import { useSyncExternalStore } from 'react'
+
 // Claro/escuro: a classe "dark" no <html> troca as cores (styles/theme.css).
 // A escolha fica guardada no navegador; sem escolha, segue o sistema.
 const STORAGE_KEY = 'dojoflow-theme'
+// Avisa quem mostra o tema (botão da barra lateral, Configurações) que mudou
+const CHANGE_EVENT = 'dojoflow-theme-change'
 
 export type ColorMode = 'light' | 'dark'
 
@@ -29,10 +33,24 @@ export function saveMode(mode: ColorMode) {
   } catch {
     // Sem armazenamento: vale só até fechar a aba
   }
+  window.dispatchEvent(new Event(CHANGE_EVENT))
 }
 
 // Chamado uma vez ao abrir o site, antes de desenhar a tela
 export function applyInitialMode() {
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
   applyMode(savedMode() ?? (prefersDark ? 'dark' : 'light'))
+}
+
+function subscribe(onChange: () => void) {
+  window.addEventListener(CHANGE_EVENT, onChange)
+  return () => window.removeEventListener(CHANGE_EVENT, onChange)
+}
+
+// Tema atual + função para trocar. Todo componente que usa este hook
+// redesenha quando o tema muda em qualquer lugar (useSyncExternalStore
+// "assina" um valor que mora fora do React, aqui a classe do <html>).
+export function useColorMode(): [ColorMode, (mode: ColorMode) => void] {
+  const mode = useSyncExternalStore(subscribe, currentMode)
+  return [mode, saveMode]
 }

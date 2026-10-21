@@ -1,11 +1,10 @@
 import { Moon, Sun } from 'lucide-react'
-import { useState } from 'react'
 
-import { currentMode, saveMode } from '@/app/theme'
+import { useColorMode } from '@/app/theme'
 
 // Botão sol/lua da barra lateral: alterna entre tema claro e escuro
 export function ThemeToggle() {
-  const [mode, setMode] = useState(currentMode)
+  const [mode, setMode] = useColorMode()
   const next = mode === 'dark' ? 'light' : 'dark'
   const label = next === 'dark' ? 'Usar tema escuro' : 'Usar tema claro'
 
@@ -14,10 +13,7 @@ export function ThemeToggle() {
       type="button"
       title={label}
       aria-label={label}
-      onClick={() => {
-        saveMode(next)
-        setMode(next)
-      }}
+      onClick={() => setMode(next)}
       className="grid size-10 place-items-center rounded-full border border-sidebar-border bg-card text-sidebar-foreground transition-colors hover:text-sidebar-primary"
     >
       {mode === 'dark' ? (

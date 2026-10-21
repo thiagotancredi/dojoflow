@@ -35,6 +35,8 @@ export function BeltDrawing({ belt, width = 180, height = 28 }: BeltDrawingProps
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label={`Faixa ${belt.name}`}
+      // No escuro, um contorno claro para a faixa branca e a preta não sumirem
+      className="shrink-0 rounded-[3px] dark:ring-1 dark:ring-white/25"
     >
       <title>{belt.name}</title>
       <rect
