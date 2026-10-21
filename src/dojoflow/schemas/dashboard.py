@@ -48,3 +48,6 @@ class DashboardSummaryRead(BaseModel):
     registration_pending: list[PendingEnrollmentRead]
     overdue: list[OverdueStudentRead]
     due_soon: list[DueSoonChargeRead]
+    # Totais (as listas acima param em 5)
+    overdue_students: int
+    due_soon_students: int

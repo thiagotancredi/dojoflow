@@ -99,6 +99,16 @@ DASHBOARD_LIMIT = 5
 
 
 @dataclass(frozen=True)
+class DashboardBilling:
+    """Listas do dashboard (até 5 cada) e os totais de alunos."""
+
+    overdue: list[OverdueStudentRead]
+    due_soon: list[DueSoonChargeRead]
+    overdue_students: int
+    due_soon_students: int
+
+
+@dataclass(frozen=True)
 class Contact:
     name: str
     phone: str | None
@@ -937,9 +947,7 @@ class BillingService:
         )
         return (received or ZERO).quantize(CENTS)
 
-    async def dashboard_lists(
-        self, academy_id: int
-    ) -> tuple[list[OverdueStudentRead], list[DueSoonChargeRead]]:
+    async def dashboard_lists(self, academy_id: int) -> DashboardBilling:
         """Inadimplentes (mais atrasados primeiro) e vencem em 7 dias."""
         today = local_today()
         charges = await self._open_or_month_charges(
@@ -981,16 +989,21 @@ class BillingService:
             key=lambda item: (-item.days_late, item.name),
         )
 
-        return overdue_students[:DASHBOARD_LIMIT], [
-            DueSoonChargeRead(
-                student_id=contacts[c.student_id].public_id,
-                name=contacts[c.student_id].name,
-                modality=c.modality_name,
-                amount=c.open_amount,
-                due_date=c.due_date,
-            )
-            for c in due_soon[:DASHBOARD_LIMIT]
-        ]
+        return DashboardBilling(
+            overdue=overdue_students[:DASHBOARD_LIMIT],
+            due_soon=[
+                DueSoonChargeRead(
+                    student_id=contacts[c.student_id].public_id,
+                    name=contacts[c.student_id].name,
+                    modality=c.modality_name,
+                    amount=c.open_amount,
+                    due_date=c.due_date,
+                )
+                for c in due_soon[:DASHBOARD_LIMIT]
+            ],
+            overdue_students=len(by_student),
+            due_soon_students=len({c.student_id for c in due_soon}),
+        )
 
     async def _payments(
         self,

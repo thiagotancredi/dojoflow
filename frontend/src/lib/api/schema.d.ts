@@ -1121,6 +1121,10 @@ export interface components {
             overdue: components["schemas"]["OverdueStudentRead"][];
             /** Due Soon */
             due_soon: components["schemas"]["DueSoonChargeRead"][];
+            /** Overdue Students */
+            overdue_students: number;
+            /** Due Soon Students */
+            due_soon_students: number;
         };
         /** DueSoonChargeRead */
         DueSoonChargeRead: {

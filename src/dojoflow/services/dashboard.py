@@ -22,15 +22,17 @@ class DashboardService:
 
     async def summary(self, academy_id: int) -> DashboardSummaryRead:
         billing = BillingService(self.db_session)
-        overdue, due_soon = await billing.dashboard_lists(academy_id)
+        lists = await billing.dashboard_lists(academy_id)
 
         return DashboardSummaryRead(
             active_students=await self._active_students(academy_id),
             students_by_modality=await self._by_modality(academy_id),
             recent_enrollments=await self._recent(academy_id),
             registration_pending=await self._pending(academy_id),
-            overdue=overdue,
-            due_soon=due_soon,
+            overdue=lists.overdue,
+            due_soon=lists.due_soon,
+            overdue_students=lists.overdue_students,
+            due_soon_students=lists.due_soon_students,
         )
 
     async def _active_students(self, academy_id: int) -> int:

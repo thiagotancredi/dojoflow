@@ -97,6 +97,8 @@ async def test_dashboard_isolated_per_academy(
         'registration_pending': [],
         'overdue': [],
         'due_soon': [],
+        'overdue_students': 0,
+        'due_soon_students': 0,
     }
     body_a = response_a.json()
     assert body_a['active_students'] == 1
@@ -147,3 +149,6 @@ async def test_dashboard_overdue_and_due_soon(
         (i['name'], i['modality'], i['amount'], i['due_date'])
         for i in body['due_soon']
     ] == [('Bruno Dias', 'Jiu', '80.00', '2027-02-25')]
+    # Totais para os números do topo (as listas param em 5)
+    assert body['overdue_students'] == 1
+    assert body['due_soon_students'] == 1

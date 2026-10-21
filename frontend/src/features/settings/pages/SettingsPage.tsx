@@ -8,12 +8,13 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/features/auth/useAuth'
 import { ModalitiesSection } from '@/features/modalities/components/ModalitiesSection'
 import { AppearanceSetting } from '@/features/settings/components/AppearanceSetting'
+import { BillingSettingsSection } from '@/features/settings/components/BillingSettingsSection'
 import { ChangePasswordForm } from '@/features/settings/components/ChangePasswordForm'
 import { TelegramConnect } from '@/features/settings/components/TelegramConnect'
 import { formatPhone } from '@/lib/format'
 
-// Configurações da academia: dados (só leitura por enquanto), modalidades e
-// conta (trocar senha, conectar Telegram, sair).
+// Configurações da academia: dados (só leitura por enquanto), modalidades,
+// cobrança e conta (trocar senha, conectar Telegram, sair).
 export function SettingsPage() {
   const navigate = useNavigate()
   const { master, signOut } = useAuth()
@@ -70,6 +71,8 @@ export function SettingsPage() {
       </section>
 
       <ModalitiesSection />
+
+      <BillingSettingsSection />
 
       <section className="space-y-4 rounded-3xl bg-card p-5">
         <h2 className="font-semibold">Conta</h2>
