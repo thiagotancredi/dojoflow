@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dojoflow.database.session import AsyncSessionLocal, engine
 from dojoflow.repositories.academy import AcademyRepository
 from dojoflow.repositories.master import MasterRepository
+from dojoflow.repositories.refresh_session import RefreshSessionRepository
 from dojoflow.schemas.admin_api import AdminAcademyCreate, AdminCredentialsRead
 from dojoflow.services.academy import AcademyService
 from dojoflow.services.admin import AdminService
@@ -30,12 +31,13 @@ async def create_academy(
     data: AdminAcademyCreate,
 ) -> AdminCredentialsRead:
     academy_repository = AcademyRepository(db_session=session)
+    master_repository = MasterRepository(db_session=session)
     onboarding_service = OnboardingService(
         academy_service=AcademyService(
             academy_repository=academy_repository, db_session=session
         ),
         master_service=MasterService(
-            master_repository=MasterRepository(db_session=session),
+            master_repository=master_repository,
             db_session=session,
         ),
         db_session=session,
@@ -43,6 +45,10 @@ async def create_academy(
     admin_service = AdminService(
         academy_repository=academy_repository,
         onboarding_service=onboarding_service,
+        master_repository=master_repository,
+        refresh_session_repository=RefreshSessionRepository(
+            db_session=session
+        ),
         db_session=session,
     )
 

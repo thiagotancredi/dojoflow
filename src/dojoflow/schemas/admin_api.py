@@ -47,3 +47,26 @@ class AdminAcademyCreate(BaseModel):
 class AdminCredentialsRead(BaseModel):
     academy: AdminAcademyRead
     password: str
+
+
+class AdminAcademyUpdate(BaseModel):
+    # Campo omitido = não muda; phone: null apaga o telefone
+    academy_name: str | None = Field(
+        default=None, min_length=2, max_length=120
+    )
+    master_name: str | None = Field(default=None, min_length=2, max_length=120)
+    email: str | None = Field(default=None, min_length=3, max_length=255)
+    phone: str | None = Field(default=None, max_length=20)
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, value: str | None) -> str | None:
+        return None if value is None else _normalize_email(value)
+
+
+class AdminStatusUpdate(BaseModel):
+    status: AcademyStatus
+
+
+class AdminPasswordRead(BaseModel):
+    password: str

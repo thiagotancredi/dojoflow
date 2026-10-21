@@ -2,11 +2,18 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
-from dojoflow.api.dependencies.admin import AdminServiceDep, CurrentAdminDep
+from dojoflow.api.dependencies.admin import (
+    AcademyIdDep,
+    AdminServiceDep,
+    CurrentAdminDep,
+)
 from dojoflow.schemas.admin_api import (
     AdminAcademyCreate,
     AdminAcademyRead,
+    AdminAcademyUpdate,
     AdminCredentialsRead,
+    AdminPasswordRead,
+    AdminStatusUpdate,
 )
 from dojoflow.schemas.master_context import MasterContextApiRead
 
@@ -32,3 +39,35 @@ async def create_academy(
     admin_service_dep: AdminServiceDep,
 ) -> AdminCredentialsRead:
     return await admin_service_dep.create_academy(data)
+
+
+@router.patch(path='/academies/{academy_id}', status_code=status.HTTP_200_OK)
+async def update_academy(
+    academy_id: AcademyIdDep,
+    data: AdminAcademyUpdate,
+    admin_service_dep: AdminServiceDep,
+) -> AdminAcademyRead:
+    return await admin_service_dep.update_academy(academy_id, data)
+
+
+@router.post(
+    path='/academies/{academy_id}/reset-password',
+    status_code=status.HTTP_200_OK,
+)
+async def reset_password(
+    academy_id: AcademyIdDep,
+    admin_service_dep: AdminServiceDep,
+) -> AdminPasswordRead:
+    return await admin_service_dep.reset_password(academy_id)
+
+
+@router.post(
+    path='/academies/{academy_id}/status',
+    status_code=status.HTTP_200_OK,
+)
+async def set_academy_status(
+    academy_id: AcademyIdDep,
+    data: AdminStatusUpdate,
+    admin_service_dep: AdminServiceDep,
+) -> AdminAcademyRead:
+    return await admin_service_dep.set_status(academy_id, data.status)
