@@ -1,0 +1,37 @@
+{
+	email {$ACME_EMAIL}
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	handle /api/* {
+		# Bot do Telegram desligado em produção
+		respond /api/v1/telegram/* 404
+		reverse_proxy api:8000
+	}
+
+	# Site: arquivos de /assets têm hash no nome e podem ficar em cache
+	# para sempre; o resto (index.html) é revalidado a cada visita.
+	handle {
+		root * /srv
+		@assets path /assets/*
+		@pages not path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		header @pages Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

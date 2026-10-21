@@ -1,0 +1,8 @@
+# Rotinas do servidor. Instalar com:
+#   sudo install -m 644 deploy/cron /etc/cron.d/dojoflow
+# O servidor está no fuso America/Sao_Paulo.
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Gera as mensalidades do mês (roda todo dia; só cria o que falta)
+5 0 * * * root cd /opt/dojoflow && docker compose -f compose.prod.yml exec -T api python -m dojoflow.jobs.generate_charges >> /var/log/dojoflow-charges.log 2>&1
