@@ -20,7 +20,13 @@ app atual.
 ### Parte 1 — painel
 
 1. **Endereço próprio:** `admin.katsuflow.com.br` (subdomínio, decisão do
-   Thiago; não é uma rota `/admin` do site principal).
+   Thiago; não é uma rota `/admin` do site principal). É uma área **só do
+   Thiago**: o site principal continua normal (`katsuflow.com.br` leva à tela
+   de login dos mestres) e **nada nele aponta para o painel**. A segurança
+   **não depende** de o endereço ser desconhecido: certificados HTTPS são
+   públicos (Certificate Transparency) e robôs vão achar o `admin.`. Quem
+   protege é o login + a checagem de administrador; a tela de login do painel
+   não revela o que existe por trás.
 2. **Só o Thiago entra:** o e-mail `thiagotancredii@gmail.com`, definido na
    configuração do servidor (`ADMIN_EMAIL`), nunca por tela nem pelo banco.
    Qualquer outro login no painel vê "sem acesso".
