@@ -3,6 +3,22 @@
 Data: 2026-10-21 · Branch: `feat/admin-panel` (criada a partir da
 `feat/deploy`, porque as duas mexem no `deploy/Caddyfile`).
 
+## Status da implementação (21/10/2026)
+
+Implementado na branch `feat/admin-panel`, seguindo as 7 tarefas de
+`docs/superpowers/plans/2026-10-21-admin-panel.md`. Backend: 389 testes
+passando; ruff, typos, `tsc`, ESLint e build do site limpos. Teste local com a
+pilha de produção (Caddy + API + Postgres): painel só no `admin.`, cadastro
+público fechado nos dois endereços, modo suporte de ponta a ponta. Falta: o
+passeio no navegador (Thiago) e a revisão final da branch.
+
+**Na produção:** pôr `ADMIN_EMAIL=thiagotancredii@gmail.com` no `.env` do
+servidor; rodar a migração `d80e611e8464_support_mode`; criar a academia do
+Thiago com `docker compose -f compose.prod.yml run --rm api python -m
+dojoflow.commands.create_academy --academy-name "Katsuflow" --master-name
+"Thiago" --email thiagotancredii@gmail.com` (imprime a senha). DNS `admin` já
+criado.
+
 ## Por quê
 
 O Katsuflow vai para produção com o cadastro público **fechado**. O fluxo
