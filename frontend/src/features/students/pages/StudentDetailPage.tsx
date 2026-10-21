@@ -3,6 +3,7 @@ import { Link, useLocation, useOutletContext, useParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { StudentBillingTab } from '@/features/billing/components/StudentBillingTab'
 import { StudentAvatar } from '@/features/students/components/StudentAvatar'
 import { AddressTab } from '@/features/students/components/tabs/AddressTab'
 import { BasicDataTab } from '@/features/students/components/tabs/BasicDataTab'
@@ -89,8 +90,10 @@ export function StudentDetailPage() {
 
       {/* key: ao trocar de aluno, as abas voltam ao estado inicial */}
       <Tabs key={student.id} defaultValue="enrollments">
-        <TabsList variant="line">
+        {/* 5 abas não cabem no celular: a barra rola para o lado */}
+        <TabsList variant="line" className="max-w-full overflow-x-auto">
           <TabsTrigger value="enrollments">Matrículas</TabsTrigger>
+          <TabsTrigger value="billing">Mensalidades</TabsTrigger>
           <TabsTrigger value="data">Dados</TabsTrigger>
           <TabsTrigger value="address">Endereço</TabsTrigger>
           <TabsTrigger value="responsibles">Responsáveis</TabsTrigger>
@@ -98,6 +101,9 @@ export function StudentDetailPage() {
 
         <TabsContent value="enrollments" className="pt-2">
           <EnrollmentsTab student={data} onChanged={onChanged} />
+        </TabsContent>
+        <TabsContent value="billing" className="pt-2">
+          <StudentBillingTab student={data} />
         </TabsContent>
         <TabsContent value="data" className="pt-2">
           <BasicDataTab student={data} onChanged={onChanged} />
