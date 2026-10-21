@@ -1,4 +1,4 @@
-from sqlalchemy import distinct, exists, func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.database.transaction import transactional
@@ -74,13 +74,7 @@ class ModalityService:
             academy_id
         )
         pending_counts = await self._count_enrollments_without_belt(academy_id)
-        modality_ids_with_belts = set(
-            await self.db_session.scalars(
-                select(distinct(Belt.modality_id)).where(
-                    Belt.academy_id == academy_id
-                )
-            )
-        )
+        belt_counts = await self._count_belts(academy_id)
 
         return [
             ModalityOptionRead(
@@ -89,11 +83,22 @@ class ModalityService:
                 name=modality.name,
                 emoji=modality.emoji,
                 is_selected=modality.id in selected_modality_ids,
-                has_belts=modality.id in modality_ids_with_belts,
+                has_belts=belt_counts.get(modality.id, 0) > 0,
+                belt_count=belt_counts.get(modality.id, 0),
                 pending_belt_count=pending_counts.get(modality.id, 0),
             )
             for modality in modalities
         ]
+
+    async def _count_belts(self, academy_id: int) -> dict[int, int]:
+        stmt = (
+            select(Belt.modality_id, func.count(Belt.id))
+            .where(Belt.academy_id == academy_id)
+            .group_by(Belt.modality_id)
+        )
+        result = await self.db_session.execute(stmt)
+
+        return dict(result.tuples().all())
 
     async def _count_enrollments_without_belt(
         self,

@@ -41,6 +41,7 @@ async def test_catalog_and_toggle_use_public_ids(
             'emoji': '🥋',
             'is_selected': True,
             'has_belts': False,
+            'belt_count': 0,
             'pending_belt_count': 0,
         }
     ]
