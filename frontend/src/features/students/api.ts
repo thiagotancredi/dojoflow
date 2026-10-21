@@ -84,3 +84,23 @@ export function lookupCep(zipCode: string, signal?: AbortSignal) {
     }),
   )
 }
+
+export type ResponsiblePayload = Schemas['StudentResponsiblePayload']
+
+export function addResponsible(studentId: string, payload: ResponsiblePayload) {
+  return unwrap(
+    api.POST('/api/v1/students/{student_id}/responsibles', {
+      params: { path: { student_id: studentId } },
+      body: payload,
+    }),
+  )
+}
+
+// Remove o vínculo (a pessoa continua cadastrada, ligada a outros alunos)
+export function removeResponsible(studentId: string, linkId: string) {
+  return unwrap(
+    api.DELETE('/api/v1/students/{student_id}/responsibles/{link_id}', {
+      params: { path: { student_id: studentId, link_id: linkId } },
+    }),
+  )
+}

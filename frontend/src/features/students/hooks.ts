@@ -1,11 +1,17 @@
 import {
+  addResponsible,
   getStudent,
   listStudents,
   removeAddress,
+  removeResponsible,
   saveAddress,
   updateStudent,
 } from '@/features/students/api'
-import type { AddressPayload, BasicDataPayload } from '@/features/students/api'
+import type {
+  AddressPayload,
+  BasicDataPayload,
+  ResponsiblePayload,
+} from '@/features/students/api'
 import type { StudentFilters } from '@/features/students/api'
 import { useMutation } from '@/lib/hooks/useMutation'
 import { useResource } from '@/lib/hooks/useResource'
@@ -41,4 +47,14 @@ export function useSaveAddress(studentId: string) {
 
 export function useRemoveAddress(studentId: string) {
   return useMutation(() => removeAddress(studentId))
+}
+
+export function useAddResponsible(studentId: string) {
+  return useMutation((payload: ResponsiblePayload) =>
+    addResponsible(studentId, payload),
+  )
+}
+
+export function useRemoveResponsible(studentId: string) {
+  return useMutation((linkId: string) => removeResponsible(studentId, linkId))
 }
