@@ -1,4 +1,5 @@
 from dojoflow.models.academy import Academy
+from dojoflow.models.academy_billing_settings import AcademyBillingSettings
 from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.address import Address
 from dojoflow.models.audit_log import AuditLog
@@ -29,6 +30,7 @@ from dojoflow.models.telegram_message_log import TelegramMessageLog
 
 __all__ = [
     'Academy',
+    'AcademyBillingSettings',
     'AcademyModality',
     'Address',
     'AuditLog',

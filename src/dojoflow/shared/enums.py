@@ -47,6 +47,11 @@ class PaymentStatus(str, enum.Enum):
     PENDING_CONFIGURATION = 'pending_configuration'
 
 
+class PaymentKind(str, enum.Enum):
+    MONTHLY = 'monthly'
+    ENROLLMENT_FEE = 'enrollment_fee'
+
+
 class ImportStatus(str, enum.Enum):
     PENDING = 'pending'
     PROCESSING = 'processing'

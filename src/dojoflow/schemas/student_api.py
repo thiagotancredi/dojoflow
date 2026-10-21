@@ -61,6 +61,9 @@ class EnrollmentApiRead(BaseModel):
     monthly_fee: Decimal | None
     due_day: int | None
     is_exempt: bool
+    # 1º mês com mensalidade automática (nulo = não cobra); meses antes
+    # dele entram pelo "Lançar mês anterior"
+    billing_start_month: date | None
 
 
 class ResponsibleLinkApiRead(BaseModel):
@@ -107,6 +110,7 @@ class StudentDetailRead(BaseModel):
                     monthly_fee=item['monthly_fee'],
                     due_day=item['due_day'],
                     is_exempt=item['is_exempt'],
+                    billing_start_month=item['billing_start_month'],
                 )
                 for item in details['enrollments']
             ],
@@ -119,6 +123,8 @@ class EnrollmentApiPayload(BaseModel):
     due_day: int | None = Field(default=None, ge=MIN_DUE_DAY, le=MAX_DUE_DAY)
     is_exempt: bool = False
     status: EnrollmentStatus = EnrollmentStatus.ACTIVE
+    # Taxa de matrícula: None ou 0 = isenta
+    enrollment_fee: Decimal | None = Field(default=None, ge=0)
     # Faixa atual opcional: grava o 1º registro do histórico junto
     current_belt: EnrollmentBeltApiPayload | None = None
 

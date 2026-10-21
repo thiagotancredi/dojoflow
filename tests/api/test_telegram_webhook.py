@@ -1046,7 +1046,7 @@ async def test_webhook_processes_confirm_field_callback(
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'status': 'waiting_student_confirmation'}
+    assert response.json() == {'status': 'waiting_student_enrollment_fee'}
 
     state = await db_session.scalar(
         select(TelegramConversationState).where(
@@ -1055,11 +1055,11 @@ async def test_webhook_processes_confirm_field_callback(
     )
 
     assert state is not None
-    assert state.current_step == TelegramStep.WAITING_STUDENT_CONFIRMATION
+    assert state.current_step == TelegramStep.WAITING_STUDENT_ENROLLMENT_FEE
     assert state.context_data['due_day'] == DUE_DAY
     assert state.context_data['is_exempt'] is False
     assert 'pending_field_confirmation' not in state.context_data
-    assert '📋 Resumo do cadastro' in sent_messages[0]['text']
+    assert 'taxa de matrícula' in sent_messages[0]['text']
 
 
 @pytest.mark.asyncio

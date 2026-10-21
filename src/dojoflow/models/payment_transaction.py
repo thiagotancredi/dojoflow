@@ -20,9 +20,9 @@ class PaymentTransaction(BaseModel):
     academy_id: Mapped[int] = int_fk('academy.id')
     student_id: Mapped[int] = int_fk('student.id')
 
-    payment_method: Mapped[PaymentMethod] = enum_column(
+    payment_method: Mapped[PaymentMethod | None] = enum_column(
         PaymentMethod,
-        default=PaymentMethod.PIX,
+        nullable=True,
     )
 
     gross_amount: Mapped[Decimal] = money_column()

@@ -7,6 +7,7 @@ A ação que o teste quer verificar continua indo pela API.
 
 import uuid
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select
@@ -18,8 +19,14 @@ from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.enrollment_belt import EnrollmentBelt
 from dojoflow.models.graduation_list import GraduationList
 from dojoflow.models.modality import Modality
+from dojoflow.models.responsible import Responsible
 from dojoflow.models.student import Student
-from dojoflow.shared.enums import DurationUnit, EnrollmentStatus
+from dojoflow.models.student_responsible import StudentResponsible
+from dojoflow.shared.enums import (
+    DurationUnit,
+    EnrollmentStatus,
+    StudentResponsibleRelationship,
+)
 from tests.helpers.auth import SEED
 
 
@@ -83,22 +90,44 @@ async def add_belt(  # noqa: PLR0913
     return {'id': str(belt.public_id), 'name': name}
 
 
-async def add_student(
+async def add_student(  # noqa: PLR0913
     session: AsyncSession,
     modality_id: str,
     name: str = 'Ana Lima',
     status: str = 'active',
+    *,
+    monthly_fee: str | None = None,
+    due_day: int | None = None,
+    billing_start_month: str | None = None,
+    is_exempt: bool = False,
+    academy_id: int | None = None,
+    phone: str | None = None,
+    birth_date: str | None = None,
 ) -> tuple[str, str]:
     """Aluno com matrícula; devolve (student_id, enrollment_id)."""
+    academy_id = academy_id or SEED.academy_id
     modality = await _one(session, Modality, modality_id)
-    student = Student(academy_id=SEED.academy_id, name=name)
+    student = Student(
+        academy_id=academy_id,
+        name=name,
+        phone=phone,
+        birth_date=date.fromisoformat(birth_date) if birth_date else None,
+    )
     session.add(student)
     await session.flush()
     enrollment = Enrollment(
-        academy_id=SEED.academy_id,
+        academy_id=academy_id,
         student_id=student.id,
         modality_id=modality.id,
         status=EnrollmentStatus(status),
+        monthly_fee=Decimal(monthly_fee) if monthly_fee else None,
+        due_day=due_day,
+        billing_start_month=(
+            date.fromisoformat(billing_start_month)
+            if billing_start_month
+            else None
+        ),
+        is_exempt=is_exempt,
     )
     session.add(enrollment)
     await session.commit()
@@ -144,3 +173,27 @@ async def add_graduation_list(
     await session.commit()
 
     return {'id': str(graduation_list.public_id)}
+
+
+async def add_responsible(
+    session: AsyncSession,
+    student_id: str,
+    name: str = 'Maria Lima',
+    phone: str = '62988880001',
+) -> None:
+    """Responsável ligado ao aluno (mãe)."""
+    student = await _one(session, Student, student_id)
+    responsible = Responsible(
+        academy_id=student.academy_id, name=name, phone=phone
+    )
+    session.add(responsible)
+    await session.flush()
+    session.add(
+        StudentResponsible(
+            academy_id=student.academy_id,
+            student_id=student.id,
+            responsible_id=responsible.id,
+            relationship=StudentResponsibleRelationship.MOTHER,
+        )
+    )
+    await session.commit()

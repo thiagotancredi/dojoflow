@@ -3,6 +3,7 @@ import { Link, useLocation, useOutletContext, useParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { StudentBillingTab } from '@/features/billing/components/StudentBillingTab'
 import { StudentAvatar } from '@/features/students/components/StudentAvatar'
 import { AddressTab } from '@/features/students/components/tabs/AddressTab'
 import { BasicDataTab } from '@/features/students/components/tabs/BasicDataTab'
@@ -14,7 +15,7 @@ import { formatPhone } from '@/lib/format'
 // Ficha do aluno: lê o ":studentId" da URL (/app/alunos/<uuid>).
 export function StudentDetailPage() {
   const { studentId } = useParams()
-  const { search } = useLocation()
+  const { search, state } = useLocation()
   const { data, isLoading, error, refetch } = useStudent(studentId)
   const list = useOutletContext<{ refreshList: () => void } | undefined>()
   const backToList = `/app/alunos${search}`
@@ -88,9 +89,15 @@ export function StudentDetailPage() {
       </div>
 
       {/* key: ao trocar de aluno, as abas voltam ao estado inicial */}
-      <Tabs key={student.id} defaultValue="enrollments">
-        <TabsList variant="line">
+      <Tabs key={student.id} defaultValue={initialTab(state)}>
+        {/* 5 abas não cabem no celular: a barra rola para o lado, sem
+            mostrar barra de rolagem (nem as setinhas do Windows) */}
+        <TabsList
+          variant="line"
+          className="max-w-full overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           <TabsTrigger value="enrollments">Matrículas</TabsTrigger>
+          <TabsTrigger value="billing">Mensalidades</TabsTrigger>
           <TabsTrigger value="data">Dados</TabsTrigger>
           <TabsTrigger value="address">Endereço</TabsTrigger>
           <TabsTrigger value="responsibles">Responsáveis</TabsTrigger>
@@ -98,6 +105,9 @@ export function StudentDetailPage() {
 
         <TabsContent value="enrollments" className="pt-2">
           <EnrollmentsTab student={data} onChanged={onChanged} />
+        </TabsContent>
+        <TabsContent value="billing" className="pt-2">
+          <StudentBillingTab student={data} />
         </TabsContent>
         <TabsContent value="data" className="pt-2">
           <BasicDataTab student={data} onChanged={onChanged} />
@@ -111,6 +121,17 @@ export function StudentDetailPage() {
       </Tabs>
     </article>
   )
+}
+
+// Aba que abre primeiro: quem vem de uma tela de cobrança pede
+// "Mensalidades" (navigate/Link com state { tab: 'billing' }); o resto abre
+// em "Matrículas"
+function initialTab(state: unknown) {
+  const tab =
+    typeof state === 'object' && state !== null && 'tab' in state
+      ? state.tab
+      : null
+  return tab === 'billing' ? 'billing' : 'enrollments'
 }
 
 // 404 do aluno ou id que nem é UUID (422): "não encontrado"

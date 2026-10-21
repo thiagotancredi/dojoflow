@@ -67,6 +67,8 @@ class StudentEnrollmentPayload(BaseModel):
     due_day: int | None = Field(default=None, ge=1, le=28)
     is_exempt: bool = False
     status: EnrollmentStatus = EnrollmentStatus.ACTIVE
+    # Só na criação: None ou 0 = taxa isenta
+    enrollment_fee: Decimal | None = Field(default=None, ge=0)
 
 
 class StudentCreateRequest(BaseModel):

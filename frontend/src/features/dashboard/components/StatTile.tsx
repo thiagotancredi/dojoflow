@@ -4,7 +4,8 @@ import { cn } from '@/lib/utils'
 
 type StatTileProps = {
   label: string
-  value: number
+  // Texto aceito para "—" enquanto carrega
+  value: number | string
   icon: ReactNode
   // Cor do ícone: neutra (cor principal) ou de alerta (atraso/vencimento)
   tone?: 'default' | 'critical' | 'warning'

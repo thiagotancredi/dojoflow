@@ -1,15 +1,20 @@
 import uuid
+from datetime import date
 from http import HTTPStatus
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dojoflow.models.enrollment import Enrollment
+from dojoflow.services import billing as billing_module
 from tests.helpers.auth import (
     auth_headers,
     create_modality,
     other_academy_headers,
 )
+from tests.helpers.scenario import add_modality, add_student
 
 
 async def _enable_modality(
@@ -238,7 +243,7 @@ async def test_students_require_auth(client: AsyncClient) -> None:
     [
         ('status', HTTPStatus.UNPROCESSABLE_ENTITY),
         ('is_exempt', HTTPStatus.UNPROCESSABLE_ENTITY),
-        ('monthly_fee', HTTPStatus.NO_CONTENT),
+        ('monthly_fee', HTTPStatus.CONFLICT),
     ],
 )
 async def test_enrollment_patch_null_handling(
@@ -345,8 +350,8 @@ async def test_invalid_second_enrollment_creates_nothing(
         json={
             'name': 'Ana Lima',
             'enrollments': [
-                {'modality_id': jiu},
-                {'modality_id': not_offered},
+                {'modality_id': jiu, 'is_exempt': True},
+                {'modality_id': not_offered, 'is_exempt': True},
             ],
         },
     )
@@ -376,3 +381,276 @@ async def test_enrollments_must_be_non_empty_and_distinct(
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def _freeze_today(monkeypatch: pytest.MonkeyPatch, today: date) -> None:
+    monkeypatch.setattr(billing_module, 'local_today', lambda: today)
+
+
+async def _create(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    **enrollment: object,
+) -> tuple[dict[str, str], str, object]:
+    headers = await auth_headers(client)
+    modality_id = await _enable_modality(client, db_session, headers, 'Jiu')
+    response = await client.post(
+        '/api/v1/students',
+        headers=headers,
+        json=_create_payload(modality_id, **enrollment),
+    )
+    return headers, modality_id, response
+
+
+async def _charges(
+    client: AsyncClient, headers: dict[str, str], student_id: str
+) -> list[dict]:
+    response = await client.get(
+        f'/api/v1/students/{student_id}/billing', headers=headers
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+    return response.json()['charges']
+
+
+async def _first_enrollment(
+    client: AsyncClient, headers: dict[str, str], student_id: str
+) -> str:
+    detail = await client.get(
+        f'/api/v1/students/{student_id}', headers=headers
+    )
+    return detail.json()['enrollments'][0]['id']
+
+
+async def _billing_start(db_session: AsyncSession, enrollment_id: str) -> date:
+    enrollment = await db_session.scalar(
+        select(Enrollment).where(
+            Enrollment.public_id == uuid.UUID(enrollment_id)
+        )
+    )
+    await db_session.refresh(enrollment)
+    return enrollment.billing_start_month
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'enrollment',
+    [{'monthly_fee': None}, {'due_day': None}, {'monthly_fee': '0'}],
+    ids=['no-fee', 'no-due-day', 'zero-fee'],
+)
+async def test_create_enrollment_without_fee_is_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    enrollment: dict,
+) -> None:
+    headers, _, response = await _create(client, db_session, **enrollment)
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'ENROLLMENT_BILLING_INCOMPLETE'
+    listing = await client.get('/api/v1/students', headers=headers)
+    assert listing.json()['total'] == 0
+
+
+@pytest.mark.asyncio
+async def test_zero_fee_not_exempt_is_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    _, _, response = await _create(client, db_session, monthly_fee='0.00')
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'ENROLLMENT_BILLING_INCOMPLETE'
+
+
+@pytest.mark.asyncio
+async def test_exempt_enrollment_needs_no_fee(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    _, _, response = await _create(
+        client, db_session, monthly_fee=None, due_day=None, is_exempt=True
+    )
+
+    assert response.status_code == HTTPStatus.CREATED, response.text
+
+
+@pytest.mark.asyncio
+async def test_create_enrollment_creates_enrollment_fee(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _freeze_today(monkeypatch, date(2026, 10, 20))
+    headers, _, response = await _create(
+        client, db_session, enrollment_fee='80'
+    )
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    student_id = response.json()['id']
+
+    (fee,) = await _charges(client, headers, student_id)
+    assert fee['kind'] == 'enrollment_fee'
+    assert fee['amount'] == '80.00'
+    assert fee['due_date'] == '2026-10-20'
+    assert fee['reference_month'] == '2026-10-01'
+    assert fee['status'] == 'upcoming'
+    enrollment_id = await _first_enrollment(client, headers, student_id)
+    assert await _billing_start(db_session, enrollment_id) == date(2026, 11, 1)
+
+    _freeze_today(monkeypatch, date(2026, 10, 21))
+    (fee,) = await _charges(client, headers, student_id)
+    assert fee['status'] == 'overdue'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'enrollment', [{'enrollment_fee': '0'}, {}], ids=['zero', 'missing']
+)
+async def test_enrollment_fee_zero_is_waived(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    enrollment: dict,
+) -> None:
+    _freeze_today(monkeypatch, date(2026, 10, 20))
+    headers, _, response = await _create(client, db_session, **enrollment)
+    student_id = response.json()['id']
+
+    (fee,) = await _charges(client, headers, student_id)
+
+    assert fee['kind'] == 'enrollment_fee'
+    assert fee['status'] == 'waived'
+
+
+@pytest.mark.asyncio
+async def test_add_enrollment_requires_fee_and_creates_fee(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _freeze_today(monkeypatch, date(2026, 10, 20))
+    headers, _, response = await _create(client, db_session)
+    student_id = response.json()['id']
+    judo = await _enable_modality(client, db_session, headers, 'Judô')
+    url = f'/api/v1/students/{student_id}/enrollments'
+
+    incomplete = await client.post(
+        url, headers=headers, json={'modality_id': judo, 'due_day': 5}
+    )
+    added = await client.post(
+        url,
+        headers=headers,
+        json={
+            'modality_id': judo,
+            'monthly_fee': '90',
+            'due_day': 5,
+            'enrollment_fee': '50',
+        },
+    )
+
+    assert incomplete.status_code == HTTPStatus.CONFLICT
+    assert incomplete.json()['code'] == 'ENROLLMENT_BILLING_INCOMPLETE'
+    assert added.status_code == HTTPStatus.NO_CONTENT, added.text
+    fees = [
+        (c['modality_name'], c['amount'], c['status'])
+        for c in await _charges(client, headers, student_id)
+    ]
+    assert sorted(fees) == [
+        ('Jiu', '0.00', 'waived'),
+        ('Judô', '50.00', 'upcoming'),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_reactivation_restarts_billing_next_month(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _freeze_today(monkeypatch, date(2026, 10, 20))
+    headers, _, response = await _create(client, db_session)
+    student_id = response.json()['id']
+    enrollment_id = await _first_enrollment(client, headers, student_id)
+    url = f'/api/v1/students/{student_id}/enrollments/{enrollment_id}'
+    await client.patch(url, headers=headers, json={'status': 'inactive'})
+
+    _freeze_today(monkeypatch, date(2027, 1, 10))
+    response = await client.patch(
+        url, headers=headers, json={'status': 'active'}
+    )
+
+    assert response.status_code == HTTPStatus.NO_CONTENT, response.text
+    assert await _billing_start(db_session, enrollment_id) == date(2027, 2, 1)
+    # Nada de novembro a janeiro: só a taxa (isenta)
+    assert [
+        c['kind'] for c in await _charges(client, headers, student_id)
+    ] == ['enrollment_fee']
+
+
+@pytest.mark.asyncio
+async def test_exempt_to_paid_starts_billing_next_month(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _freeze_today(monkeypatch, date(2026, 10, 20))
+    headers, _, response = await _create(
+        client, db_session, monthly_fee=None, due_day=None, is_exempt=True
+    )
+    student_id = response.json()['id']
+    enrollment_id = await _first_enrollment(client, headers, student_id)
+    assert await _billing_start(db_session, enrollment_id) is None
+    url = f'/api/v1/students/{student_id}/enrollments/{enrollment_id}'
+
+    _freeze_today(monkeypatch, date(2027, 1, 10))
+    only_flag = await client.patch(
+        url, headers=headers, json={'is_exempt': False}
+    )
+    completed = await client.patch(
+        url,
+        headers=headers,
+        json={'is_exempt': False, 'monthly_fee': '100', 'due_day': 5},
+    )
+
+    assert only_flag.status_code == HTTPStatus.CONFLICT
+    assert only_flag.json()['code'] == 'ENROLLMENT_BILLING_INCOMPLETE'
+    assert completed.status_code == HTTPStatus.NO_CONTENT, completed.text
+    assert await _billing_start(db_session, enrollment_id) == date(2027, 2, 1)
+
+
+@pytest.mark.asyncio
+async def test_old_incomplete_enrollment_can_be_inactivated_not_edited(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    # Matrícula antiga sem valor (de antes das mensalidades)
+    headers = await auth_headers(client)
+    taekwondo = await add_modality(db_session, 'Taekwondo')
+    student_id, enrollment_id = await add_student(db_session, taekwondo)
+    url = f'/api/v1/students/{student_id}/enrollments/{enrollment_id}'
+
+    edited = await client.patch(url, headers=headers, json={'due_day': 5})
+    inactivated = await client.patch(
+        url, headers=headers, json={'status': 'inactive'}
+    )
+
+    assert edited.status_code == HTTPStatus.CONFLICT
+    assert edited.json()['code'] == 'ENROLLMENT_BILLING_INCOMPLETE'
+    assert inactivated.status_code == HTTPStatus.NO_CONTENT
+
+
+@pytest.mark.asyncio
+async def test_detail_shows_billing_start_month(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # O site usa para limitar o "Lançar mês anterior"
+    _freeze_today(monkeypatch, date(2026, 10, 20))
+    headers, _, response = await _create(client, db_session)
+    student_id = response.json()['id']
+
+    detail = await client.get(
+        f'/api/v1/students/{student_id}', headers=headers
+    )
+
+    (enrollment,) = detail.json()['enrollments']
+    assert enrollment['billing_start_month'] == '2026-11-01'

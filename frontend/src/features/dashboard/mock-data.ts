@@ -1,23 +1,7 @@
-// Dados fictícios do dashboard. Inadimplentes e vencimentos dependem do
-// backend de pagamentos (V2); o resto virá de GET /api/v1/dashboard/summary.
+// Dados fictícios do dashboard. Inadimplentes e vencimentos já vêm da API
+// (GET /api/v1/dashboard/summary); o resto ainda é exemplo (Fase 10).
 
 export type LabelCount = { label: string; count: number }
-
-export type OverdueStudent = {
-  id: string
-  name: string
-  modality: string
-  amount: string
-  daysLate: number
-}
-
-export type DueSoonStudent = {
-  id: string
-  name: string
-  modality: string
-  amount: string
-  dueDate: string
-}
 
 export type Birthday = {
   id: string
@@ -60,19 +44,6 @@ export const ageGroups: LabelCount[] = [
   { label: 'Juvenil (13–17)', count: 9 },
   { label: 'Adulto (18–39)', count: 25 },
   { label: 'Master (40+)', count: 8 },
-]
-
-export const overdueStudents: OverdueStudent[] = [
-  { id: 'bruno-souza', name: 'Bruno Souza', modality: 'Muay thai', amount: '130,00', daysLate: 18 },
-  { id: 'carla-mendes', name: 'Carla Mendes', modality: 'Jiu-jitsu', amount: '150,00', daysLate: 9 },
-  { id: 'elisa-freitas', name: 'Elisa Freitas', modality: 'Karatê', amount: '120,00', daysLate: 3 },
-]
-
-export const dueSoonStudents: DueSoonStudent[] = [
-  { id: 'ana-lima', name: 'Ana Lima', modality: 'Jiu-jitsu', amount: '150,00', dueDate: '16/10' },
-  { id: 'davi-rocha', name: 'Davi Rocha', modality: 'Judô', amount: '100,00', dueDate: '18/10' },
-  { id: 'felipe-costa', name: 'Felipe Costa', modality: 'Muay thai', amount: '130,00', dueDate: '20/10' },
-  { id: 'gabi-nunes', name: 'Gabi Nunes', modality: 'Jiu-jitsu', amount: '150,00', dueDate: '20/10' },
 ]
 
 export const birthdaysThisMonth: Birthday[] = [

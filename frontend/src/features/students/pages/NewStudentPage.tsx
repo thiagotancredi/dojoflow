@@ -31,7 +31,7 @@ import {
   responsibleSchema,
   toAddressPayload,
   toBasicDataPayload,
-  toEnrollmentPayload,
+  toNewEnrollmentPayload,
   toResponsiblePayload,
 } from '@/features/students/schemas'
 import type {
@@ -129,7 +129,7 @@ export function NewStudentPage() {
                 who === 'other' ? responsibles.map(toResponsiblePayload) : [],
               enrollments: drafts.map((draft) => ({
                 modality_id: draft.values.modality_id,
-                ...toEnrollmentPayload(draft.values),
+                ...toNewEnrollmentPayload(draft.values),
                 current_belt: draft.beltId
                   ? { belt_id: draft.beltId, graduated_on: draft.since }
                   : null,
