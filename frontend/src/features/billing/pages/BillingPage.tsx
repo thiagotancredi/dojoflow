@@ -386,6 +386,7 @@ function StudentName({ item }: { item: BillingOverviewItem }) {
     <p className="min-w-0">
       <Link
         to={`/app/alunos/${item.student_id}`}
+        state={{ tab: 'billing' }}
         className="font-medium hover:underline"
       >
         {item.name}

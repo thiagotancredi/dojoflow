@@ -15,7 +15,7 @@ import { formatPhone } from '@/lib/format'
 // Ficha do aluno: lê o ":studentId" da URL (/app/alunos/<uuid>).
 export function StudentDetailPage() {
   const { studentId } = useParams()
-  const { search } = useLocation()
+  const { search, state } = useLocation()
   const { data, isLoading, error, refetch } = useStudent(studentId)
   const list = useOutletContext<{ refreshList: () => void } | undefined>()
   const backToList = `/app/alunos${search}`
@@ -89,7 +89,7 @@ export function StudentDetailPage() {
       </div>
 
       {/* key: ao trocar de aluno, as abas voltam ao estado inicial */}
-      <Tabs key={student.id} defaultValue="enrollments">
+      <Tabs key={student.id} defaultValue={initialTab(state)}>
         {/* 5 abas não cabem no celular: a barra rola para o lado, sem
             mostrar barra de rolagem (nem as setinhas do Windows) */}
         <TabsList
@@ -121,6 +121,17 @@ export function StudentDetailPage() {
       </Tabs>
     </article>
   )
+}
+
+// Aba que abre primeiro: quem vem de uma tela de cobrança pede
+// "Mensalidades" (navigate/Link com state { tab: 'billing' }); o resto abre
+// em "Matrículas"
+function initialTab(state: unknown) {
+  const tab =
+    typeof state === 'object' && state !== null && 'tab' in state
+      ? state.tab
+      : null
+  return tab === 'billing' ? 'billing' : 'enrollments'
 }
 
 // 404 do aluno ou id que nem é UUID (422): "não encontrado"

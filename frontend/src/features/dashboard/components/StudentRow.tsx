@@ -9,14 +9,23 @@ type StudentRowProps = {
   detail: string
   // Lado direito da linha: valor, status, data… quem usa decide
   trailing: ReactNode
+  // Aba que a ficha abre (listas de cobrança abrem "Mensalidades")
+  tab?: 'billing'
 }
 
 // Linha de aluno clicável, usada nas listas do dashboard. Abre a ficha.
-export function StudentRow({ studentId, name, detail, trailing }: StudentRowProps) {
+export function StudentRow({
+  studentId,
+  name,
+  detail,
+  trailing,
+  tab,
+}: StudentRowProps) {
   return (
     <li>
       <Link
         to={`/app/alunos/${studentId}`}
+        state={tab ? { tab } : undefined}
         className="flex items-center gap-3 rounded-2xl p-2 hover:bg-accent"
       >
         <StudentAvatar />

@@ -71,6 +71,7 @@ export function DashboardPage() {
               <StudentRow
                 key={student.student_id}
                 studentId={student.student_id}
+                tab="billing"
                 name={student.name}
                 detail={student.modality}
                 trailing={
@@ -104,6 +105,7 @@ export function DashboardPage() {
                 // O mesmo aluno pode ter duas cobranças (duas modalidades)
                 key={`${charge.student_id}-${index}`}
                 studentId={charge.student_id}
+                tab="billing"
                 name={charge.name}
                 detail={charge.modality}
                 trailing={
