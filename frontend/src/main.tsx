@@ -14,6 +14,9 @@ import './index.css'
 // Claro ou escuro antes de desenhar, para a tela não piscar
 applyInitialMode()
 
+// Título da aba: distingue o painel do app dos mestres
+if (isAdminHost) document.title = 'Katsuflow · Admin'
+
 // Ponto de entrada: desenha o roteador dentro da <div id="root"> do index.html.
 // A partir daqui, é o roteador que decide qual tela aparece para cada URL.
 createRoot(document.getElementById('root')!).render(

@@ -7,7 +7,7 @@ import { LoginPage } from '@/features/auth/pages/LoginPage'
 
 // Rotas do painel do administrador (só no endereço admin.*)
 export const adminRouter = createBrowserRouter([
-  { path: '/login', element: <LoginPage redirectTo="/" /> },
+  { path: '/login', element: <LoginPage redirectTo="/" variant="admin" /> },
   {
     path: '/',
     element: (
