@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alunos no site</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-from:#e2e5fb; --bg-to:#f1f2fe; --fg:#1e2140; --card:#fff; --muted:#f4f5fb; --muted-fg:#8a8eab;
+    --border:#eceefa; --input:#e2e4f5; --primary:#4f46e5; --chip:#eef0ff; --chip-border:#c7c4fb;
+    --active:#3b82f6; --active-soft:#eef6fe; --exempt:#22a35a; --exempt-soft:#ecf8f1;
+    --pending:#d4a514; --pending-soft:#fdf8e7; --inactive:#a3a7c2; --inactive-soft:#f3f4f8; --danger:#dc2626;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Outfit',system-ui,sans-serif; color:var(--fg); min-height:100vh;
+         background:linear-gradient(135deg,var(--bg-from),var(--bg-to)); }
+  button { font:inherit; cursor:pointer; } input, select { font:inherit; color:var(--fg); }
+  .tour { max-width:1200px; margin:0 auto; padding:14px 20px 0; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .tour .t { font-size:13px; color:var(--muted-fg); }
+  .step { border:1px solid var(--chip-border); background:#fff; color:var(--primary); border-radius:999px; padding:5px 12px; font-size:13px; }
+  .step.on { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .urlbar { max-width:1200px; margin:8px auto 0; padding:0 20px; }
+  .urlbar div { background:#fff; border-radius:12px; padding:6px 12px; font-size:12px; color:var(--muted-fg); font-family:ui-monospace,monospace; }
+  .urlbar b { color:var(--fg); font-weight:500; }
+  .shell { max-width:1200px; margin:0 auto; display:flex; gap:16px; padding:12px 20px 40px; }
+  aside { width:72px; flex-shrink:0; background:#fff; border-radius:24px; padding:14px 8px; display:flex; flex-direction:column; align-items:center; gap:8px; height:fit-content; position:sticky; top:14px; }
+  .logo { width:40px; height:40px; border-radius:14px; background:linear-gradient(135deg,#4f46e5,#818cf8); color:#fff; display:grid; place-items:center; font-weight:700; margin-bottom:8px; }
+  .nav { width:56px; border:0; background:transparent; border-radius:16px; padding:8px 0; display:grid; justify-items:center; gap:2px; font-size:10px; color:var(--muted-fg); }
+  .nav span { font-size:18px; } .nav.on { background:var(--chip); color:var(--primary); }
+  main { flex:1; min-width:0; }
+  h1 { font-size:24px; margin:4px 0 14px; letter-spacing:-.01em; }
+  .head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .panel { background:var(--card); border-radius:24px; padding:20px; }
+  .btn { border:1px solid var(--input); background:#fff; border-radius:999px; padding:7px 14px; font-size:13px; color:var(--fg); display:inline-flex; align-items:center; gap:6px; }
+  .btn.primary { background:var(--primary); border-color:var(--primary); color:#fff; }
+  .btn.ghost { border-color:transparent; background:transparent; color:var(--primary); padding:4px 8px; }
+  .btn.danger { color:var(--danger); } .btn.sm { padding:4px 10px; font-size:12px; }
+  .btn:disabled { opacity:.45; cursor:default; }
+  .split { display:flex; gap:16px; align-items:flex-start; }
+  .slist { width:300px; flex-shrink:0; background:#fff; border-radius:24px; padding:12px; display:grid; gap:8px; }
+  .search { position:relative; } .search input { width:100%; border:1px solid var(--input); border-radius:999px; padding:8px 12px 8px 34px; font-size:14px; }
+  .search span { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--muted-fg); font-size:13px; }
+  .search .typing { position:absolute; right:12px; top:50%; transform:translateY(-50%); font-size:11px; color:var(--muted-fg); left:auto; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .chipb { border:1px solid var(--border); background:#fff; border-radius:999px; padding:3px 11px; font-size:12px; color:var(--muted-fg); }
+  .chipb.on { border-color:var(--chip-border); background:var(--chip); color:var(--primary); }
+  .sel { border:1px solid var(--border); border-radius:999px; padding:3px 8px; font-size:12px; color:var(--fg); background:#fff; }
+  .srow { display:flex; align-items:center; gap:10px; padding:8px; border-radius:16px; border:0; background:transparent; text-align:left; width:100%; }
+  .srow:hover { background:var(--muted); } .srow.on { background:var(--chip); }
+  .av { width:36px; height:36px; border-radius:999px; display:grid; place-items:center; font-size:12px; font-weight:600; flex-shrink:0; }
+  .av.lg { width:52px; height:52px; font-size:16px; }
+  .small { font-size:12px; color:var(--muted-fg); }
+  .pager { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted-fg); padding-top:4px; }
+  .empty { text-align:center; padding:26px 10px; display:grid; gap:8px; justify-items:center; font-size:14px; }
+  .tabs { display:flex; gap:18px; border-bottom:1px solid var(--border); margin:16px 0; font-size:14px; overflow-x:auto; }
+  .tabs button { border:0; background:none; padding:8px 0; color:var(--muted-fg); border-bottom:2px solid transparent; white-space:nowrap; }
+  .tabs button.on { color:var(--fg); border-bottom-color:var(--primary); font-weight:500; }
+  .grid2 { display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); }
+  .enr { border-left:3px solid var(--active); background:var(--active-soft); border-radius:14px; padding:10px 14px; font-size:14px; display:grid; gap:2px; }
+  .enr.exempt { border-color:var(--exempt); background:var(--exempt-soft); }
+  .enr.pending { border-color:var(--pending); background:var(--pending-soft); }
+  .enr.inactive { border-color:var(--inactive); background:var(--inactive-soft); color:#6b6f8a; }
+  .enr .top { display:flex; justify-content:space-between; align-items:center; }
+  dl { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; margin:0; }
+  dt { font-size:12px; color:var(--muted-fg); } dd { margin:2px 0 0; font-size:14px; }
+  .form { display:grid; gap:14px; }
+  .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+  label.f { display:grid; gap:6px; font-size:13px; color:var(--muted-fg); }
+  label.f input, label.f select { border:1px solid var(--input); border-radius:12px; padding:8px 10px; background:#fff; font-size:14px; color:var(--fg); }
+  label.f input:disabled { background:var(--muted); color:var(--muted-fg); }
+  label.f.err input, label.f.err select { border-color:var(--danger); }
+  .errt { color:var(--danger); font-size:12px; }
+  .check { display:flex; gap:8px; align-items:center; font-size:14px; }
+  .actions { display:flex; gap:8px; justify-content:flex-end; }
+  .note { background:var(--chip); color:#3730a3; border-radius:14px; padding:8px 12px; font-size:13px; }
+  .warn { background:var(--pending-soft); color:#8a6a07; border-radius:12px; padding:6px 10px; font-size:12px; }
+  .resp { display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border); border-radius:14px; padding:10px 14px; font-size:14px; }
+  .overlay { position:fixed; inset:0; background:rgba(30,33,64,.35); display:grid; place-items:center; padding:16px; z-index:10; }
+  .modal { background:#fff; border-radius:24px; padding:20px; width:min(520px,100%); max-height:90vh; overflow:auto; display:grid; gap:14px; }
+  .modal h3 { margin:0; font-size:17px; }
+  .toast { position:fixed; bottom:20px; right:20px; background:var(--fg); color:#fff; padding:10px 16px; border-radius:14px; font-size:13px; z-index:20; box-shadow:0 8px 24px rgba(0,0,0,.15); }
+  .steps { display:flex; gap:6px; margin-bottom:18px; flex-wrap:wrap; }
+  .steps div { flex:1; min-width:120px; border-radius:14px; padding:8px 12px; font-size:13px; background:var(--muted); color:var(--muted-fg); }
+  .steps div.on { background:var(--chip); color:var(--primary); font-weight:500; }
+  .steps div.done { background:#ecf8f1; color:#1f7a45; }
+  .picker { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:6px; }
+  .pick { border:1px solid var(--border); background:#fff; border-radius:12px; padding:6px; display:grid; gap:3px; text-align:left; font-size:12px; }
+  .pick.sel { border-color:var(--primary); box-shadow:0 0 0 2px var(--primary); }
+  .beltbox { background:#fff; border-radius:12px; padding:8px 10px; margin-top:6px; display:grid; gap:4px; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:999px; margin-right:6px; vertical-align:middle; }
+  .dot.ok { background:#10b981; } .dot.wait { background:#f59e0b; }
+  .block { border:1px solid var(--border); border-radius:18px; padding:14px; display:grid; gap:12px; }
+  .radio { display:flex; gap:10px; align-items:flex-start; border:1px solid var(--border); border-radius:14px; padding:12px; font-size:14px; cursor:pointer; }
+  .radio.on { border-color:var(--chip-border); background:var(--chip); }
+  .back { font-size:13px; color:var(--muted-fg); background:none; border:0; padding:0; margin-bottom:6px; }
+  @media (max-width:760px) {
+    .shell { flex-direction:column; padding:12px; } aside { flex-direction:row; width:100%; position:static; justify-content:space-around; }
+    .logo { display:none; } .split { flex-direction:column; } .slist { width:100%; }
+  }
+</style>
+</head>
+<body>
+<div class="tour" id="tour"></div>
+<div class="urlbar"><div id="url"></div></div>
+<div class="shell"><aside id="side"></aside><main id="main"></main></div>
+<div id="layer"></div>
+
+<script>
+// ---------- Dados fictícios (nada é salvo) ----------
+const MODS = ['Taekwondo', 'Jiu-jitsu', 'Boxe']
+// Faixas fictícias (a tela de cadastro de faixas vem no plano das faixas)
+const GOLD = '#d4a017', W = '#f8fafc'
+const BELTS = {
+  'Taekwondo': [['Branca',W,null,0,3],['Amarela','#facc15',null,0,3],['Verde','#16a34a',null,0,3],['Azul','#1d4ed8',null,0,3],['Vermelha','#dc2626',null,0,6],['Preta 1º Dan','#111827',null,1,12]],
+  'Jiu-jitsu': [['Branca',W,null,0,12],['Azul','#1d4ed8',null,0,24],['Roxa','#7c3aed',null,0,24],['Marrom','#78350f',null,0,18],['Preta','#111827',null,0,null]],
+  'Boxe': [],
+}
+const beltOf = (mod, name) => { const b = BELTS[mod].find(x => x[0] === name); return b && { name:b[0], main:b[1], stripe:b[2], marks:b[3], months:b[4] } }
+const TODAY = new Date(2026, 9, 20)
+const AV = [['#e0e7ff','#4338ca'],['#fce7f3','#be185d'],['#dcfce7','#15803d'],['#fef3c7','#b45309'],['#e0f2fe','#0369a1']]
+let uid = 100
+const S = {
+  screen:'list', search:'', status:'ativos', mod:'', page:1, sel:'ana', tab:'enr', editing:null, errors:{},
+  students:[
+    st('ana','Ana Lima','62999990001',true,'ana@email.com','2012-03-04','female',
+      { zip:'74000000', street:'Rua A', number:'10', complement:'', neighborhood:'Setor Central', city:'Goiânia', state:'GO' },
+      [{ id:1, name:'Maria Lima', rel:'mother', phone:'62999990002', wa:true }],
+      [{ id:1, mod:'Taekwondo', fee:'150.00', due:10, exempt:false, status:'active', hist:[{belt:'Branca',date:'2026-01-10'},{belt:'Amarela',date:'2026-07-08'}] }, { id:2, mod:'Jiu-jitsu', fee:null, due:null, exempt:false, status:'active', hist:[] }]),
+    st('bruno','Bruno Costa','62999990003',false,null,null,'male',null,[],[{ id:3, mod:'Taekwondo', fee:'150.00', due:5, exempt:false, status:'active', hist:[{belt:'Verde',date:'2026-09-01'}] }]),
+    st('caio','Caio Souza','62999990004',true,null,null,'male',null,[],[{ id:4, mod:'Boxe', fee:null, due:null, exempt:true, status:'active', hist:[] }]),
+    st('duda','Duda Reis','62999990005',true,null,null,'female',null,[],[{ id:5, mod:'Taekwondo', fee:'130.00', due:15, exempt:false, status:'inactive', hist:[{belt:'Branca',date:'2025-11-01'}] }]),
+    st('edu','Eduardo Alves','62999990006',false,null,null,'male',null,[],[{ id:6, mod:'Jiu-jitsu', fee:'180.00', due:20, exempt:false, status:'active', hist:[{belt:'Azul',date:'2024-05-10'}] }]),
+  ],
+  wiz:null,
+}
+function st(id,name,phone,wa,email,birth,sex,address,resp,enr) { return { id,name,phone,wa,email,birth,sex,cpf:null,insta:null,address,resp,enr } }
+const REL = { father:'Pai', mother:'Mãe', grandmother:'Avó', grandfather:'Avô', uncle:'Tio', aunt:'Tia', brother:'Irmão', sister:'Irmã' }
+const SEX = { male:'Masculino', female:'Feminino', other:'Outro' }
+const CEPS = { '74000000':{ street:'Rua A', neighborhood:'Setor Central', city:'Goiânia', state:'GO' }, '01310100':{ street:'Avenida Paulista', neighborhood:'Bela Vista', city:'São Paulo', state:'SP' } }
+
+// ---------- Utilidades ----------
+const $ = id => document.getElementById(id)
+const initials = n => '<svg width="55%" height="55%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>'
+const avStyle = n => 'background:#eef0ff;color:#4f46e5'
+const fmtPhone = p => p ? `(${p.slice(0,2)}) ${p.slice(2,-4)}-${p.slice(-4)}` : '—'
+const fmtMoney = v => v == null ? '—' : 'R$ ' + Number(v).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+const parseMoney = t => { const c = t.trim().replace(/\./g,'').replace(',', '.'); if (!/^\d+(\.\d{1,2})?$/.test(c)) return null; return Number(c).toFixed(2) }
+const brDate = d => d ? d.split('-').reverse().join('/') : '—'
+function belt(b, w=180, h=28) {
+  const edge = b.main === W ? '#cbd5e1' : 'rgba(0,0,0,.25)'
+  let s = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img"><title>${b.name}</title><rect x=".5" y=".5" width="${w-1}" height="${h-1}" rx="2" fill="${b.main}" stroke="${edge}"/>`
+  if (b.stripe) s += `<rect x="1" y="${h*.36}" width="${w-2}" height="${h*.28}" fill="${b.stripe}"/>`
+  for (const y of [h*.2, h*.8]) s += `<line x1="4" y1="${y}" x2="${w-4}" y2="${y}" stroke="rgba(255,255,255,.18)" stroke-dasharray="3 3"/>`
+  for (let i = 0; i < b.marks; i++) s += `<rect x="${w - 12 - i*9}" y="4" width="4" height="${h-8}" rx="1" fill="${GOLD}"/>`
+  return s + '</svg>'
+}
+const parseD = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d) }
+const isoD = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+function addMonths(s, n) { const d = parseD(s), t = new Date(d.getFullYear(), d.getMonth()+n, 1), last = new Date(t.getFullYear(), t.getMonth()+1, 0).getDate(); t.setDate(Math.min(d.getDate(), last)); return isoD(t) }
+function since(s) { const a = parseD(s); let m = (TODAY.getFullYear()-a.getFullYear())*12 + TODAY.getMonth()-a.getMonth(); if (TODAY.getDate() < a.getDate()) m--; const base = new Date(a.getFullYear(), a.getMonth()+m, a.getDate()), d = Math.round((TODAY-base)/864e5)
+  const p = []; if (m >= 12) { const y = Math.floor(m/12); p.push(`${y} ${y>1?'anos':'ano'}`); m %= 12 } if (m) p.push(`${m} ${m>1?'meses':'mês'}`); if (d || !p.length) p.push(`${d} ${d===1?'dia':'dias'}`); return 'há ' + p.join(' e ') }
+const currentOf = e => [...e.hist].sort((a,b) => b.date.localeCompare(a.date))[0] || null
+function beltStatus(e, c) {
+  const b = beltOf(e.mod, c.belt); if (!b.months) return '<span class="small">Sem tempo mínimo</span>'
+  const on = addMonths(c.date, b.months)
+  return on <= isoD(TODAY) ? '<span class="dot ok"></span><span style="color:#047857;font-size:13px">Apto</span>' : `<span class="dot wait"></span><span class="small">Ainda não · apto a partir de ${brDate(on)}</span>`
+}
+function beltPicker(boxId, mod, selected) {
+  return `<div class="picker" id="${boxId}">${BELTS[mod].map(b => { const bb = beltOf(mod, b[0]); return `<button type="button" class="pick ${selected===b[0]?'sel':''}" data-belt="${b[0]}" onclick="document.querySelectorAll('#${boxId} .pick').forEach(p=>p.classList.remove('sel'));this.classList.add('sel')">${belt(bb,120,18)}<span>${b[0]}</span></button>` }).join('')}</div>`
+}
+const pickedBelt = boxId => document.querySelector(`#${boxId} .pick.sel`)?.dataset.belt || null
+function toast(t) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = t; document.body.append(el); setTimeout(() => el.remove(), 2400) }
+function modal(html) { $('layer').innerHTML = `<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>` }
+function closeModal() { $('layer').innerHTML = '' }
+const cur = () => S.students.find(s => s.id === S.sel)
+const fld = (name, label, value='', attrs='') => `<label class="f ${S.errors[name]?'err':''}">${label}<input id="f-${name}" value="${value ?? ''}" ${attrs}>${S.errors[name]?`<span class="errt">${S.errors[name]}</span>`:''}</label>`
+const val = name => ($('f-'+name)?.value ?? '').trim()
+
+// ---------- Moldura ----------
+const STEPS = [['list','1 · Lista com busca e filtros'],['detail','2 · Ficha e edição'],['new','3 · Novo aluno (4 etapas)']]
+function go(screen, extra={}) { Object.assign(S, { screen, editing:null, errors:{} }, extra); closeModal(); render() }
+function render() {
+  $('tour').innerHTML = `<span class="t">Protótipo clicável · nada é salvo ·</span>` + STEPS.map(([k,l]) =>
+    `<button class="step ${(S.screen===k||(k==='detail'&&S.screen==='list'&&false))?'on':''}" onclick="${k==='detail'?"go('list',{sel:'ana'});setTimeout(()=>{S.tab='enr';render()},0)":k==='new'?'startWizard()':"go('list')"}">${l}</button>`).join('')
+  $('side').innerHTML = `<div class="logo">D</div>` + [['▦','Início'],['👥','Alunos',1],['⚙','Config.']].map(([i,l,on]) =>
+    `<button class="nav ${on?'on':''}" onclick="${on?"go('list')":"toast('Fora deste protótipo')"}"><span>${i}</span>${l}</button>`).join('')
+  $('main').innerHTML = S.screen === 'new' ? wizard() : listScreen()
+  $('url').innerHTML = urlText()
+}
+function urlText() {
+  if (S.screen === 'new') return `localhost:5173<b>/app/alunos/novo</b>`
+  const q = []; if (S.search) q.push(`busca=${encodeURIComponent(S.search)}`); if (S.status !== 'ativos') q.push(`status=${S.status}`); if (S.mod) q.push(`modalidade=${S.mod}`); if (S.page > 1) q.push(`pagina=${S.page}`)
+  return `localhost:5173<b>/app/alunos/${S.sel || ''}</b>${q.length ? '<b>?' + q.join('&') + '</b>' : ''}  <span style="margin-left:10px">← filtros ficam na URL: recarregar ou compartilhar mantém a busca</span>`
+}
+
+// ---------- 1. Lista ----------
+let debounce
+function onSearch(v) { $('typing').textContent = 'aguardando…'; clearTimeout(debounce); debounce = setTimeout(() => { S.search = v; S.page = 1; render(); $('q').focus(); $('q').setSelectionRange(v.length, v.length) }, 300) }
+function filtered() {
+  return S.students.filter(s => {
+    const act = s.enr.some(e => e.status === 'active')
+    return s.name.toLowerCase().includes(S.search.toLowerCase()) && (S.status === 'ativos' ? act : !act) && (!S.mod || s.enr.some(e => e.mod === S.mod && e.status === (S.status === 'ativos' ? 'active' : 'inactive')))
+  })
+}
+function listScreen() {
+  const all = filtered(), size = 4, pages = Math.max(1, Math.ceil(all.length / size)), items = all.slice((S.page-1)*size, S.page*size)
+  const hasFilter = S.search || S.mod
+  const list = !items.length
+    ? `<div class="empty">${hasFilter ? `<b>Nenhum aluno encontrado</b><span class="small">Tente outra busca ou limpe os filtros.</span><button class="btn sm" onclick="S.search='';S.mod='';S.page=1;render()">Limpar filtros</button>` : `<b>Nenhum aluno ainda</b><button class="btn primary sm" onclick="startWizard()">+ Novo aluno</button>`}</div>`
+    : items.map(s => `<button class="srow ${s.id===S.sel?'on':''}" onclick="S.sel='${s.id}';S.tab='enr';S.editing=null;render()"><div class="av" style="${avStyle(s.name)}">${initials(s.name)}</div><div style="min-width:0"><div style="font-size:14px;font-weight:500">${s.name}</div><div class="small">${s.enr.filter(e=>e.status==='active').map(e=>e.mod).join(' · ') || 'Sem matrícula ativa'}</div></div></button>`).join('')
+  return `<div class="head"><h1>Alunos</h1><button class="btn primary" onclick="startWizard()">+ Novo aluno</button></div>
+  <div class="split">
+    <section class="slist">
+      <div class="search"><span>🔍</span><input id="q" placeholder="Buscar aluno" value="${S.search}" oninput="onSearch(this.value)"><span class="typing" id="typing"></span></div>
+      <div class="chips">${['ativos','inativos'].map(k => `<button class="chipb ${S.status===k?'on':''}" onclick="S.status='${k}';S.page=1;render()">${k==='ativos'?'Ativos':'Inativos'}</button>`).join('')}
+        <select class="sel" onchange="S.mod=this.value;S.page=1;render()"><option value="">Todas as modalidades</option>${MODS.map(m => `<option ${S.mod===m?'selected':''}>${m}</option>`).join('')}</select></div>
+      <div style="display:grid;gap:2px">${list}</div>
+      ${all.length ? `<div class="pager"><button class="btn sm" ${S.page<=1?'disabled':''} onclick="S.page--;render()">Anterior</button>página ${S.page} de ${pages} · ${all.length} alunos<button class="btn sm" ${S.page>=pages?'disabled':''} onclick="S.page++;render()">Próxima</button></div>` : ''}
+    </section>
+    <section class="panel" style="flex:1;min-width:0">${detail()}</section>
+  </div>`
+}
+
+// ---------- 2. Ficha ----------
+function detail() {
+  const s = cur(); if (!s) return `<div class="empty"><b>Selecione um aluno</b></div>`
+  const tabs = [['enr','Matrículas'],['data','Dados'],['addr','Endereço'],['resp','Responsáveis']]
+  return `<div style="display:flex;gap:12px;align-items:center"><div class="av lg" style="${avStyle(s.name)}">${initials(s.name)}</div><div><div style="font-size:19px;font-weight:600">${s.name}</div><div class="small">📞 ${fmtPhone(s.phone)}${s.wa?' · WhatsApp':''}</div></div></div>
+  <div class="tabs">${tabs.map(([k,l]) => `<button class="${S.tab===k?'on':''}" onclick="S.tab='${k}';S.editing=null;S.errors={};render()">${l}</button>`).join('')}</div>
+  ${({ enr:enrTab, data:dataTab, addr:addrTab, resp:respTab })[S.tab](s)}`
+}
+function enrClass(e) { return e.status==='inactive'?'inactive':e.exempt?'exempt':(e.fee==null||e.due==null)?'pending':'' }
+function enrTab(s) {
+  return `<div class="grid2">${s.enr.map(e => { const pend = enrClass(e)==='pending', has = BELTS[e.mod].length, c = currentOf(e)
+    const beltBlock = !has ? '' : c ? `<div class="beltbox">${belt(beltOf(e.mod, c.belt), 200, 26)}<div><b>${c.belt}</b> <span class="small">· ${since(c.date)}</span></div><div>${beltStatus(e, c)}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary sm" onclick="gradForm(${e.id})">Registrar graduação</button><button class="btn sm" onclick="histModal(${e.id})">Histórico (${e.hist.length})</button></div></div>`
+      : `<div class="beltbox"><span class="small">Sem faixa registrada</span><div><button class="btn sm" onclick="gradForm(${e.id}, true)">Registrar faixa atual</button></div></div>`
+    return `<div class="enr ${enrClass(e)}"><div class="top"><b>${e.mod}</b><button class="btn ghost sm" onclick="enrForm(${e.id})">Editar</button></div>
+      <div>${e.exempt?'Isenta':pend?'Sem mensalidade definida':`${fmtMoney(e.fee)} · vence dia ${e.due}`}</div>
+      <div class="small">${e.status==='inactive'?'Inativa':pend?'⚠ Pendência de cadastro':'Ativa'}</div>${beltBlock}</div>` }).join('')}</div>
+  <div style="margin-top:12px"><button class="btn" onclick="enrForm()">+ Nova matrícula</button></div>
+  <p class="small" style="margin-top:10px">Faixas com valores fictícios nesta etapa; a integração vem com a parte das faixas.</p>`
+}
+const findEnr = id => cur().enr.find(e => e.id === id)
+function gradForm(id, first) {
+  const e = findEnr(id), c = currentOf(e), names = BELTS[e.mod].map(b => b[0])
+  const next = first ? names[0] : names[Math.min(names.indexOf(c.belt) + 1, names.length - 1)]
+  modal(`<h3>${first ? 'Registrar faixa atual' : 'Registrar graduação'} · ${e.mod}</h3>${beltPicker('g-pick', e.mod, next)}
+    <label class="f">Data da graduação<input type="date" id="f-gdate" value="${isoD(TODAY)}"></label>
+    <span class="small">${first ? 'Aluno antigo: escolha a faixa atual e uma data aproximada.' : 'A próxima faixa já vem marcada; dá para escolher outra (inclusive pular).'}</span>
+    <div class="actions"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" onclick="saveGrad(${id})">Salvar</button></div>`)
+}
+function saveGrad(id) { const b = pickedBelt('g-pick'); if (!b) return toast('Escolha a faixa'); findEnr(id).hist.push({ belt:b, date:$('f-gdate').value }); closeModal(); toast('Graduação registrada'); render() }
+function histModal(id) {
+  const e = findEnr(id), rows = [...e.hist].sort((a,b) => b.date.localeCompare(a.date))
+  modal(`<h3>Histórico de faixas · ${e.mod}</h3><div style="display:grid;gap:8px">${rows.map(r => `<div class="resp"><div style="display:flex;gap:10px;align-items:center">${belt(beltOf(e.mod, r.belt),110,16)}<span>${r.belt}</span></div><span class="small">${brDate(r.date)}</span></div>`).join('')}</div>
+    <div class="actions"><button class="btn" onclick="closeModal()">Fechar</button></div>`)
+}
+function enrForm(id) {
+  const s = cur(), e = id ? s.enr.find(x => x.id === id) : { mod:'', fee:null, due:null, exempt:false, status:'active' }
+  const free = MODS.filter(m => !s.enr.some(x => x.mod === m))
+  S.errors = {}
+  window.drawEnr = () => modal(`<h3>${id ? 'Editar matrícula · ' + e.mod : 'Nova matrícula'}</h3><div class="form">
+    ${id ? '' : free.length ? `<label class="f">Modalidade<select id="f-mod" onchange="$('nb').innerHTML=newBeltBox(this.value)">${free.map(m => `<option>${m}</option>`).join('')}</select><span class="small">Só aparecem as oferecidas pela academia em que o aluno ainda não está.</span></label>` : '<div class="note">O aluno já está em todas as modalidades oferecidas.</div>'}
+    <label class="check"><input type="checkbox" id="f-exempt" ${e.exempt?'checked':''} onchange="['fee','due'].forEach(n=>$('f-'+n).disabled=this.checked)"> Isenta (não paga mensalidade)</label>
+    <div class="row">${fld('fee','Mensalidade (R$)', e.fee ? e.fee.replace('.', ',') : '', `placeholder="150,00" ${e.exempt?'disabled':''}`)}${fld('due','Dia do vencimento (1 a 28)', e.due ?? '', `placeholder="10" ${e.exempt?'disabled':''}`)}</div>
+    ${!id && free.length ? `<div id="nb">${newBeltBox(free[0])}</div>` : ''}
+    ${id ? `<label class="f">Situação<select id="f-status"><option value="active" ${e.status==='active'?'selected':''}>Ativa</option><option value="inactive" ${e.status==='inactive'?'selected':''}>Inativa</option></select></label>` : ''}
+  </div><div class="actions"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" id="save" onclick="saveEnr(${id||0})">Salvar</button></div>`)
+  window.drawEnr()
+}
+function newBeltBox(mod) {
+  if (!BELTS[mod].length) return '<span class="small">Esta modalidade não tem faixas.</span>'
+  return `<div style="display:grid;gap:8px"><span class="small">Faixa atual (opcional)</span>${beltPicker('n-pick', mod, BELTS[mod][0][0])}<label class="f">Desde<input type="date" id="f-nsince" value="${isoD(TODAY)}"></label></div>`
+}
+function saveEnr(id) {
+  const s = cur(), exempt = $('f-exempt').checked, feeT = val('fee'), dueT = val('due'); S.errors = {}
+  const fee = exempt || !feeT ? null : parseMoney(feeT)
+  if (!exempt && feeT && fee == null) S.errors.fee = 'Valor inválido. Use o formato 150,00.'
+  if (!exempt && dueT && !(+dueT >= 1 && +dueT <= 28 && Number.isInteger(+dueT))) S.errors.due = 'O vencimento vai de 1 a 28.'
+  if (Object.keys(S.errors).length) { const keep = { fee:feeT, due:dueT }; window.drawEnr(); $('f-fee').value = keep.fee; $('f-due').value = keep.due; return }
+  const data = { fee, due: exempt || !dueT ? null : +dueT, exempt }
+  $('save').disabled = true; $('save').textContent = 'Salvando…'
+  setTimeout(() => {
+    if (id) Object.assign(s.enr.find(x => x.id === id), data, { status: $('f-status').value })
+    else if ($('f-mod')) { const b = pickedBelt('n-pick'); s.enr.push({ id: uid++, mod: $('f-mod').value, status:'active', ...data, hist: b ? [{ belt:b, date:$('f-nsince').value }] : [] }) }
+    closeModal(); toast('Matrícula salva'); render()
+  }, 500)
+}
+function dataTab(s) {
+  if (S.editing !== 'data') return `<dl>
+    <div><dt>Nome</dt><dd>${s.name}</dd></div><div><dt>Telefone</dt><dd>${fmtPhone(s.phone)}${s.wa?' · WhatsApp':''}</dd></div>
+    <div><dt>E-mail</dt><dd>${s.email ?? '—'}</dd></div><div><dt>Nascimento</dt><dd>${brDate(s.birth)}</dd></div>
+    <div><dt>Sexo</dt><dd>${SEX[s.sex] ?? '—'}</dd></div><div><dt>CPF</dt><dd>${s.cpf ?? '—'}</dd></div><div><dt>Instagram</dt><dd>${s.insta ?? '—'}</dd></div></dl>
+    <div style="margin-top:16px"><button class="btn" onclick="S.editing='data';render()">✎ Editar</button></div>`
+  return `<div class="form">
+    <div class="row">${fld('name','Nome *', s.name)}${fld('phone','Telefone', s.phone, 'placeholder="62999990000"')}</div>
+    <label class="check"><input type="checkbox" id="f-wa" ${s.wa?'checked':''}> O telefone é WhatsApp</label>
+    <div class="row">${fld('email','E-mail', s.email)}${fld('birth','Nascimento', s.birth, 'type="date"')}
+      <label class="f">Sexo<select id="f-sex"><option value="">—</option>${Object.entries(SEX).map(([k,l]) => `<option value="${k}" ${s.sex===k?'selected':''}>${l}</option>`).join('')}</select></label></div>
+    <div class="row">${fld('cpf','CPF (só números)', s.cpf)}${fld('insta','Instagram', s.insta)}</div>
+    <div class="actions"><button class="btn" onclick="S.editing=null;S.errors={};render()">Cancelar</button><button class="btn primary" id="save" onclick="saveData()">Salvar</button></div></div>`
+}
+function saveData() {
+  const s = cur(); S.errors = {}
+  const name = val('name'), cpf = val('cpf')
+  if (name.length < 2) S.errors.name = 'O nome precisa de pelo menos 2 letras.'
+  if (cpf && !/^\d{11}$/.test(cpf)) S.errors.cpf = 'O CPF tem 11 números.'
+  if (Object.keys(S.errors).length) { const keep = Object.fromEntries(['name','phone','email','birth','cpf','insta'].map(n => [n, val(n)])); render(); Object.entries(keep).forEach(([n,v]) => $('f-'+n).value = v); return }
+  $('save').disabled = true; $('save').textContent = 'Salvando…'
+  setTimeout(() => { Object.assign(s, { name, phone: val('phone') || null, wa: $('f-wa').checked, email: val('email') || null, birth: val('birth') || null, sex: $('f-sex').value || null, cpf: cpf || null, insta: val('insta') || null }); S.editing = null; toast('Dados salvos'); render() }, 500)
+}
+function addrFields(a) {
+  a = a || {}
+  return `<div class="row">${fld('zip','CEP', a.zip, 'placeholder="74000000" maxlength="8" oninput="cepLookup(this.value)"')}<div id="cep-msg" style="align-self:end"></div></div>
+    <div class="row">${fld('street','Rua', a.street)}${fld('number','Número', a.number)}</div>
+    <div class="row">${fld('complement','Complemento', a.complement)}${fld('neighborhood','Bairro', a.neighborhood)}</div>
+    <div class="row">${fld('city','Cidade', a.city)}${fld('state','UF', a.state, 'maxlength="2"')}</div>
+    <span class="small">Teste: CEP 74000000 ou 01310100 preenchem sozinhos; 00000000 mostra o aviso.</span>`
+}
+function cepLookup(v) {
+  const msg = $('cep-msg'); if (v.length < 8) { msg.innerHTML = ''; return }
+  msg.innerHTML = '<span class="small">Buscando CEP…</span>'
+  setTimeout(() => { const r = CEPS[v]
+    if (!r) { msg.innerHTML = '<span class="warn">CEP não encontrado. Preencha à mão.</span>'; return }
+    Object.entries(r).forEach(([k,val2]) => $('f-'+k).value = val2); msg.innerHTML = '<span class="small">✓ Endereço preenchido</span>'; $('f-number').focus() }, 500)
+}
+const readAddr = () => Object.fromEntries(['zip','street','number','complement','neighborhood','city','state'].map(n => [n, val(n)]))
+function addrTab(s) {
+  if (S.editing !== 'addr') {
+    if (!s.address) return `<div class="empty"><b>Sem endereço cadastrado</b><button class="btn sm" onclick="S.editing='addr';render()">+ Adicionar endereço</button></div>`
+    const a = s.address
+    return `<p style="font-size:15px;margin:0 0 4px">${a.street}, ${a.number}${a.complement?' · '+a.complement:''}</p><p class="small" style="margin:0">${a.neighborhood} · ${a.city}/${a.state} · CEP ${a.zip.slice(0,5)}-${a.zip.slice(5)}</p>
+      <div style="margin-top:16px;display:flex;gap:8px"><button class="btn" onclick="S.editing='addr';render()">✎ Editar</button><button class="btn danger" onclick="confirmRemove('o endereço', () => { cur().address = null; toast('Endereço removido'); render() })">Remover endereço</button></div>`
+  }
+  return `<div class="form">${addrFields(s.address)}<div class="actions"><button class="btn" onclick="S.editing=null;S.errors={};render()">Cancelar</button><button class="btn primary" id="save" onclick="saveAddr()">Salvar</button></div></div>`
+}
+function saveAddr() {
+  const a = readAddr(); S.errors = {}
+  if (a.zip && !/^\d{8}$/.test(a.zip)) S.errors.zip = 'O CEP tem 8 números.'
+  if (a.state && !/^[A-Za-z]{2}$/.test(a.state)) S.errors.state = 'Use a sigla, ex.: GO.'
+  if (Object.keys(S.errors).length) { render(); Object.entries(a).forEach(([n,v]) => $('f-'+n).value = v); return }
+  $('save').disabled = true; $('save').textContent = 'Salvando…'
+  setTimeout(() => { cur().address = { ...a, state: a.state.toUpperCase() }; S.editing = null; toast('Endereço salvo'); render() }, 500)
+}
+function confirmRemove(what, fn) {
+  window.doRemove = () => { closeModal(); fn() }
+  modal(`<h3>Remover ${what}?</h3><p class="small" style="margin:0">Essa ação não pode ser desfeita.</p><div class="actions"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" style="background:var(--danger);border-color:var(--danger)" onclick="doRemove()">Remover</button></div>`)
+}
+function respFields() {
+  return `<div class="row">${fld('rname','Nome *')}<label class="f">Parentesco *<select id="f-rel">${Object.entries(REL).map(([k,l]) => `<option value="${k}" ${k==='mother'?'selected':''}>${l}</option>`).join('')}</select></label></div>
+    <div class="row">${fld('rphone','Telefone *', '', 'placeholder="62999990000"')}${fld('remail','E-mail')}</div>
+    <label class="check"><input type="checkbox" id="f-rwa"> O telefone é WhatsApp</label>`
+}
+function readResp() {
+  S.errors = {}; const r = { id: uid++, name: val('rname'), rel: $('f-rel').value, phone: val('rphone').replace(/\D/g,''), wa: $('f-rwa').checked }
+  if (r.name.length < 2) S.errors.rname = 'O nome precisa de pelo menos 2 letras.'
+  if (r.phone.length < 10) S.errors.rphone = 'Telefone com DDD: pelo menos 10 números.'
+  return r
+}
+function respTab(s) {
+  return `${!s.resp.length ? '<div class="empty"><b>O próprio aluno é o responsável</b><span class="small">Se outra pessoa responde por ele (pai, mãe, avó…), adicione abaixo.</span></div>'
+    : `<div style="display:grid;gap:8px">${s.resp.map(r => `<div class="resp"><div><b>${r.name}</b> <span class="small">· ${REL[r.rel]}</span><div class="small">📞 ${fmtPhone(r.phone)}${r.wa?' · WhatsApp':''}</div></div>
+      <button class="btn ghost danger sm" onclick="confirmRemove('${r.name} dos responsáveis', () => { cur().resp = cur().resp.filter(x => x.id !== ${r.id}); toast('Responsável removido'); render() })">Remover</button></div>`).join('')}</div>`}
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center"><button class="btn" onclick="respModal()">+ Adicionar outra pessoa</button><span class="small">Para corrigir um responsável: remova e adicione de novo.</span></div>`
+}
+function respModal() {
+  S.errors = {}
+  window.drawResp = () => modal(`<h3>Adicionar responsável</h3><div class="form">${respFields()}</div><div class="actions"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" id="save" onclick="saveResp()">Adicionar</button></div>`)
+  window.drawResp()
+}
+function saveResp() {
+  const keep = { rname: val('rname'), rphone: val('rphone'), remail: val('remail') }, r = readResp()
+  if (Object.keys(S.errors).length) { window.drawResp(); Object.entries(keep).forEach(([n,v]) => $('f-'+n).value = v); return }
+  $('save').disabled = true; $('save').textContent = 'Salvando…'
+  setTimeout(() => { cur().resp.push(r); closeModal(); toast('Responsável adicionado'); render() }, 500)
+}
+
+// ---------- 3. Novo aluno ----------
+function startWizard() { S.wiz = { step:1, data:{}, addr:null, who:'self', resp:[], enrs:[blankEnr('Taekwondo')] }; go('new') }
+const blankEnr = mod => ({ mod, exempt:false, fee:'', due:'', belt: BELTS[mod][0]?.[0] || null, since: isoD(TODAY) })
+const WSTEPS = ['Dados', 'Endereço', 'Responsáveis', 'Matrícula']
+function wizard() {
+  const w = S.wiz
+  const steps = `<div class="steps">${WSTEPS.map((l,i) => `<div class="${i+1===w.step?'on':i+1<w.step?'done':''}">${i+1<w.step?'✓ ':''}${i+1} · ${l}</div>`).join('')}</div>`
+  let body
+  if (w.step === 1) body = `<div class="form"><div class="row">${fld('name','Nome *', w.data.name)}${fld('phone','Telefone', w.data.phone, 'placeholder="62999990000"')}</div>
+      <label class="check"><input type="checkbox" id="f-wa" ${w.data.wa?'checked':''}> O telefone é WhatsApp</label>
+      <div class="row">${fld('email','E-mail', w.data.email)}${fld('birth','Nascimento', w.data.birth, 'type="date"')}<label class="f">Sexo<select id="f-sex"><option value="">—</option>${Object.entries(SEX).map(([k,l]) => `<option value="${k}" ${w.data.sex===k?'selected':''}>${l}</option>`).join('')}</select></label></div></div>`
+  if (w.step === 2) body = `<div class="form">${addrFields(w.addr)}</div>`
+  if (w.step === 3) body = `<div style="display:grid;gap:8px">
+      <div class="radio ${w.who==='self'?'on':''}" onclick="saveStep();S.wiz.who='self';S.errors={};render()"><input type="radio" ${w.who==='self'?'checked':''}><div><b>O próprio aluno é o responsável</b><div class="small">Aluno adulto: não precisa cadastrar mais ninguém.</div></div></div>
+      <div class="radio ${w.who==='other'?'on':''}" onclick="saveStep();S.wiz.who='other';render()"><input type="radio" ${w.who==='other'?'checked':''}><div><b>Outra pessoa</b><div class="small">Pai, mãe, avó… (pode adicionar mais de uma)</div></div></div></div>
+    ${w.who==='other' ? `<div style="display:grid;gap:8px;margin-top:12px">${w.resp.map((r,i) => `<div class="resp"><div><b>${r.name}</b> <span class="small">· ${REL[r.rel]} · ${fmtPhone(r.phone)}</span></div><button class="btn ghost danger sm" onclick="S.wiz.resp.splice(${i},1);render()">Remover</button></div>`).join('')}</div>
+      <div class="panel" style="background:var(--muted);margin-top:12px;padding:14px"><div class="form">${respFields()}<div><button class="btn" onclick="wizAddResp()">+ Adicionar este responsável</button></div></div></div>` : ''}`
+  if (w.step === 4) {
+    const used = w.enrs.map(e => e.mod), free = MODS.filter(m => !used.includes(m))
+    body = `<div style="display:grid;gap:12px">${w.enrs.map((e,i) => `<div class="block">
+        <div class="head"><b>Matrícula ${i+1}</b>${w.enrs.length > 1 ? `<button class="btn ghost danger sm" onclick="saveStep();S.wiz.enrs.splice(${i},1);render()">Remover</button>` : ''}</div>
+        <label class="f">Modalidade *<select id="f-mod-${i}" onchange="saveStep();Object.assign(S.wiz.enrs[${i}], blankEnr(this.value));render()">${MODS.filter(m => m === e.mod || !used.includes(m)).map(m => `<option ${e.mod===m?'selected':''}>${m}</option>`).join('')}</select></label>
+        <label class="check"><input type="checkbox" id="f-exempt-${i}" ${e.exempt?'checked':''} onchange="['fee','due'].forEach(n=>$('f-'+n+'-${i}').disabled=this.checked)"> Isenta (não paga mensalidade)</label>
+        <div class="row">${fld('fee-'+i,'Mensalidade (R$)', e.fee, `placeholder="150,00" ${e.exempt?'disabled':''}`)}${fld('due-'+i,'Dia do vencimento (1 a 28)', e.due, `placeholder="10" ${e.exempt?'disabled':''}`)}</div>
+        ${BELTS[e.mod].length ? `<div style="display:grid;gap:8px"><span class="small">Faixa atual (aluno começando agora: Branca e a data de hoje)</span>${beltPicker('w-pick-'+i, e.mod, e.belt)}<div class="row"><label class="f">Desde<input type="date" id="f-since-${i}" value="${e.since}"></label></div></div>` : '<span class="small">Esta modalidade não tem faixas.</span>'}
+      </div>`).join('')}
+      ${free.length ? `<div><button class="btn" onclick="saveStep();S.wiz.enrs.push(blankEnr('${free[0]}'));render()">+ Outra modalidade</button></div>` : ''}
+      <span class="small">Mensalidade e vencimento podem ficar em branco: a matrícula aparece com "Pendência de cadastro". Tudo é gravado junto ao clicar em Cadastrar.</span></div>`
+  }
+  const nav = `<div class="actions" style="margin-top:18px;justify-content:space-between">
+      <button class="btn" onclick="${w.step===1?"go('list')":'wizBack()'}">${w.step===1?'Cancelar':'← Voltar'}</button>
+      <div style="display:flex;gap:8px">${w.step===2?'<button class="btn" onclick="S.wiz.addr=null;S.wiz.step=3;S.errors={};render()">Pular endereço</button>':''}
+      ${w.step<4?'<button class="btn primary" onclick="wizNext()">Próximo →</button>':'<button class="btn primary" id="save" onclick="wizFinish()">Cadastrar aluno</button>'}</div></div>`
+  return `<button class="back" onclick="go('list')">← Alunos</button><h1>Novo aluno</h1>
+    <section class="panel" style="max-width:760px">${steps}${body}${nav}</section>
+    <p class="small" style="max-width:760px">Tela própria (fora da lista), para o formulário ter espaço. "Voltar" mantém o que já foi digitado. Recarregar a página perde o cadastro em andamento.</p>`
+}
+function saveStep() {
+  const w = S.wiz
+  if (w.step === 1) w.data = { name: val('name'), phone: val('phone'), wa: $('f-wa').checked, email: val('email'), birth: val('birth'), sex: $('f-sex').value }
+  if (w.step === 2) { const a = readAddr(); w.addr = Object.values(a).some(Boolean) ? a : null }
+  if (w.step === 3 && w.who === 'other' && $('f-rname')) w.draft = { rname: val('rname'), rphone: val('rphone') }
+  if (w.step === 4) w.enrs = w.enrs.map((e,i) => ({ mod: $('f-mod-'+i).value, exempt: $('f-exempt-'+i).checked, fee: val('fee-'+i), due: val('due-'+i),
+      belt: BELTS[$('f-mod-'+i).value].length ? pickedBelt('w-pick-'+i) : null, since: $('f-since-'+i)?.value || isoD(TODAY) }))
+}
+function wizBack() { saveStep(); S.errors = {}; S.wiz.step--; render() }
+function wizNext() {
+  saveStep(); const w = S.wiz; S.errors = {}
+  if (w.step === 1 && (w.data.name || '').length < 2) S.errors.name = 'O nome precisa de pelo menos 2 letras.'
+  if (w.step === 2 && w.addr?.zip && !/^\d{8}$/.test(w.addr.zip)) S.errors.zip = 'O CEP tem 8 números.'
+  if (!Object.keys(S.errors).length) w.step++
+  render()
+}
+function wizAddResp() {
+  const keep = { rname: val('rname'), rphone: val('rphone'), remail: val('remail') }, r = readResp()
+  if (Object.keys(S.errors).length) { render(); Object.entries(keep).forEach(([n,v]) => $('f-'+n).value = v); return }
+  S.wiz.resp.push(r); S.errors = {}; render()
+}
+function wizFinish() {
+  saveStep(); const w = S.wiz; S.errors = {}
+  const enrs = w.enrs.map((e,i) => { const fee = e.exempt || !e.fee ? null : parseMoney(e.fee)
+    if (!e.exempt && e.fee && fee == null) S.errors['fee-'+i] = 'Valor inválido. Use o formato 150,00.'
+    if (!e.exempt && e.due && !(+e.due >= 1 && +e.due <= 28)) S.errors['due-'+i] = 'O vencimento vai de 1 a 28.'
+    return { id: uid++, mod: e.mod, fee, due: e.exempt || !e.due ? null : +e.due, exempt: e.exempt, status:'active', hist: e.belt ? [{ belt: e.belt, date: e.since }] : [] } })
+  if (Object.keys(S.errors).length) return render()
+  $('save').disabled = true; $('save').textContent = 'Cadastrando…'
+  setTimeout(() => {
+    const id = 's' + uid++
+    S.students.unshift({ id, name: w.data.name, phone: w.data.phone || null, wa: w.data.wa, email: w.data.email || null, birth: w.data.birth || null, sex: w.data.sex || null, cpf:null, insta:null,
+      address: w.addr, resp: w.who === 'other' ? w.resp : [], enr: enrs })
+    toast('Aluno cadastrado'); go('list', { sel: id, tab: 'enr', search:'', mod:'', status:'ativos', page:1 })
+  }, 700)
+}
+
+render()
+</script>
+</body>
+</html>
