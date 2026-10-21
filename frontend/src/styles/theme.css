@@ -9,7 +9,8 @@
  *
  *  Como trocar de tema:
  *    no frontend/index.html, mude <html data-theme="..."> para
- *    "lavanda" (padrão), "verde" ou "pastel".
+ *    "grafite" (padrão, em teste), "lavanda", "verde" ou "pastel".
+ *    Claro/escuro: classe "dark" no <html> (botão sol/lua na barra lateral).
  *
  *  Como criar um tema novo:
  *    copie o bloco [data-theme='pastel'], troque o nome e os valores.
@@ -248,4 +249,164 @@
   --sidebar-accent-foreground: #5b45a8;
   --sidebar-border: #f1e8f3;
   --sidebar-ring: #d4c4f7;
+}
+
+/* ---------- Tema grafite + petróleo (em teste, 21/10) ----------
+ * Base neutra em grafite; o petróleo aparece só nos detalhes (item ativo
+ * do menu, filtros/abas selecionados, gráficos). Botões em grafite.
+ */
+[data-theme='grafite'] {
+  --app-bg-from: #e6e6e4;
+  --app-bg-to: #efefed;
+
+  --background: #efefed;
+  --foreground: #18191c;
+  --card: #f6f6f5;
+  --card-foreground: #18191c;
+  --popover: #fbfbfa;
+  --popover-foreground: #18191c;
+  --muted: #ebebe9;
+  --muted-foreground: #5f5f5c;
+  --border: #dadad6;
+  --input: #d2d2ce;
+  --ring: #155e75;
+
+  --primary: #2a2d33;
+  --primary-foreground: #ffffff;
+  --secondary: #ebebe9;
+  --secondary-foreground: #18191c;
+  --accent: #e9e9e6;
+  --accent-foreground: #155e75;
+  --destructive: #dc2626;
+
+  --brand-from: #2a2d33;
+  --brand-to: #155e75;
+  --brand-foreground: #ffffff;
+
+  --chip-active: #e1eef1;
+  --chip-active-border: #9cc5d1;
+  --chip-active-foreground: #155e75;
+
+  --tooltip: #18191c;
+  --tooltip-foreground: #ffffff;
+
+  --chart-1: #155e75;
+  --chart-2: #3f8ea3;
+  --chart-3: #15803d;
+  --chart-4: #a16207;
+  --chart-5: #5f5f5c;
+
+  --status-active: #1f7a8c;
+  --status-active-soft: #e6f0f2;
+  --status-exempt: #15803d;
+  --status-exempt-soft: #e3f1e7;
+  --status-pending: #b7860b;
+  --status-pending-soft: #f7f0dc;
+  --status-inactive: #a3a3a0;
+  --status-inactive-soft: #ededeb;
+  --status-inactive-foreground: #5f5f5c;
+
+  --status-critical: #dc2626;
+  --status-critical-soft: #fbe9e9;
+  --status-warning: #c2410c;
+  --status-warning-soft: #fbece3;
+
+  /* Avatares neutros (o petróleo só no primeiro) */
+  --avatar-1: #e1eef1;
+  --avatar-1-foreground: #155e75;
+  --avatar-2: #e6e6e3;
+  --avatar-2-foreground: #45484e;
+  --avatar-3: #e6e6e3;
+  --avatar-3-foreground: #45484e;
+  --avatar-4: #e6e6e3;
+  --avatar-4-foreground: #45484e;
+  --avatar-5: #e6e6e3;
+  --avatar-5-foreground: #45484e;
+
+  --sidebar: rgb(246 246 245 / 85%);
+  --sidebar-foreground: #5f5f5c;
+  --sidebar-primary: #155e75;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9e9e6;
+  --sidebar-accent-foreground: #155e75;
+  --sidebar-border: #dadad6;
+  --sidebar-ring: #155e75;
+}
+
+/* Versão escura do grafite (classe .dark no <html>, ligada pelo botão) */
+[data-theme='grafite'].dark {
+  --app-bg-from: #101112;
+  --app-bg-to: #141516;
+
+  --background: #141516;
+  --foreground: #ececea;
+  --card: #1b1c1e;
+  --card-foreground: #ececea;
+  --popover: #222326;
+  --popover-foreground: #ececea;
+  --muted: #232427;
+  --muted-foreground: #a5a5a0;
+  --border: #2f3034;
+  --input: #3a3b40;
+  --ring: #3d8fa3;
+
+  --primary: #e4e4e2;
+  --primary-foreground: #18191c;
+  --secondary: #26272a;
+  --secondary-foreground: #ececea;
+  --accent: #26272a;
+  --accent-foreground: #8cc8d5;
+  --destructive: #f87171;
+
+  --brand-from: #1b1c1e;
+  --brand-to: #1f5f6f;
+  --brand-foreground: #ececea;
+
+  --chip-active: #15292e;
+  --chip-active-border: #2b5d69;
+  --chip-active-foreground: #8cc8d5;
+
+  --tooltip: #ececea;
+  --tooltip-foreground: #18191c;
+
+  --chart-1: #4a9db0;
+  --chart-2: #2b6f80;
+  --chart-3: #5cb88a;
+  --chart-4: #d9a93a;
+  --chart-5: #a5a5a0;
+
+  --status-active: #4a9db0;
+  --status-active-soft: #16262a;
+  --status-exempt: #5cb88a;
+  --status-exempt-soft: #14281c;
+  --status-pending: #d9a93a;
+  --status-pending-soft: #2a2310;
+  --status-inactive: #5b5d63;
+  --status-inactive-soft: #1f2023;
+  --status-inactive-foreground: #a5a5a0;
+
+  --status-critical: #f87171;
+  --status-critical-soft: #2c1717;
+  --status-warning: #fb923c;
+  --status-warning-soft: #2c1d12;
+
+  --avatar-1: #15292e;
+  --avatar-1-foreground: #8cc8d5;
+  --avatar-2: #26272a;
+  --avatar-2-foreground: #d4d4d2;
+  --avatar-3: #26272a;
+  --avatar-3-foreground: #d4d4d2;
+  --avatar-4: #26272a;
+  --avatar-4-foreground: #d4d4d2;
+  --avatar-5: #26272a;
+  --avatar-5-foreground: #d4d4d2;
+
+  --sidebar: rgb(27 28 30 / 85%);
+  --sidebar-foreground: #a5a5a0;
+  --sidebar-primary: #3d8fa3;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #26272a;
+  --sidebar-accent-foreground: #8cc8d5;
+  --sidebar-border: #2f3034;
+  --sidebar-ring: #3d8fa3;
 }

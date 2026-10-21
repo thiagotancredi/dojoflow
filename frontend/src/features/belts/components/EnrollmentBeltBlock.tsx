@@ -1,5 +1,7 @@
 import { Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -38,8 +40,8 @@ type EnrollmentBeltBlockProps = {
   modalityName: string
 }
 
-// Bloco de faixa dentro do card de matrícula: faixa atual, tempo, aptidão,
-// registrar graduação e histórico (com editar e excluir)
+// Quadro "Faixa" da matrícula (ao lado do quadro "Mensalidade"): faixa atual,
+// tempo, aptidão, registrar graduação e histórico (com editar e excluir)
 export function EnrollmentBeltBlock({
   studentId,
   enrollmentId,
@@ -59,9 +61,34 @@ export function EnrollmentBeltBlock({
       : addEnrollmentBelt(studentId, enrollmentId, payload),
   )
 
-  // Modalidade sem faixas (ex.: Boxe): nada aparece
   const beltList = belts.data ?? []
-  if (beltList.length === 0) return null
+
+  // Ainda carregando (ou falhou) a lista de faixas da modalidade
+  if (!belts.data) {
+    return (
+      <BeltTile>
+        <p className="text-xs text-muted-foreground">
+          {belts.error ? 'Não foi possível carregar as faixas.' : 'Carregando faixa…'}
+        </p>
+      </BeltTile>
+    )
+  }
+
+  // Modalidade sem faixas (ex.: Boxe): convida a cadastrar em Configurações
+  if (beltList.length === 0) {
+    return (
+      <BeltTile>
+        <p className="text-sm text-muted-foreground">
+          {modalityName} ainda não tem faixas cadastradas.
+        </p>
+        <Button asChild size="sm" variant="outline" className="h-7 w-fit rounded-full text-xs">
+          <Link to={`/app/configuracoes/modalidades/${modalityId}/faixas`}>
+            Cadastrar faixas
+          </Link>
+        </Button>
+      </BeltTile>
+    )
+  }
 
   const data = state.data
   const current = data?.current ?? null
@@ -91,22 +118,22 @@ export function EnrollmentBeltBlock({
   }
 
   return (
-    <div className="mt-2 space-y-1.5 rounded-lg bg-card p-2.5">
+    <BeltTile>
       {!data ? (
         <p className="text-xs text-muted-foreground">
           {state.error ? 'Não foi possível carregar a faixa.' : 'Carregando faixa…'}
         </p>
       ) : current ? (
         <>
-          <BeltDrawing belt={current.belt} width={200} height={26} />
-          <p>
-            <span className="font-medium">{current.belt.name}</span>{' '}
-            <span className="text-xs text-muted-foreground">
-              · {timeSince(current.graduated_on)}
-            </span>
+          <BeltDrawing belt={current.belt} width={220} height={26} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-base font-semibold">{current.belt.name}</span>
+            <EligibilityChip data={data} />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {timeSince(current.graduated_on)}
           </p>
-          <EligibilityLine data={data} />
-          <div className="flex flex-wrap gap-1.5 pt-0.5">
+          <div className="flex flex-wrap gap-1.5 pt-1">
             <Button
               size="sm"
               className="h-7 rounded-full text-xs"
@@ -130,7 +157,7 @@ export function EnrollmentBeltBlock({
           <Button
             size="sm"
             variant="outline"
-            className="h-7 rounded-full text-xs"
+            className="h-7 w-fit rounded-full text-xs"
             onClick={() => setForm('register')}
           >
             Registrar faixa atual
@@ -164,21 +191,26 @@ export function EnrollmentBeltBlock({
       </Dialog>
 
       <Dialog open={showHistory} onOpenChange={setShowHistory}>
-        <DialogContent>
+        {/* Mais larga que o padrão (384 px) para o nome da faixa caber inteiro */}
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Histórico de faixas · {modalityName}</DialogTitle>
           </DialogHeader>
-          <ul className="space-y-2">
+          {/* min-w-0: sem isso a lista cresce além da janela em vez de
+              encolher o nome (item de grid não encolhe abaixo do conteúdo) */}
+          <ul className="min-w-0 space-y-2">
             {(data?.history ?? []).map((record) => (
               <li
                 key={record.id}
                 className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm"
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <BeltDrawing belt={record.belt} width={100} height={16} />
+                  <span className="shrink-0">
+                    <BeltDrawing belt={record.belt} width={100} height={16} />
+                  </span>
                   <span className="truncate">{record.belt.name}</span>
                 </span>
-                <span className="flex items-center gap-1">
+                <span className="flex shrink-0 items-center gap-1">
                   <span className="text-xs text-muted-foreground">
                     {formatDate(record.graduated_on)}
                   </span>
@@ -216,31 +248,43 @@ export function EnrollmentBeltBlock({
         confirmLabel="Excluir"
         onConfirm={() => void confirmDelete()}
       />
+    </BeltTile>
+  )
+}
+
+// Moldura do quadro, com o título "Faixa"
+function BeltTile({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border bg-card p-4">
+      <p className="flex min-h-7 items-center text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+        Faixa
+      </p>
+      {children}
     </div>
   )
 }
 
 // Aptidão calculada pela API (com a data de hoje)
-function EligibilityLine({ data }: { data: EnrollmentBelts }) {
+function EligibilityChip({ data }: { data: EnrollmentBelts }) {
   if (data.eligibility === 'eligible') {
     return (
-      <p className="flex items-center gap-1.5 text-xs">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-status-exempt-soft px-2.5 py-0.5 text-xs text-status-exempt">
         <span className="size-2 rounded-full bg-status-exempt" />
-        <span className="text-status-exempt">Apto</span>
-      </p>
+        Apto
+      </span>
     )
   }
 
   if (data.eligibility === 'not_yet' && data.eligible_on) {
     return (
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-status-pending-soft px-2.5 py-0.5 text-xs">
         <span className="size-2 rounded-full bg-status-pending" />
-        Ainda não · apto a partir de {formatDate(data.eligible_on)}
-      </p>
+        Apto em {formatDate(data.eligible_on)}
+      </span>
     )
   }
 
-  return <p className="text-xs text-muted-foreground">Sem tempo mínimo</p>
+  return <span className="text-xs text-muted-foreground">Sem tempo mínimo</span>
 }
 
 type GraduationFormProps = {

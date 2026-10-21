@@ -42,6 +42,10 @@ export function StudentsPage() {
   const filters = readFilters(params)
   const students = useStudents(filters)
   const { offered } = useAcademyModalities()
+  const modalityLabel = filters.modalityId
+    ? (offered.find((item) => item.id === filters.modalityId)?.name ??
+      'Modalidade')
+    : 'Todas'
 
   // O campo de busca muda na hora; a URL (e a consulta) só 300 ms depois
   const [searchText, setSearchText] = useState(filters.search)
@@ -114,7 +118,8 @@ export function StudentsPage() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
+          {/* Uma linha só, sempre: o seletor ocupa o espaço que sobra */}
+          <div className="flex items-center gap-1.5">
             {(['active', 'inactive'] as const).map((option) => (
               <button
                 key={option}
@@ -125,7 +130,7 @@ export function StudentsPage() {
                   })
                 }
                 className={cn(
-                  'rounded-full border px-3 py-1 text-xs',
+                  'shrink-0 rounded-full border px-3 py-1 text-xs',
                   filters.status === option
                     ? 'border-chip-active-border bg-chip-active text-chip-active-foreground'
                     : 'text-muted-foreground',
@@ -143,8 +148,14 @@ export function StudentsPage() {
                 })
               }
             >
-              <SelectTrigger size="sm" className="h-7 rounded-full text-xs">
-                <SelectValue />
+              <SelectTrigger
+                size="sm"
+                className="h-7 min-w-0 flex-1 rounded-full text-xs"
+              >
+                {/* Texto curto no botão ("Todas"); nome comprido termina em "…" */}
+                <SelectValue className="min-w-0">
+                  <span className="truncate">{modalityLabel}</span>
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_MODALITIES}>
