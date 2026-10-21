@@ -6,7 +6,7 @@ import { Navigate, useNavigate } from 'react-router'
 import { useAuth } from '@/features/auth/useAuth'
 import type { ApiError } from '@/lib/api/client'
 
-import { Logo } from '@/app/components/Logo'
+import { BrandLogo } from '@/app/components/BrandLogo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -121,15 +121,14 @@ export function LoginPage({
           onSubmit={handleSubmit}
           className="w-full max-w-sm space-y-4 rounded-3xl bg-card p-8 shadow-xl shadow-primary/10"
         >
-          <div className="flex items-center gap-3">
-            <Logo />
-            <span className="text-lg font-semibold">Katsuflow</span>
-            <span className="rounded-full border border-chip-active-border bg-chip-active px-2 py-0.5 text-[11px] font-semibold tracking-wide text-chip-active-foreground uppercase">
-              Admin
-            </span>
-          </div>
+          <BrandLogo className="mx-auto w-60" />
           <div>
-            <h1 className="text-2xl font-semibold">Painel administrativo</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold">Painel administrativo</h1>
+              <span className="rounded-full border border-chip-active-border bg-chip-active px-2 py-0.5 text-[11px] font-semibold tracking-wide text-chip-active-foreground uppercase">
+                Admin
+              </span>
+            </div>
             <p className="text-sm text-muted-foreground">Acesso restrito.</p>
           </div>
           {fields}
@@ -143,10 +142,8 @@ export function LoginPage({
       <div className="flex w-full max-w-4xl overflow-hidden rounded-3xl bg-card shadow-xl shadow-primary/10">
         {/* Painel da marca (cores em styles/theme.css): só no desktop */}
         <aside className="hidden w-[44%] flex-col bg-gradient-to-br from-brand-from to-brand-to p-8 text-brand-foreground md:flex">
-          <div className="flex items-center gap-3">
-            <Logo />
-            <span className="text-lg font-semibold">Katsuflow</span>
-          </div>
+          {/* O painel é escuro nos dois temas: sempre a logo de tinta clara */}
+          <BrandLogo tone="on-dark" className="w-72" />
           <div className="mt-auto space-y-3">
             <h2 className="text-2xl leading-tight font-semibold">
               As mensalidades do seu dojo, sem caderno e sem planilha.
@@ -158,9 +155,9 @@ export function LoginPage({
         </aside>
 
         <form onSubmit={handleSubmit} className="flex-1 space-y-4 p-8 md:p-10">
-          <div className="flex items-center gap-3 md:hidden">
-            <Logo />
-            <span className="font-semibold">Katsuflow</span>
+          {/* Celular: o painel colorido some, a logo vem para cá */}
+          <div className="md:hidden">
+            <BrandLogo className="mx-auto w-56" />
           </div>
           <div>
             <h1 className="text-2xl font-semibold">Entrar</h1>
