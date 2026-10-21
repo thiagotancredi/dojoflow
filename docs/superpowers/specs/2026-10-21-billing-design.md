@@ -4,6 +4,63 @@ Data: 2026-10-21 · Protótipos aprovados:
 `.superpowers/brainstorm/217162-1792553058/content/mensalidades-baixa.html` e
 `mensalidades-cobranca.html` (cópias em `Anexos/` no Obsidian).
 
+## Status da implementação (21/10/2026)
+
+Implementado na branch `feat/billing-design`, seguindo as 13 tarefas de
+`docs/superpowers/plans/2026-10-21-billing.md`. Backend: 338 testes passando,
+ruff e typos limpos. Site: `tsc` e ESLint limpos (sem testes automáticos de
+frontend, decisão da V1). Faltam o passeio no navegador e o PR.
+
+### Agendar a geração no servidor
+
+A geração é idempotente (rodar de novo não duplica) e também roda sozinha
+quando a ficha, a página Mensalidades ou o dashboard abrem. Mesmo assim, deixe
+um disparo **diário** às 00:05, horário de Brasília. Rodar todo dia, e não só
+no dia 1, recupera sozinho um dia em que o servidor estava fora:
+
+```cron
+CRON_TZ=America/Sao_Paulo
+5 0 * * * cd /caminho/do/dojoflow && poetry run python -m dojoflow.jobs.generate_charges >> /var/log/dojoflow/charges.log 2>&1
+```
+
+O comando imprime quantas mensalidades criou (ex.: `11 mensalidade(s) criada(s).`).
+
+### Cuidado no deploy
+
+A migração `be1e710b0884_billing` usa **a data em que roda** como "dia em que o
+recurso é ligado". Cada matrícula com dia de vencimento começa a ser cobrada no
+primeiro vencimento igual ou posterior a essa data. Nenhuma mensalidade nasce
+atrasada, e dívidas anteriores entram por "Lançar mês anterior". Rode
+`alembic upgrade head` no dia em que quiser começar a cobrar.
+
+### Decisões tomadas na implementação
+
+- **Valor obrigatório só para matrícula ativa.** Ativa e não isenta precisa de
+  mensalidade maior que R$ 0 e dia de vencimento. Criar ou deixar inativa sem
+  valor continua permitido, para matrículas antigas que só vão ser encerradas.
+- **Reativar, tirar a isenção ou completar o valor** recomeça a cobrança no mês
+  seguinte. Os meses parados não são cobrados.
+- **Taxa de matrícula:** uma por matrícula, vence no dia da matrícula. Sem
+  valor ou com 0, é criada já isenta (R$ 0,00).
+- **Lançar mês anterior:** só meses antes do início da cobrança automática.
+  Sem cobrança automática, qualquer mês até o atual.
+- **Total em aberto** inclui o que ainda vai vencer. A mensagem do WhatsApp
+  usa só o atrasado.
+- **Baixa:** abate da cobrança que vence antes; no empate, da criada antes.
+  Duas baixas ao mesmo tempo para o mesmo aluno esperam uma pela outra, para
+  não abater a mesma dívida duas vezes. Valor acima do total é recusado com o
+  máximo na mensagem.
+- **Quem recebe o WhatsApp:** aluno menor de 18 com responsável com telefone
+  recebe pelo primeiro responsável. Os demais recebem no próprio telefone, e se
+  o aluno não tiver telefone, vai para um responsável. A marcação "é WhatsApp"
+  dos telefones é ignorada, porque no responsável ela vem desmarcada por padrão.
+- **Página Mensalidades:** "Recebido no mês" soma as baixas feitas no mês,
+  mesmo que paguem meses anteriores. "Atrasadas" mostra todos os meses. Os
+  outros filtros mostram o mês escolhido.
+- **Bot do Telegram:** recebeu só a pergunta da taxa de matrícula. Desde 21/10
+  o bot está **congelado**, sem funcionalidades novas, e a remoção está
+  planejada (ver Obsidian, "03 · Arquitetura" §8).
+
 ## Intenção
 
 Mensalidades são o núcleo do produto: hoje o mestre controla quem pagou em
