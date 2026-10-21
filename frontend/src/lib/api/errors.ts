@@ -53,6 +53,9 @@ export const ERROR_MESSAGES: Record<string, string> = {
   ADMIN_ONLY: 'Sem acesso.',
   ADMIN_EMAIL_LOCKED: 'Você não pode trocar o seu próprio e-mail por aqui.',
   CANNOT_BLOCK_OWN_ACADEMY: 'Você não pode desativar a sua própria academia.',
+  CANNOT_RESET_OWN_PASSWORD:
+    'Troque a sua senha em Configurações → Conta, no app.',
+  ADMIN_EMAIL_RESERVED: 'Esse e-mail não pode ser usado.',
   ACADEMY_NOT_FOUND: 'Academia não encontrada.',
   SUPPORT_CODE_INVALID:
     'Link de suporte inválido ou expirado. Clique em Entrar de novo no painel.',

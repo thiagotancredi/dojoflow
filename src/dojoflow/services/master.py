@@ -6,6 +6,7 @@ from dojoflow.database.transaction import transactional
 from dojoflow.repositories.master import MasterRepository
 from dojoflow.schemas.master import MasterCreate
 from dojoflow.schemas.master_context import MasterContextRead
+from dojoflow.services.admin_access import is_admin_email
 from dojoflow.shared.exceptions import ConflictError, NotFoundError
 
 
@@ -141,6 +142,18 @@ class MasterService:
 
         if master is None:
             raise NotFoundError(f'Could not find Master with id {master_id}.')
+
+        current_email = (master.get('email') or '').strip().lower()
+
+        if (
+            is_admin_email(normalized_email)
+            and current_email != normalized_email
+        ):
+            # Ninguém "pega" o e-mail do administrador antes dele (e-mail
+            # não é verificado)
+            raise ConflictError(
+                'This email is reserved.', code='ADMIN_EMAIL_RESERVED'
+            )
 
         await self.master_repository.update_by_id(
             record_id=master_id,

@@ -32,7 +32,11 @@ from dojoflow.services.security import (
     verify_password,
 )
 from dojoflow.shared.enums import AcademyStatus, AuditAction
-from dojoflow.shared.exceptions import ForbiddenError, UnauthorizedError
+from dojoflow.shared.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    UnauthorizedError,
+)
 
 PURPOSE_TELEGRAM_LINK = 'telegram_link'
 PURPOSE_TELEGRAM_SETUP = 'telegram_setup'
@@ -67,6 +71,11 @@ class AuthService:
         self,
         data: AuthRegisterRequest,
     ) -> AuthResult:
+        if is_admin_email(str(data.email)):
+            raise ConflictError(
+                'This email is reserved.', code='ADMIN_EMAIL_RESERVED'
+            )
+
         onboarding = await self.onboarding_service.register_web(
             OnboardingWebCreate(
                 academy_name=data.academy_name,

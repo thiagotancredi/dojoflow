@@ -422,3 +422,80 @@ async def test_non_admin_gets_403_before_academy_lookup(
 
     assert response.status_code == HTTPStatus.FORBIDDEN
     assert response.json()['code'] == 'ADMIN_ONLY'
+
+
+@pytest.mark.asyncio
+async def test_cannot_reset_own_password(
+    client: AsyncClient,
+    admin_headers: dict[str, str],
+) -> None:
+    # Trocaria a senha do próprio administrador e derrubaria a sessão dele
+    own_id = await _own_academy_id(client, admin_headers)
+
+    response = await client.post(
+        f'{ACADEMIES_URL}/{own_id}/reset-password', headers=admin_headers
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'CANNOT_RESET_OWN_PASSWORD'
+
+
+@pytest.mark.asyncio
+async def test_set_credentials_cannot_claim_unclaimed_admin_email(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # ADMIN_EMAIL configurado antes de a conta do administrador existir
+    monkeypatch.setattr(settings, 'ADMIN_EMAIL', 'Chefe@Katsuflow.test')
+
+    response = await client.post(
+        '/api/v1/auth/set-credentials',
+        headers=await auth_headers(client),
+        json={
+            'email': 'chefe@katsuflow.test',
+            'password': 'senha-nova-123',
+            'current_password': SEED.password,
+        },
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'ADMIN_EMAIL_RESERVED'
+
+
+@pytest.mark.asyncio
+async def test_admin_can_keep_own_email_in_set_credentials(
+    client: AsyncClient,
+    admin_headers: dict[str, str],
+) -> None:
+    response = await client.post(
+        '/api/v1/auth/set-credentials',
+        headers=admin_headers,
+        json={
+            'email': SEED.email,
+            'password': 'senha-nova-123',
+            'current_password': SEED.password,
+        },
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+
+@pytest.mark.asyncio
+async def test_public_register_cannot_claim_admin_email(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, 'ADMIN_EMAIL', 'chefe@katsuflow.test')
+
+    response = await client.post(
+        '/api/v1/auth/register',
+        json={
+            'academy_name': 'Academia Pirata',
+            'master_name': 'Pirata',
+            'email': ' CHEFE@katsuflow.test',
+            'password': 'senha-pirata-123',
+        },
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'ADMIN_EMAIL_RESERVED'

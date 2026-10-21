@@ -103,10 +103,14 @@ function AcademyMenu({ academy, onEdit, onAsk }: AcademyActionsProps) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem onSelect={() => onAsk({ kind: 'reset', academy })}>
-          <KeyRound className="size-4" />
-          Trocar senha
-        </DropdownMenuItem>
+        {/* A sua senha se troca em Configurações → Conta (aqui derrubaria
+            a sua própria sessão) */}
+        {!academy.is_own && (
+          <DropdownMenuItem onSelect={() => onAsk({ kind: 'reset', academy })}>
+            <KeyRound className="size-4" />
+            Trocar senha
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={() => onEdit(academy)}>
           <Pencil className="size-4" />
           Editar dados

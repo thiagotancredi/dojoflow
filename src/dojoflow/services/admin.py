@@ -183,6 +183,14 @@ class AdminService:
         if master_id is None:
             raise NotFoundError('Master not found.', code='MASTER_NOT_FOUND')
 
+        if academy_id == self.own_academy_id:
+            # Derrubaria a própria sessão do administrador; a senha dele se
+            # troca em Configurações → Conta
+            raise ConflictError(
+                'You cannot reset your own password here.',
+                code='CANNOT_RESET_OWN_PASSWORD',
+            )
+
         password = generate_password()
         await self.master_repository.update_by_id(
             master_id, {'password_hash': hash_password(password)}
