@@ -1,13 +1,16 @@
 import { useRef } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { useAuth } from '@/features/auth/useAuth'
 import type { BillingSettings } from '@/features/billing/api'
+import { WhatsAppMessage } from '@/features/billing/components/WhatsAppMessage'
 import { useBillingSettings, useSaveBillingSettings } from '@/features/billing/hooks'
+import { fillTemplate } from '@/features/billing/whatsapp'
 import { showApiError } from '@/lib/api/errors'
 
 // Mesmo texto de DEFAULT_MESSAGE_TEMPLATE (backend, services/billing.py).
@@ -84,6 +87,21 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
   const form = useForm<FormValues>({ defaultValues: toForm(initial) })
   const { register, setValue, getValues, reset } = form
   const messageRef = useRef<HTMLTextAreaElement | null>(null)
+  const academyName = useAuth().master?.academy.name ?? ''
+  // Prévia: o texto como chega no WhatsApp, com um aluno de exemplo
+  const [template, pixKey, recipientName] = useWatch({
+    control: form.control,
+    name: ['message_template', 'pix_key', 'recipient_name'],
+  })
+  const preview = fillTemplate(template || DEFAULT_MESSAGE_TEMPLATE, {
+    nome: 'Ana',
+    academia: academyName,
+    valor: 'R$ 150,00',
+    meses: 'janeiro e fevereiro',
+    // Igual ao backend: sem Pix fica vazio; sem recebedor, a academia
+    pix: pixKey.trim(),
+    recebedor: recipientName.trim() || academyName,
+  })
   // register devolve o próprio "ref"; aqui ele também vai para messageRef,
   // para saber onde está o cursor do texto
   const { ref: registerMessageRef, ...messageField } = register(
@@ -197,6 +215,12 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
             Clique num marcador para colocá-lo onde está o cursor. Cada um vira
             o dado do aluno: {MARKERS.map((item) => `${item.marker} = ${item.help}`).join(' · ')}.
           </p>
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <p className="text-xs text-muted-foreground">
+            Prévia · aluno de exemplo (Ana, R$ 150,00 de janeiro e fevereiro)
+          </p>
+          <WhatsAppMessage text={preview} />
         </div>
       </div>
 

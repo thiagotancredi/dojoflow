@@ -27,6 +27,7 @@ import {
   formatDayMonth,
   formatMonth,
 } from '@/features/billing/labels'
+import { parseWhatsAppUrl } from '@/features/billing/whatsapp'
 import type { StudentDetail } from '@/features/students/api'
 import { showApiError } from '@/lib/api/errors'
 import { formatDate } from '@/lib/format'
@@ -105,7 +106,11 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <WhatsAppButton url={data.whatsapp_url} />
+          <WhatsAppButton
+            url={data.whatsapp_url}
+            studentName={detail.student.name}
+            responsibleName={responsibleReceiving(detail, data.whatsapp_url)}
+          />
           <Button
             className="rounded-full"
             disabled={!hasOpen}
@@ -213,6 +218,18 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
         onConfirm={() => void confirmRemove()}
       />
     </div>
+  )
+}
+
+// A mensagem vai para um responsável? (o número do link é o dele)
+function responsibleReceiving(detail: StudentDetail, url: string | null) {
+  if (!url) return null
+  const { phone } = parseWhatsAppUrl(url)
+  const digits = (value: string | null) => (value ?? '').replace(/\D/g, '')
+
+  return (
+    detail.responsibles.find((item) => digits(item.phone) === phone)?.name ??
+    null
   )
 }
 

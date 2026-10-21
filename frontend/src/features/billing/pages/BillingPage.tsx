@@ -422,7 +422,12 @@ function RowActions({
 }) {
   return (
     <div className="flex justify-end gap-2">
-      <WhatsAppButton url={item.whatsapp_url} size="sm" />
+      <WhatsAppButton
+        url={item.whatsapp_url}
+        studentName={item.name}
+        responsibleName={item.responsible_name}
+        size="sm"
+      />
       <Button
         size="sm"
         className="rounded-full"
