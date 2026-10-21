@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router'
 
 import {
   AlertDialog,
@@ -14,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { listAcademyModalities, toggleModality } from '@/features/modalities/api'
 import type { ModalityOption } from '@/features/modalities/api'
-import { cn } from '@/lib/utils'
+import { ModalityCard } from '@/features/modalities/components/ModalityCard'
 
 type LoadStatus = 'loading' | 'ready' | 'error'
 
@@ -121,40 +120,41 @@ export function ModalitiesSection() {
             <SectionLabel>Oferecidas pela academia ({offered.length})</SectionLabel>
             {offered.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Sua academia ainda não oferece nenhuma modalidade. Adicione do
-                catálogo abaixo.
+                Nenhuma modalidade ainda. Adicione abaixo.
               </p>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {offered.map((option) => (
-                  <ModalityCard
-                    key={option.id}
-                    option={option}
-                    actionLabel="Remover"
-                    disabled={pendingId === option.id}
-                    onAction={() => setToRemove(option)}
-                    beltsLink
-                  />
-                ))}
+              // @container: as colunas seguem a largura da seção, não da tela
+              <div className="@container">
+                <div className="grid gap-3 @md:grid-cols-2 @3xl:grid-cols-3">
+                  {offered.map((option) => (
+                    <ModalityCard
+                      key={option.id}
+                      option={option}
+                      onRemove={() => setToRemove(option)}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
 
           {catalog.length > 0 && (
             <div className="space-y-2">
-              <SectionLabel>
-                Catálogo: adicionar à academia ({catalog.length})
-              </SectionLabel>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SectionLabel>Adicionar à academia</SectionLabel>
+              <div className="flex flex-wrap gap-2">
                 {catalog.map((option) => (
-                  <ModalityCard
+                  <button
                     key={option.id}
-                    option={option}
-                    actionLabel="+ Adicionar"
-                    muted
-                    disabled={pendingId === option.id}
-                    onAction={() => toggle(option.id)}
-                  />
+                    type="button"
+                    // Trava todas enquanto uma espera a API: clique duplo não
+                    // adiciona e remove em seguida
+                    disabled={pendingId !== null}
+                    onClick={() => void toggle(option.id)}
+                    className="rounded-full border border-dashed px-3 py-1.5 text-sm transition-colors hover:border-ring hover:bg-muted disabled:opacity-50"
+                  >
+                    <span className="font-semibold text-sidebar-primary">+</span>{' '}
+                    {option.emoji} {option.name}
+                  </button>
                 ))}
               </div>
             </div>
@@ -194,57 +194,5 @@ function SectionLabel({ children }: { children: string | (string | number)[] }) 
     <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
       {children}
     </h3>
-  )
-}
-
-type ModalityCardProps = {
-  option: ModalityOption
-  actionLabel: string
-  // Catálogo: card apagado, para não parecer que a academia oferece
-  muted?: boolean
-  disabled: boolean
-  onAction: () => void
-  beltsLink?: boolean
-}
-
-function ModalityCard({
-  option,
-  actionLabel,
-  muted = false,
-  disabled,
-  onAction,
-  beltsLink = false,
-}: ModalityCardProps) {
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-between rounded-2xl border p-3',
-        muted && 'border-dashed text-muted-foreground',
-      )}
-    >
-      <span className="flex items-center gap-2 font-medium">
-        <span className={cn(muted && 'opacity-60')}>{option.emoji}</span>
-        {option.name}
-      </span>
-      <span className="flex items-center gap-1">
-        {/* Modalidade oferecida: atalho para as faixas dela */}
-        {beltsLink && (
-          <Button asChild size="sm" className="rounded-full">
-            <Link to={`/app/configuracoes/modalidades/${option.id}/faixas`}>
-              Faixas
-            </Link>
-          </Button>
-        )}
-        <Button
-          size="sm"
-          variant={muted ? 'outline' : 'ghost'}
-          className="rounded-full"
-          disabled={disabled}
-          onClick={onAction}
-        >
-          {actionLabel}
-        </Button>
-      </span>
-    </div>
   )
 }
