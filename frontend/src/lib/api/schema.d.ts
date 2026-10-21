@@ -1088,8 +1088,12 @@ export interface components {
             is_selected: boolean;
             /** Has Belts */
             has_belts: boolean;
+            /** Belt Count */
+            belt_count: number;
             /** Pending Belt Count */
             pending_belt_count: number;
+            /** Active Enrollment Count */
+            active_enrollment_count: number;
         };
         /** ModalityRefApiRead */
         ModalityRefApiRead: {

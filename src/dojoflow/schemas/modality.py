@@ -26,7 +26,9 @@ class ModalityOptionRead(BaseModel):
     emoji: str
     is_selected: bool
     has_belts: bool = False
+    belt_count: int = 0
     pending_belt_count: int = 0
+    active_enrollment_count: int = 0
 
 
 class AcademyModalityRead(BaseModel):

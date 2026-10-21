@@ -19,7 +19,7 @@ import { useBelts } from '@/features/belts/hooks'
 import { todayIso } from '@/features/belts/rules'
 import { useAcademyModalities } from '@/features/modalities/hooks'
 import type { Enrollment, StudentDetail } from '@/features/students/api'
-import { EnrollmentCard } from '@/features/students/components/EnrollmentCard'
+import { EnrollmentFeeCard } from '@/features/students/components/EnrollmentFeeCard'
 import { EnrollmentFields } from '@/features/students/components/EnrollmentFields'
 import { FormActions } from '@/features/students/components/tabs/BasicDataTab'
 import {
@@ -34,6 +34,7 @@ import {
 import type { EnrollmentValues } from '@/features/students/schemas'
 import { applyFieldErrors, showApiError } from '@/lib/api/errors'
 import { moneyToInput } from '@/lib/money'
+import { cn } from '@/lib/utils'
 
 export type StudentTabProps = {
   student: StudentDetail
@@ -51,29 +52,48 @@ export function EnrollmentsTab({ student: detail, onChanged }: StudentTabProps) 
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-2.5 sm:grid-cols-2">
+      {/* @container: as colunas dependem da largura do painel da ficha,
+          não da tela inteira (a lista de alunos divide o espaço com ela) */}
+      <div className="@container space-y-5">
         {detail.enrollments.map((enrollment) => (
-          <EnrollmentCard
+          <section
             key={enrollment.id}
-            enrollment={enrollment}
-            actions={
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 rounded-full text-xs"
-                onClick={() => setEditing(enrollment)}
-              >
-                <Pencil /> Editar
-              </Button>
-            }
+            className={cn(
+              'space-y-2',
+              enrollment.status === 'inactive' && 'opacity-70',
+            )}
           >
-            <EnrollmentBeltBlock
-              studentId={studentId}
-              enrollmentId={enrollment.id}
-              modalityId={enrollment.modality_id}
-              modalityName={enrollment.modality_name}
-            />
-          </EnrollmentCard>
+            <h3 className="flex items-center gap-2 font-semibold">
+              {enrollment.modality_name}
+              {enrollment.status === 'inactive' && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  Inativa
+                </span>
+              )}
+            </h3>
+            {/* Faixa e Mensalidade lado a lado (um embaixo do outro se estreito) */}
+            <div className="grid gap-2.5 @lg:grid-cols-2">
+              <EnrollmentBeltBlock
+                studentId={studentId}
+                enrollmentId={enrollment.id}
+                modalityId={enrollment.modality_id}
+                modalityName={enrollment.modality_name}
+              />
+              <EnrollmentFeeCard
+                enrollment={enrollment}
+                actions={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 rounded-full text-xs"
+                    onClick={() => setEditing(enrollment)}
+                  >
+                    <Pencil /> Editar
+                  </Button>
+                }
+              />
+            </div>
+          </section>
         ))}
       </div>
 

@@ -3,12 +3,17 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.core.settings import settings
 from dojoflow.integrations.telegram.service import TelegramService
 from dojoflow.models.academy_modality import AcademyModality
+from dojoflow.models.enrollment import Enrollment
+from dojoflow.models.master import Master
 from dojoflow.models.modality import Modality
+from dojoflow.models.student import Student
+from dojoflow.shared.enums import EnrollmentStatus
 from tests.helpers.onboarding import register_onboarding
 
 TELEGRAM_SECRET_HEADER = 'X-Telegram-Bot-Api-Secret-Token'
@@ -244,3 +249,76 @@ async def test_telegram_webhook_should_open_students_menu_callback_query(
             'reply_markup': expected_students_menu_reply_markup(),
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_bot_explains_why_modality_with_students_cannot_be_removed(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = 'test-secret'
+    sent_messages: list[dict[str, Any]] = []
+    answered_callbacks: list[str] = []
+    _onboarding_response, payload = await register_onboarding(client)
+    telegram_user_id = payload['telegram_user_id']
+    master = await db_session.scalar(
+        select(Master).where(Master.telegram_user_id == telegram_user_id)
+    )
+    modality = Modality(name='Taekwondo', emoji='🥋', is_active=True)
+    db_session.add(modality)
+    await db_session.flush()
+    student = Student(academy_id=master.academy_id, name='Ana Lima')
+    db_session.add_all([
+        AcademyModality(academy_id=master.academy_id, modality_id=modality.id),
+        student,
+    ])
+    await db_session.flush()
+    db_session.add(
+        Enrollment(
+            academy_id=master.academy_id,
+            student_id=student.id,
+            modality_id=modality.id,
+            status=EnrollmentStatus.ACTIVE,
+        )
+    )
+    # Depois do commit os objetos expiram; guarda os ids antes
+    academy_id, modality_id = master.academy_id, modality.id
+    await db_session.commit()
+    await mock_telegram_service(
+        monkeypatch=monkeypatch,
+        secret=secret,
+        sent_messages=sent_messages,
+        answered_callbacks=answered_callbacks,
+    )
+
+    response = await client.post(
+        f'{settings.API_V1_PREFIX}/telegram/webhook',
+        headers={TELEGRAM_SECRET_HEADER: secret},
+        json={
+            'update_id': 10,
+            'callback_query': {
+                'id': 'callback-toggle',
+                'from': {'id': telegram_user_id, 'first_name': 'Thiago'},
+                'message': {
+                    'chat': {'id': telegram_user_id, 'type': 'private'},
+                },
+                'data': f'academy_modalities:toggle:{modality_id}',
+            },
+        },
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {'status': 'academy_modality_has_students'}
+    assert sent_messages[0]['text'] == (
+        'Não dá para desmarcar Taekwondo: 1 aluno tem matrícula ativa '
+        'nessa modalidade.\n\nInative as matrículas desses alunos '
+        'primeiro (pelo site ou pela ficha do aluno).'
+    )
+    still_offered = await db_session.scalar(
+        select(AcademyModality).where(
+            AcademyModality.academy_id == academy_id,
+            AcademyModality.modality_id == modality_id,
+        )
+    )
+    assert still_offered is not None

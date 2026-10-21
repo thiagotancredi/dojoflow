@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/features/auth/useAuth'
 import { ModalitiesSection } from '@/features/modalities/components/ModalitiesSection'
+import { AppearanceSetting } from '@/features/settings/components/AppearanceSetting'
 import { ChangePasswordForm } from '@/features/settings/components/ChangePasswordForm'
 import { TelegramConnect } from '@/features/settings/components/TelegramConnect'
 import { formatPhone } from '@/lib/format'
@@ -72,6 +73,8 @@ export function SettingsPage() {
 
       <section className="space-y-4 rounded-3xl bg-card p-5">
         <h2 className="font-semibold">Conta</h2>
+
+        <AppearanceSetting />
 
         <ChangePasswordForm />
 

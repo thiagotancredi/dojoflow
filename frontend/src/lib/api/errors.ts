@@ -9,6 +9,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   ENROLLMENT_ALREADY_EXISTS: 'O aluno já está matriculado nessa modalidade.',
   MODALITY_NOT_FOUND: 'Modalidade não encontrada.',
   MODALITY_NOT_ENABLED: 'Essa modalidade não é oferecida pela academia.',
+  MODALITY_HAS_ACTIVE_ENROLLMENTS:
+    'Essa modalidade tem alunos com matrícula ativa. Inative as matrículas antes de remover.',
   RESPONSIBLE_LINK_NOT_FOUND: 'Responsável não encontrado.',
   CEP_NOT_FOUND: 'CEP não encontrado.',
   BELT_NAME_TAKEN: 'Já existe uma faixa com esse nome nesta modalidade.',

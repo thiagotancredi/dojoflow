@@ -363,8 +363,11 @@ async def test_modality_options_report_has_belts(
     taekwondo = await enable_modality(client, db_session, headers, 'Taekwondo')
     await enable_modality(client, db_session, headers, 'Boxe')
     await create_belt(client, headers, taekwondo, 'Branca')
+    await create_belt(client, headers, taekwondo, 'Amarela')
 
     response = await client.get('/api/v1/academy/modalities', headers=headers)
 
     has_belts = {item['name']: item['has_belts'] for item in response.json()}
     assert has_belts == {'Taekwondo': True, 'Boxe': False}
+    belt_count = {item['name']: item['belt_count'] for item in response.json()}
+    assert belt_count == {'Taekwondo': 2, 'Boxe': 0}

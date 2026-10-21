@@ -1,6 +1,12 @@
 import { Plus, Search } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { Link, Outlet, useMatch, useSearchParams } from 'react-router'
+import { useEffect, useRef, useState } from 'react'
+import {
+  Link,
+  Outlet,
+  useMatch,
+  useNavigate,
+  useSearchParams,
+} from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -18,9 +24,25 @@ import type { StudentFilters } from '@/features/students/api'
 import { StudentListItem } from '@/features/students/components/StudentListItem'
 import { useStudents } from '@/features/students/hooks'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
+import { useMediaQuery } from '@/lib/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 
 const ALL_MODALITIES = 'todas'
+
+// O que a lista tem agora; a ficha vazia (StudentsEmptyDetail) usa para
+// escolher a mensagem
+export type StudentsListState =
+  | 'loading'
+  | 'error'
+  | 'empty'
+  | 'no-results'
+  | 'has-items'
+
+// O que a StudentsPage entrega à rota filha (ficha) pelo <Outlet>
+export type StudentsOutletContext = {
+  refreshList: () => void
+  listState: StudentsListState
+}
 
 // Filtros vivem na URL (?busca=&status=&modalidade=&pagina=): recarregar a
 // página ou compartilhar o link mantém a mesma lista.
@@ -42,13 +64,21 @@ export function StudentsPage() {
   const filters = readFilters(params)
   const students = useStudents(filters)
   const { offered } = useAcademyModalities()
+  const modalityLabel = filters.modalityId
+    ? (offered.find((item) => item.id === filters.modalityId)?.name ??
+      'Modalidade')
+    : 'Todas'
 
   // O campo de busca muda na hora; a URL (e a consulta) só 300 ms depois
   const [searchText, setSearchText] = useState(filters.search)
   const debouncedSearch = useDebouncedValue(searchText)
 
-  // Há um aluno aberto? (no celular, a lista some e a ficha ocupa a tela)
-  const hasSelection = useMatch('/app/alunos/:studentId') !== null
+  // Aluno aberto (no celular, a lista some e a ficha ocupa a tela)
+  const selectedId = useMatch('/app/alunos/:studentId')?.params.studentId ?? null
+  const hasSelection = selectedId !== null
+  const navigate = useNavigate()
+  // Mesma quebra (md) que separa barra lateral e barra inferior
+  const isDesktop = useMediaQuery('(min-width: 768px)')
 
   // Muda um filtro na URL; qualquer filtro novo volta para a página 1
   function updateParams(changes: Record<string, string | null>) {
@@ -83,8 +113,52 @@ export function StudentsPage() {
   const totalPages = page ? Math.max(1, Math.ceil(page.total / PAGE_SIZE)) : 1
   const hasFilter = Boolean(filters.search || filters.modalityId)
 
+  // Computador: sempre há uma ficha aberta. Abre o primeiro aluno quando
+  // nenhum está aberto, ou quando a busca/filtro tira o aberto da lista.
+  // Recarregar a lista (ex.: depois de salvar) ou trocar de página não troca.
+  const filterKey = `${filters.search}|${filters.status}|${filters.modalityId ?? ''}`
+  const lastFilterKey = useRef(filterKey)
+
+  useEffect(() => {
+    const items = students.data?.items
+    if (!isDesktop || students.isLoading || !items) return
+
+    const filterChanged = lastFilterKey.current !== filterKey
+    lastFilterKey.current = filterKey
+    const query = params.toString()
+
+    // Busca/filtro sem resultado: fecha a ficha aberta para a direita mostrar
+    // "Nenhum aluno com esses filtros" (em vez da ficha de alguém fora da lista)
+    if (items.length === 0) {
+      if (filterChanged && selectedId) {
+        navigate(`/app/alunos${query ? `?${query}` : ''}`, { replace: true })
+      }
+      return
+    }
+    const selectedVisible = items.some((item) => item.id === selectedId)
+
+    if (!selectedId || (filterChanged && !selectedVisible)) {
+      // replace: não cria um passo extra no histórico (o "voltar" sai da tela)
+      navigate(`/app/alunos/${items[0].id}${query ? `?${query}` : ''}`, {
+        replace: true,
+      })
+    }
+  }, [isDesktop, students.data, students.isLoading, filterKey, selectedId, params, navigate])
+
+  const listState: StudentsListState = students.error
+    ? 'error'
+    : !page
+      ? 'loading'
+      : page.total > 0
+        ? 'has-items'
+        : hasFilter || filters.status === 'inactive'
+          ? 'no-results'
+          : 'empty'
+
   return (
-    <div>
+    // No computador, a tela inteira tem a altura da janela (2.5rem = padding
+    // do AppLayout); lista e ficha rolam por dentro
+    <div className="md:flex md:h-[calc(100dvh-2.5rem)] md:flex-col">
       <PageHeader
         title="Alunos"
         actions={
@@ -96,11 +170,11 @@ export function StudentsPage() {
         }
       />
 
-      <div className="flex gap-4">
+      <div className="flex gap-4 md:min-h-0 md:flex-1">
         <section
           className={cn(
-            'w-full shrink-0 space-y-2 rounded-3xl bg-card p-3 md:w-80',
-            hasSelection && 'hidden md:block',
+            'w-full shrink-0 space-y-2 rounded-3xl bg-card p-3 md:flex md:w-[360px] md:flex-col md:gap-2 md:space-y-0',
+            hasSelection && 'hidden',
           )}
         >
           <div className="relative">
@@ -114,7 +188,8 @@ export function StudentsPage() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
+          {/* Uma linha só, sempre: o seletor ocupa o espaço que sobra */}
+          <div className="flex items-center gap-1.5">
             {(['active', 'inactive'] as const).map((option) => (
               <button
                 key={option}
@@ -125,7 +200,7 @@ export function StudentsPage() {
                   })
                 }
                 className={cn(
-                  'rounded-full border px-3 py-1 text-xs',
+                  'shrink-0 rounded-full border px-3 py-1 text-xs',
                   filters.status === option
                     ? 'border-chip-active-border bg-chip-active text-chip-active-foreground'
                     : 'text-muted-foreground',
@@ -143,8 +218,14 @@ export function StudentsPage() {
                 })
               }
             >
-              <SelectTrigger size="sm" className="h-7 rounded-full text-xs">
-                <SelectValue />
+              <SelectTrigger
+                size="sm"
+                className="h-7 min-w-0 flex-1 rounded-full text-xs"
+              >
+                {/* Texto curto no botão ("Todas"); nome comprido termina em "…" */}
+                <SelectValue className="min-w-0">
+                  <span className="truncate">{modalityLabel}</span>
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_MODALITIES}>
@@ -159,6 +240,8 @@ export function StudentsPage() {
             </Select>
           </div>
 
+          {/* Só os alunos rolam; busca, filtros e paginação ficam no lugar */}
+          <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">
           <StudentsList
             filters={filters}
             hasFilter={hasFilter}
@@ -166,6 +249,7 @@ export function StudentsPage() {
             onClearFilters={clearFilters}
             onLastPage={() => updateParams({ pagina: String(totalPages) })}
           />
+          </div>
 
           {page && page.total > 0 && (
             <div className="flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
@@ -200,10 +284,21 @@ export function StudentsPage() {
         </section>
 
         <section
-          className={cn('min-w-0 flex-1', !hasSelection && 'hidden md:block')}
+          className={cn(
+            // bg-card: o painel vai até o fim da tela mesmo com ficha curta
+            'min-w-0 flex-1 md:overflow-y-auto md:rounded-3xl md:bg-card',
+            !hasSelection && 'hidden md:block',
+          )}
         >
           {/* A ficha avisa a lista quando salva algo (nome, matrículas…) */}
-          <Outlet context={{ refreshList: students.refetch }} />
+          <Outlet
+            context={
+              {
+                refreshList: students.refetch,
+                listState,
+              } satisfies StudentsOutletContext
+            }
+          />
         </section>
       </div>
     </div>
