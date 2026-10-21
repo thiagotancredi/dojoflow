@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
 from dojoflow.database.transaction import transactional
+from dojoflow.models.academy_billing_settings import AcademyBillingSettings
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.modality import Modality
 from dojoflow.models.payment import Payment
@@ -20,6 +21,7 @@ from dojoflow.schemas.billing import (
     PaymentRead,
     StudentBillingRead,
 )
+from dojoflow.schemas.billing_settings_api import BillingSettingsApi
 from dojoflow.services.belt_rules import local_today
 from dojoflow.services.billing_rules import (
     OpenCharge,
@@ -41,6 +43,13 @@ from dojoflow.shared.exceptions import ConflictError
 
 CENTS = Decimal('0.01')
 ZERO = Decimal('0.00')
+DEFAULT_MESSAGE_TEMPLATE = (
+    'Olá, {nome}! Tudo bem? 🥋\n\n'
+    'Passando para lembrar que a mensalidade da {academia} está em '
+    'aberto: {valor} ({meses}).\n\n'
+    'Você pode pagar pelo Pix: {pix} ({recebedor}).\n\n'
+    'Se já pagou, desconsidere. Obrigado!'
+)
 ENROLLMENT_FEE_LABEL = 'taxa de matrícula'
 CLOSED_STATUSES = {'paid', 'waived'}
 
@@ -184,6 +193,48 @@ class BillingService:
         )
 
         return len(created.all())
+
+    async def get_settings(self, academy_id: int) -> BillingSettingsApi:
+        """Configurações de cobrança; sem texto salvo, devolve o padrão."""
+        settings = await self.db_session.scalar(
+            select(AcademyBillingSettings).where(
+                AcademyBillingSettings.academy_id == academy_id
+            )
+        )
+
+        if settings is None:
+            return BillingSettingsApi(
+                message_template=DEFAULT_MESSAGE_TEMPLATE
+            )
+
+        return BillingSettingsApi(
+            pix_key=settings.pix_key,
+            recipient_name=settings.recipient_name,
+            bank_details=settings.bank_details,
+            message_template=(
+                settings.message_template or DEFAULT_MESSAGE_TEMPLATE
+            ),
+        )
+
+    @transactional
+    async def save_settings(
+        self, academy_id: int, data: BillingSettingsApi
+    ) -> BillingSettingsApi:
+        values = data.model_dump()
+        # Texto igual ao padrão não é gravado: segue o padrão se ele mudar
+        if values['message_template'] == DEFAULT_MESSAGE_TEMPLATE:
+            values['message_template'] = None
+
+        await self.db_session.execute(
+            insert(AcademyBillingSettings)
+            .values(academy_id=academy_id, **values)
+            .on_conflict_do_update(
+                index_elements=[AcademyBillingSettings.academy_id],
+                set_={**values, 'updated_at': func.now()},
+            )
+        )
+
+        return await self.get_settings(academy_id)
 
     async def create_enrollment_fee(
         self,

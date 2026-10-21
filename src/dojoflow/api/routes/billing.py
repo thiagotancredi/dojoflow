@@ -20,8 +20,31 @@ from dojoflow.schemas.billing_api import (
     StudentBillingApiRead,
     UpdateChargeApiPayload,
 )
+from dojoflow.schemas.billing_settings_api import BillingSettingsApi
 
 router = APIRouter(prefix='/students/{student_id}/billing', tags=['Billing'])
+settings_router = APIRouter(
+    prefix='/academy/billing-settings', tags=['Billing']
+)
+
+
+@settings_router.get(path='', status_code=status.HTTP_200_OK)
+async def read_billing_settings(
+    current_master: CurrentMasterDep,
+    billing_service_dep: BillingServiceDep,
+) -> BillingSettingsApi:
+    return await billing_service_dep.get_settings(current_master.academy_id)
+
+
+@settings_router.put(path='', status_code=status.HTTP_200_OK)
+async def save_billing_settings(
+    data: BillingSettingsApi,
+    current_master: CurrentMasterDep,
+    billing_service_dep: BillingServiceDep,
+) -> BillingSettingsApi:
+    return await billing_service_dep.save_settings(
+        current_master.academy_id, data
+    )
 
 
 @router.get(path='', status_code=status.HTTP_200_OK)
