@@ -1,3 +1,4 @@
+import { MessageCircle, RotateCcw, TriangleAlert } from 'lucide-react'
 import { useRef } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -5,6 +6,7 @@ import { toast } from 'sonner'
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/features/auth/useAuth'
 import type { BillingSettings } from '@/features/billing/api'
@@ -35,7 +37,6 @@ const MARKERS = [
 type FormValues = {
   pix_key: string
   recipient_name: string
-  bank_details: string
   message_template: string
 }
 
@@ -43,7 +44,6 @@ function toForm(settings: BillingSettings): FormValues {
   return {
     pix_key: settings.pix_key ?? '',
     recipient_name: settings.recipient_name ?? '',
-    bank_details: settings.bank_details ?? '',
     message_template: settings.message_template ?? DEFAULT_MESSAGE_TEMPLATE,
   }
 }
@@ -134,7 +134,6 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
       const saved = await mutate({
         pix_key: values.pix_key,
         recipient_name: values.recipient_name,
-        bank_details: values.bank_details,
         message_template: values.message_template,
       })
       reset(toForm(saved))
@@ -147,7 +146,7 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
   const errors = form.formState.errors
 
   return (
-    <form noValidate onSubmit={form.handleSubmit(save)} className="space-y-4">
+    <form noValidate onSubmit={form.handleSubmit(save)} className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-2">
         <FormField label="Chave Pix" htmlFor="billing-pix">
           <Input
@@ -167,76 +166,92 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
             {...register('recipient_name')}
           />
         </FormField>
-        <div className="sm:col-span-2">
-          <FormField
-            label="Dados bancários (opcional)"
-            htmlFor="billing-bank"
-          >
-            <Textarea
-              id="billing-bank"
-              placeholder="Banco · Agência · Conta"
-              maxLength={500}
-              className="rounded-xl"
-              {...register('bank_details')}
-            />
-          </FormField>
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <FormField
-            label="Mensagem de cobrança"
-            htmlFor="billing-message"
-            error={errors.message_template?.message}
-          >
-            <Textarea
-              id="billing-message"
-              maxLength={1000}
-              className="min-h-36 rounded-xl"
-              {...messageField}
-              ref={(element) => {
-                registerMessageRef(element)
-                messageRef.current = element
-              }}
-            />
-          </FormField>
-          <div className="flex flex-wrap gap-1.5">
-            {MARKERS.map(({ marker, help }) => (
-              <button
-                key={marker}
-                type="button"
-                title={help}
-                onClick={() => insertMarker(marker)}
-                className="rounded-full border px-2.5 py-0.5 font-mono text-xs text-muted-foreground hover:bg-accent"
-              >
-                {marker}
-              </button>
-            ))}
+      </div>
+
+      {/* Editor à esquerda, prévia à direita (um embaixo do outro no celular) */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="billing-message" className="text-sm font-semibold">
+              Mensagem de cobrança
+            </Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="rounded-full text-xs"
+              onClick={() =>
+                setValue('message_template', DEFAULT_MESSAGE_TEMPLATE, {
+                  shouldDirty: true,
+                })
+              }
+            >
+              <RotateCcw /> Restaurar texto padrão
+            </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Clique num marcador para colocá-lo onde está o cursor. Cada um vira
-            o dado do aluno: {MARKERS.map((item) => `${item.marker} = ${item.help}`).join(' · ')}.
-          </p>
+          <Textarea
+            id="billing-message"
+            maxLength={1000}
+            className="min-h-44 rounded-xl"
+            {...messageField}
+            ref={(element) => {
+              registerMessageRef(element)
+              messageRef.current = element
+            }}
+          />
+          {errors.message_template && (
+            <p role="alert" className="text-xs text-destructive">
+              {errors.message_template.message}
+            </p>
+          )}
+
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Clique para colocar no texto, onde está o cursor:
+            </p>
+            <ul className="grid gap-1.5 sm:grid-cols-2">
+              {MARKERS.map(({ marker, help }) => (
+                <li key={marker}>
+                  <button
+                    type="button"
+                    onClick={() => insertMarker(marker)}
+                    className="flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left hover:bg-accent"
+                  >
+                    <code className="shrink-0 font-mono text-xs font-semibold">
+                      {marker}
+                    </code>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {help}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-        <div className="space-y-1.5 sm:col-span-2">
-          <p className="text-xs text-muted-foreground">
-            Prévia · aluno de exemplo (Ana, R$ 150,00 de janeiro e fevereiro)
-          </p>
+
+        <div className="space-y-3">
+          <div>
+            <p className="flex items-center gap-1.5 text-sm font-semibold">
+              <MessageCircle className="size-4" /> Prévia no WhatsApp
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Como a mensagem chega, num exemplo: aluna Ana, devendo R$ 150,00
+              de janeiro e fevereiro.
+            </p>
+          </div>
           <WhatsAppMessage text={preview} />
+          {!pixKey.trim() && (template ?? '').includes('{pix}') && (
+            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <TriangleAlert className="mt-px size-3.5 shrink-0 text-status-pending" />
+              Sem chave Pix, a mensagem sai com o "Pix:" vazio. Preencha a
+              chave acima.
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          className="rounded-full"
-          onClick={() =>
-            setValue('message_template', DEFAULT_MESSAGE_TEMPLATE, {
-              shouldDirty: true,
-            })
-          }
-        >
-          Restaurar texto padrão
-        </Button>
+      <div className="flex justify-end">
         <Button type="submit" className="rounded-full" disabled={isPending}>
           {isPending ? 'Salvando…' : 'Salvar'}
         </Button>

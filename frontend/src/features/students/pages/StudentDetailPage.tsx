@@ -90,8 +90,12 @@ export function StudentDetailPage() {
 
       {/* key: ao trocar de aluno, as abas voltam ao estado inicial */}
       <Tabs key={student.id} defaultValue="enrollments">
-        {/* 5 abas não cabem no celular: a barra rola para o lado */}
-        <TabsList variant="line" className="max-w-full overflow-x-auto">
+        {/* 5 abas não cabem no celular: a barra rola para o lado, sem
+            mostrar barra de rolagem (nem as setinhas do Windows) */}
+        <TabsList
+          variant="line"
+          className="max-w-full overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           <TabsTrigger value="enrollments">Matrículas</TabsTrigger>
           <TabsTrigger value="billing">Mensalidades</TabsTrigger>
           <TabsTrigger value="data">Dados</TabsTrigger>
