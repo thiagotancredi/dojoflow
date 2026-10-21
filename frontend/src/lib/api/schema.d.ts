@@ -166,6 +166,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/support/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange Support Code
+         * @description Troca o código de uso único do painel por uma sessão de suporte.
+         */
+        post: operations["exchange_support_code_api_v1_auth_support_exchange_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/onboarding": {
         parameters: {
             query?: never;
@@ -798,6 +818,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Me */
+        get: operations["admin_me_api_v1_admin_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/academies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Academies */
+        get: operations["list_academies_api_v1_admin_academies_get"];
+        put?: never;
+        /** Create Academy */
+        post: operations["create_academy_api_v1_admin_academies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/academies/{academy_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Academy */
+        patch: operations["update_academy_api_v1_admin_academies__academy_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/academies/{academy_id}/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset Password */
+        post: operations["reset_password_api_v1_admin_academies__academy_id__reset_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/academies/{academy_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set Academy Status */
+        post: operations["set_academy_status_api_v1_admin_academies__academy_id__status_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/academies/{academy_id}/support-entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Support Entry
+         * @description Código de uso único (60 s) para entrar na academia em modo suporte.
+         */
+        post: operations["create_support_entry_api_v1_admin_academies__academy_id__support_entry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -834,6 +960,76 @@ export interface components {
             number: string | null;
             /** Complement */
             complement: string | null;
+        };
+        /** AdminAcademyCreate */
+        AdminAcademyCreate: {
+            /** Academy Name */
+            academy_name: string;
+            /** Master Name */
+            master_name: string;
+            /** Email */
+            email: string;
+            /** Phone */
+            phone?: string | null;
+        };
+        /** AdminAcademyRead */
+        AdminAcademyRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            status: components["schemas"]["AcademyStatus"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            master: components["schemas"]["AdminMasterRead"] | null;
+            /** Is Own */
+            is_own: boolean;
+        };
+        /** AdminAcademyUpdate */
+        AdminAcademyUpdate: {
+            /** Academy Name */
+            academy_name?: string | null;
+            /** Master Name */
+            master_name?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Phone */
+            phone?: string | null;
+        };
+        /** AdminCredentialsRead */
+        AdminCredentialsRead: {
+            academy: components["schemas"]["AdminAcademyRead"];
+            /** Password */
+            password: string;
+        };
+        /** AdminMasterRead */
+        AdminMasterRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Email */
+            email: string | null;
+            /** Phone */
+            phone: string | null;
+        };
+        /** AdminPasswordRead */
+        AdminPasswordRead: {
+            /** Password */
+            password: string;
+        };
+        /** AdminStatusUpdate */
+        AdminStatusUpdate: {
+            status: components["schemas"]["AcademyStatus"];
         };
         /** AllocationApiRead */
         AllocationApiRead: {
@@ -1385,6 +1581,8 @@ export interface components {
             /** Telegram Linked */
             telegram_linked: boolean;
             academy: components["schemas"]["AcademyApiRead"];
+            /** Support Mode */
+            support_mode: boolean;
         };
         /** ModalityApiRead */
         ModalityApiRead: {
@@ -1779,6 +1977,21 @@ export interface components {
          * @enum {string}
          */
         StudentSex: "male" | "female" | "other";
+        /** SupportEntryRead */
+        SupportEntryRead: {
+            /** Code */
+            code: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** SupportExchangeRequest */
+        SupportExchangeRequest: {
+            /** Code */
+            code: string;
+        };
         /** TelegramCallbackMessage */
         TelegramCallbackMessage: {
             chat: components["schemas"]["TelegramChat"];
@@ -2087,6 +2300,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SetCredentialsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthTokenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exchange_support_code_api_v1_auth_support_exchange_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupportExchangeRequest"];
             };
         };
         responses: {
@@ -3626,6 +3872,222 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_me_api_v1_admin_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MasterContextApiRead"];
+                };
+            };
+        };
+    };
+    list_academies_api_v1_admin_academies_get: {
+        parameters: {
+            query?: {
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAcademyRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_academy_api_v1_admin_academies_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAcademyCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCredentialsRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_academy_api_v1_admin_academies__academy_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                academy_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAcademyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAcademyRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_api_v1_admin_academies__academy_id__reset_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                academy_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPasswordRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_academy_status_api_v1_admin_academies__academy_id__status_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                academy_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStatusUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAcademyRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_support_entry_api_v1_admin_academies__academy_id__support_entry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                academy_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportEntryRead"];
                 };
             };
             /** @description Validation Error */

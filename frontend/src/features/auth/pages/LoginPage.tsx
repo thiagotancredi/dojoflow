@@ -12,7 +12,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 // Login: o signIn() do AuthContext chama a API e guarda a sessão.
-export function LoginPage() {
+// redirectTo: para onde ir depois de entrar ("/" no painel admin.*)
+export function LoginPage({ redirectTo = '/app' }: { redirectTo?: string }) {
   const navigate = useNavigate()
   const { status, signIn } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
@@ -27,7 +28,7 @@ export function LoginPage() {
 
     try {
       await signIn(email, password)
-      navigate('/app')
+      navigate(redirectTo)
     } catch (err) {
       const apiError = err as ApiError
       setError(
@@ -40,7 +41,7 @@ export function LoginPage() {
 
   // Já logado (ex.: voltou para /login com a sessão ativa): vai direto ao app
   if (status === 'authenticated') {
-    return <Navigate to="/app" replace />
+    return <Navigate to={redirectTo} replace />
   }
 
   return (

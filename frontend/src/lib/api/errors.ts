@@ -49,6 +49,15 @@ export const ERROR_MESSAGES: Record<string, string> = {
   PAYMENT_EXCEEDS_OPEN: 'O valor é maior que o total em aberto.',
   NOTHING_TO_PAY: 'Este aluno não tem nada em aberto.',
   PAYMENT_NOT_FOUND: 'Pagamento não encontrado. Recarregue a página.',
+  ACADEMY_BLOCKED: 'Academia desativada. Fale com o suporte.',
+  ADMIN_ONLY: 'Sem acesso.',
+  ADMIN_EMAIL_LOCKED: 'Você não pode trocar o seu próprio e-mail por aqui.',
+  CANNOT_BLOCK_OWN_ACADEMY: 'Você não pode desativar a sua própria academia.',
+  ACADEMY_NOT_FOUND: 'Academia não encontrada.',
+  SUPPORT_CODE_INVALID:
+    'Link de suporte inválido ou expirado. Clique em Entrar de novo no painel.',
+  SUPPORT_MODE: 'Indisponível no modo suporte.',
+  SUPPORT_SESSION_INVALID: 'Sessão de suporte encerrada.',
   NOT_FOUND: 'Não encontrado.',
   CONFLICT: 'Esse registro conflita com outro já existente.',
 }

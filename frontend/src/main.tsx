@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router'
 
 import { router } from '@/app/router'
+import { adminRouter } from '@/features/admin/router'
+import { isAdminHost } from '@/lib/host'
 import { applyInitialMode } from '@/app/theme'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/features/auth/AuthProvider'
@@ -17,7 +19,8 @@ applyInitialMode()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
-      <RouterProvider router={router} />
+      {/* admin.* abre o painel do administrador; o resto, o app */}
+      <RouterProvider router={isAdminHost ? adminRouter : router} />
       {/* Avisos rápidos (toasts) de sucesso e erro, em qualquer tela */}
       <Toaster position="bottom-right" />
     </AuthProvider>
