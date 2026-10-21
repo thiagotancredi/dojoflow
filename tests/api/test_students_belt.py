@@ -6,25 +6,22 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.helpers.auth import auth_headers
-from tests.helpers.graduation import (
-    create_belt,
-    create_student,
-    enable_modality,
-)
+from tests.helpers.scenario import add_belt, add_modality, add_student
 
 
 async def _setup(client: AsyncClient, db_session: AsyncSession) -> dict:
-    headers = await auth_headers(client)
-    taekwondo = await enable_modality(client, db_session, headers, 'Taekwondo')
-    jiu_jitsu = await enable_modality(client, db_session, headers, 'Jiu-jitsu')
+    # Montado direto no banco (os endpoints usados aqui têm testes próprios)
+    db = db_session
+    taekwondo = await add_modality(db, 'Taekwondo')
+    jiu_jitsu = await add_modality(db, 'Jiu-jitsu')
 
     return {
-        'headers': headers,
+        'headers': await auth_headers(client),
         'taekwondo': taekwondo,
         'jiu_jitsu': jiu_jitsu,
-        'white': await create_belt(client, headers, taekwondo, 'Branca'),
-        'yellow': await create_belt(client, headers, taekwondo, 'Amarela'),
-        'blue_jj': await create_belt(client, headers, jiu_jitsu, 'Azul'),
+        'white': await add_belt(db, taekwondo, 'Branca'),
+        'yellow': await add_belt(db, taekwondo, 'Amarela'),
+        'blue_jj': await add_belt(db, jiu_jitsu, 'Azul'),
     }
 
 
@@ -143,9 +140,7 @@ async def test_new_enrollment_with_current_belt(
     db_session: AsyncSession,
 ) -> None:
     ctx = await _setup(client, db_session)
-    student_id, _ = await create_student(
-        client, ctx['headers'], ctx['jiu_jitsu']
-    )
+    student_id, _ = await add_student(db_session, ctx['jiu_jitsu'])
 
     response = await client.post(
         f'/api/v1/students/{student_id}/enrollments',
@@ -170,9 +165,7 @@ async def test_new_enrollment_with_invalid_belt_creates_nothing(
     db_session: AsyncSession,
 ) -> None:
     ctx = await _setup(client, db_session)
-    student_id, _ = await create_student(
-        client, ctx['headers'], ctx['jiu_jitsu']
-    )
+    student_id, _ = await add_student(db_session, ctx['jiu_jitsu'])
 
     response = await client.post(
         f'/api/v1/students/{student_id}/enrollments',

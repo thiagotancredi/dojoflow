@@ -6,11 +6,8 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.helpers.auth import auth_headers, other_academy_headers
-from tests.helpers.graduation import (
-    create_belt,
-    create_student,
-    enable_modality,
-)
+from tests.helpers.graduation import create_belt
+from tests.helpers.scenario import add_belt, add_modality, add_student
 
 
 def _url(student_id: str, enrollment_id: str) -> str:
@@ -18,28 +15,25 @@ def _url(student_id: str, enrollment_id: str) -> str:
 
 
 async def _setup(client: AsyncClient, db_session: AsyncSession) -> dict:
+    # Montado direto no banco (os endpoints usados aqui têm testes próprios)
     headers = await auth_headers(client)
-    taekwondo = await enable_modality(client, db_session, headers, 'Taekwondo')
-    white = await create_belt(
-        client,
-        headers,
+    taekwondo = await add_modality(db_session, 'Taekwondo')
+    white = await add_belt(
+        db_session,
         taekwondo,
         'Branca',
         min_time_amount=3,
         min_time_unit='months',
     )
-    yellow = await create_belt(
-        client,
-        headers,
+    yellow = await add_belt(
+        db_session,
         taekwondo,
         'Amarela',
         primary_color='#facc15',
         min_time_amount=3,
         min_time_unit='months',
     )
-    student_id, enrollment_id = await create_student(
-        client, headers, taekwondo
-    )
+    student_id, enrollment_id = await add_student(db_session, taekwondo)
 
     return {
         'headers': headers,
@@ -127,9 +121,7 @@ async def test_belt_without_min_time(
     db_session: AsyncSession,
 ) -> None:
     ctx = await _setup(client, db_session)
-    black = await create_belt(
-        client, ctx['headers'], ctx['taekwondo'], 'Preta', marks=1
-    )
+    black = await add_belt(db_session, ctx['taekwondo'], 'Preta')
 
     await _register(client, ctx, black, '2020-01-01')
 
@@ -144,10 +136,8 @@ async def test_belt_from_other_modality_rejected(
     db_session: AsyncSession,
 ) -> None:
     ctx = await _setup(client, db_session)
-    jiu_jitsu = await enable_modality(
-        client, db_session, ctx['headers'], 'Jiu-jitsu'
-    )
-    blue = await create_belt(client, ctx['headers'], jiu_jitsu, 'Azul')
+    jiu_jitsu = await add_modality(db_session, 'Jiu-jitsu')
+    blue = await add_belt(db_session, jiu_jitsu, 'Azul')
 
     response = await client.post(
         ctx['url'],
