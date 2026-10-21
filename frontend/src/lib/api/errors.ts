@@ -57,6 +57,11 @@ function validationIssues(error: unknown): ValidationIssue[] | null {
   return null
 }
 
+// 422 do FastAPI (lista de erros por campo)?
+export function isValidationError(error: unknown) {
+  return validationIssues(error) !== null
+}
+
 // Texto para o usuário a partir de qualquer erro (API, rede ou código)
 export function messageFor(error: unknown, fallback = GENERIC_MESSAGE) {
   const code = errorCode(error)

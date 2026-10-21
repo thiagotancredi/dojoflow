@@ -29,8 +29,8 @@ export function addMonths(isoDate: string, months: number) {
   return toIsoDate(target)
 }
 
-// "há 1 ano e 3 meses", "há 3 meses e 12 dias", "há 5 dias"
-export function timeSince(isoDate: string, today = new Date()) {
+// Anos, meses e dias entre duas datas (meses pelo calendário)
+function elapsed(isoDate: string, today: Date) {
   const start = parseDate(isoDate)
   let months =
     (today.getFullYear() - start.getFullYear()) * 12 +
@@ -49,11 +49,16 @@ export function timeSince(isoDate: string, today = new Date()) {
     0,
   )
 
+  return { years: Math.floor(months / 12), months: months % 12, days }
+}
+
+// "há 1 ano e 3 meses", "há 3 meses e 12 dias", "há 5 dias"
+export function timeSince(isoDate: string, today = new Date()) {
+  const { years, months, days } = elapsed(isoDate, today)
+
   const parts: string[] = []
-  const years = Math.floor(months / 12)
-  const restMonths = months % 12
   if (years) parts.push(`${years} ${years > 1 ? 'anos' : 'ano'}`)
-  if (restMonths) parts.push(`${restMonths} ${restMonths > 1 ? 'meses' : 'mês'}`)
+  if (months) parts.push(`${months} ${months > 1 ? 'meses' : 'mês'}`)
   if (!years && (days || parts.length === 0)) {
     parts.push(`${days} ${days === 1 ? 'dia' : 'dias'}`)
   }
@@ -76,4 +81,32 @@ export function eligibility(
 
   const on = addMonths(graduatedOn, minMonths)
   return on <= reference ? { kind: 'eligible', since: on } : { kind: 'not_yet', on }
+}
+
+const UNIT_LABELS = {
+  days: ['dia', 'dias'],
+  months: ['mês', 'meses'],
+  years: ['ano', 'anos'],
+} as const
+
+// "3 meses", "1 ano", "sem tempo mínimo"
+export function minTimeLabel(
+  amount: number | null,
+  unit: keyof typeof UNIT_LABELS | null,
+) {
+  if (amount === null || unit === null) return 'sem tempo mínimo'
+  const [one, many] = UNIT_LABELS[unit]
+  return `${amount} ${amount === 1 ? one : many}`
+}
+
+// Tempo curto para as listas: "1a 3m", "3m 12d" (de isoDate até reference)
+export function shortTimeSince(isoDate: string, reference: string) {
+  const { years, months, days } = elapsed(isoDate, parseDate(reference))
+  const parts = [
+    years && `${years}a`,
+    months && `${months}m`,
+    !years && days && `${days}d`,
+  ].filter(Boolean)
+
+  return parts.length ? parts.join(' ') : '0d'
 }

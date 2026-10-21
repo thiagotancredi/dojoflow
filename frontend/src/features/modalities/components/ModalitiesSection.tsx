@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 
 import {
   AlertDialog,
@@ -132,6 +133,7 @@ export function ModalitiesSection() {
                     actionLabel="Remover"
                     disabled={pendingId === option.id}
                     onAction={() => setToRemove(option)}
+                    beltsLink
                   />
                 ))}
               </div>
@@ -202,6 +204,7 @@ type ModalityCardProps = {
   muted?: boolean
   disabled: boolean
   onAction: () => void
+  beltsLink?: boolean
 }
 
 function ModalityCard({
@@ -210,6 +213,7 @@ function ModalityCard({
   muted = false,
   disabled,
   onAction,
+  beltsLink = false,
 }: ModalityCardProps) {
   return (
     <div
@@ -222,15 +226,25 @@ function ModalityCard({
         <span className={cn(muted && 'opacity-60')}>{option.emoji}</span>
         {option.name}
       </span>
-      <Button
-        size="sm"
-        variant={muted ? 'outline' : 'ghost'}
-        className="rounded-full"
-        disabled={disabled}
-        onClick={onAction}
-      >
-        {actionLabel}
-      </Button>
+      <span className="flex items-center gap-1">
+        {/* Modalidade oferecida: atalho para as faixas dela */}
+        {beltsLink && (
+          <Button asChild size="sm" className="rounded-full">
+            <Link to={`/app/configuracoes/modalidades/${option.id}/faixas`}>
+              Faixas
+            </Link>
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant={muted ? 'outline' : 'ghost'}
+          className="rounded-full"
+          disabled={disabled}
+          onClick={onAction}
+        >
+          {actionLabel}
+        </Button>
+      </span>
     </div>
   )
 }

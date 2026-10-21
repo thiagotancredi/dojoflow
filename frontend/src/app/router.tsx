@@ -4,6 +4,7 @@ import { AppLayout } from '@/app/layouts/AppLayout'
 import { NotFoundPage } from '@/app/NotFoundPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
+import { ModalityBeltsPage } from '@/features/belts/pages/ModalityBeltsPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 import { NewStudentPage } from '@/features/students/pages/NewStudentPage'
@@ -43,6 +44,10 @@ export const router = createBrowserRouter([
         element: <Navigate to="/app/configuracoes" replace />,
       },
       { path: 'configuracoes', element: <SettingsPage /> },
+      {
+        path: 'configuracoes/modalidades/:modalityId/faixas',
+        element: <ModalityBeltsPage />,
+      },
     ],
   },
   { path: '*', element: <NotFoundPage /> },

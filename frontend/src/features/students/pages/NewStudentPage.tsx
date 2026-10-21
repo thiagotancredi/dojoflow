@@ -41,7 +41,7 @@ import type {
   ResponsibleInput,
   ResponsibleValues,
 } from '@/features/students/schemas'
-import { showApiError } from '@/lib/api/errors'
+import { isValidationError, showApiError } from '@/lib/api/errors'
 import { formatPhone } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -537,12 +537,7 @@ function EnrollmentsStep({
     } catch (error) {
       // As regras dos formulários são as mesmas do backend, então um 422
       // (lista de erros por campo) aqui é raro: avisa e deixa revisar
-      const isValidation =
-        typeof error === 'object' &&
-        error !== null &&
-        'detail' in error &&
-        Array.isArray(error.detail)
-      if (isValidation) {
+      if (isValidationError(error)) {
         toast.error('Não foi possível cadastrar. Revise os dados.')
       } else {
         showApiError(error)
