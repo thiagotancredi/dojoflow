@@ -104,3 +104,30 @@ export function removeResponsible(studentId: string, linkId: string) {
     }),
   )
 }
+
+export type EnrollmentUpdatePayload = Schemas['EnrollmentApiUpdateRequest']
+export type EnrollmentPayload = Schemas['EnrollmentApiPayload']
+
+export function updateEnrollment(
+  studentId: string,
+  enrollmentId: string,
+  payload: EnrollmentUpdatePayload,
+) {
+  return unwrap(
+    api.PATCH('/api/v1/students/{student_id}/enrollments/{enrollment_id}', {
+      params: {
+        path: { student_id: studentId, enrollment_id: enrollmentId },
+      },
+      body: payload,
+    }),
+  )
+}
+
+export function addEnrollment(studentId: string, payload: EnrollmentPayload) {
+  return unwrap(
+    api.POST('/api/v1/students/{student_id}/enrollments', {
+      params: { path: { student_id: studentId } },
+      body: payload,
+    }),
+  )
+}

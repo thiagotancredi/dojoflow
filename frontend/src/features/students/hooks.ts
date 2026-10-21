@@ -1,15 +1,19 @@
 import {
+  addEnrollment,
   addResponsible,
   getStudent,
   listStudents,
   removeAddress,
   removeResponsible,
   saveAddress,
+  updateEnrollment,
   updateStudent,
 } from '@/features/students/api'
 import type {
   AddressPayload,
   BasicDataPayload,
+  EnrollmentPayload,
+  EnrollmentUpdatePayload,
   ResponsiblePayload,
 } from '@/features/students/api'
 import type { StudentFilters } from '@/features/students/api'
@@ -57,4 +61,17 @@ export function useAddResponsible(studentId: string) {
 
 export function useRemoveResponsible(studentId: string) {
   return useMutation((linkId: string) => removeResponsible(studentId, linkId))
+}
+
+export function useUpdateEnrollment(studentId: string) {
+  return useMutation(
+    (enrollmentId: string, payload: EnrollmentUpdatePayload) =>
+      updateEnrollment(studentId, enrollmentId, payload),
+  )
+}
+
+export function useAddEnrollment(studentId: string) {
+  return useMutation((payload: EnrollmentPayload) =>
+    addEnrollment(studentId, payload),
+  )
 }

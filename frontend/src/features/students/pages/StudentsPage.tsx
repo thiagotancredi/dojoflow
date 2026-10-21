@@ -12,13 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { listAcademyModalities } from '@/features/modalities/api'
+import { useAcademyModalities } from '@/features/modalities/hooks'
 import { PAGE_SIZE } from '@/features/students/api'
 import type { StudentFilters } from '@/features/students/api'
 import { StudentListItem } from '@/features/students/components/StudentListItem'
 import { useStudents } from '@/features/students/hooks'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
-import { useResource } from '@/lib/hooks/useResource'
 import { cn } from '@/lib/utils'
 
 const ALL_MODALITIES = 'todas'
@@ -42,8 +41,7 @@ export function StudentsPage() {
   const [params, setParams] = useSearchParams()
   const filters = readFilters(params)
   const students = useStudents(filters)
-  const modalities = useResource('academy-modalities', listAcademyModalities)
-  const offered = (modalities.data ?? []).filter((item) => item.is_selected)
+  const { offered } = useAcademyModalities()
 
   // O campo de busca muda na hora; a URL (e a consulta) só 300 ms depois
   const [searchText, setSearchText] = useState(filters.search)

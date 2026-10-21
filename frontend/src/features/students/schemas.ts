@@ -157,6 +157,7 @@ export function toResponsiblePayload(values: ResponsibleValues) {
 export const enrollmentSchema = z
   .object({
     modality_id: z.string().min(1, { error: 'Escolha a modalidade.' }),
+    status: z.enum(['active', 'inactive']),
     is_exempt: z.boolean(),
     monthly_fee: z.string(),
     due_day: z.string(),
@@ -188,6 +189,16 @@ export const enrollmentSchema = z
 
 export type EnrollmentValues = z.infer<typeof enrollmentSchema>
 
+export function emptyEnrollment(modalityId = ''): EnrollmentValues {
+  return {
+    modality_id: modalityId,
+    status: 'active',
+    is_exempt: false,
+    monthly_fee: '',
+    due_day: '',
+  }
+}
+
 export function toEnrollmentPayload(values: EnrollmentValues) {
   const exempt = values.is_exempt
 
@@ -198,5 +209,6 @@ export function toEnrollmentPayload(values: EnrollmentValues) {
         : parseMoney(values.monthly_fee),
     due_day: exempt || !values.due_day.trim() ? null : Number(values.due_day),
     is_exempt: exempt,
+    status: values.status,
   }
 }
