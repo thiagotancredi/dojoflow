@@ -161,10 +161,14 @@ bordas `#2f3034`, botões claros (`#e4e4e2` com texto grafite).
 
 ## Ordem sugerida
 
-1. ~~Paleta grafite + petróleo, claro e escuro, botão na barra lateral~~ (feito).
-2. "Aparência" em Configurações + contorno das faixas no escuro.
-3. Modalidades em cartões (+ `belt_count` no backend).
-4. Tela de Alunos.
+Status (21/10): **tudo implementado** na branch `feat/student-detail-layout`
+(plano `docs/superpowers/plans/2026-10-21-visual-refresh.md`); falta o passeio no
+navegador.
+
+1. ~~Paleta grafite + petróleo, claro e escuro, botão na barra lateral~~.
+2. ~~"Aparência" em Configurações + contorno das faixas no escuro~~.
+3. ~~Modalidades em cartões (+ `belt_count` no backend)~~.
+4. ~~Tela de Alunos~~.
 
 Cada parte termina com `tsc` + ESLint verdes; o backend roda o teste da parte
 tocada; a suíte completa roda uma vez no fim.
