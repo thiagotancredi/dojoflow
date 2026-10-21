@@ -85,3 +85,17 @@ api.use({
     retryCopies.delete(id)
   },
 })
+
+// Resposta da API → dado, ou lança o corpo do erro ({detail, code} ou 422).
+// Uso: const page = await unwrap(api.GET('/api/v1/students', {...}))
+export async function unwrap<T>(
+  request: Promise<{ data?: T; error?: unknown }>,
+): Promise<T> {
+  const { data, error } = await request
+
+  if (error !== undefined) {
+    throw error
+  }
+
+  return data as T
+}

@@ -241,6 +241,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/academy/modalities/{modality_id}/belts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Belts */
+        get: operations["list_belts_api_v1_academy_modalities__modality_id__belts_get"];
+        put?: never;
+        /** Create Belt */
+        post: operations["create_belt_api_v1_academy_modalities__modality_id__belts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academy/modalities/{modality_id}/belts/taekwondo-preset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Taekwondo Preset */
+        post: operations["apply_taekwondo_preset_api_v1_academy_modalities__modality_id__belts_taekwondo_preset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academy/modalities/{modality_id}/belts/pending-enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Enrollments Without Belt */
+        get: operations["list_enrollments_without_belt_api_v1_academy_modalities__modality_id__belts_pending_enrollments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academy/modalities/{modality_id}/belts/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register Belts In Bulk */
+        post: operations["register_belts_in_bulk_api_v1_academy_modalities__modality_id__belts_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academy/modalities/{modality_id}/belts/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reorder Belts */
+        put: operations["reorder_belts_api_v1_academy_modalities__modality_id__belts_order_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academy/belts/{belt_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Belt */
+        put: operations["update_belt_api_v1_academy_belts__belt_id__put"];
+        post?: never;
+        /** Delete Belt */
+        delete: operations["delete_belt_api_v1_academy_belts__belt_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/students": {
         parameters: {
             query?: never;
@@ -363,6 +467,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/students/{student_id}/enrollments/{enrollment_id}/belts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Enrollment Belts */
+        get: operations["read_enrollment_belts_api_v1_students__student_id__enrollments__enrollment_id__belts_get"];
+        put?: never;
+        /** Register Enrollment Belt */
+        post: operations["register_enrollment_belt_api_v1_students__student_id__enrollments__enrollment_id__belts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{student_id}/enrollments/{enrollment_id}/belts/{record_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Enrollment Belt */
+        put: operations["update_enrollment_belt_api_v1_students__student_id__enrollments__enrollment_id__belts__record_id__put"];
+        post?: never;
+        /** Delete Enrollment Belt */
+        delete: operations["delete_enrollment_belt_api_v1_students__student_id__enrollments__enrollment_id__belts__record_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard/summary": {
         parameters: {
             query?: never;
@@ -378,6 +518,78 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/graduation-lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Graduation Lists */
+        get: operations["list_graduation_lists_api_v1_graduation_lists_get"];
+        put?: never;
+        /** Create Graduation List */
+        post: operations["create_graduation_list_api_v1_graduation_lists_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/graduation-lists/{list_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Graduation List */
+        get: operations["get_graduation_list_api_v1_graduation_lists__list_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Graduation List */
+        delete: operations["delete_graduation_list_api_v1_graduation_lists__list_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Graduation List */
+        patch: operations["update_graduation_list_api_v1_graduation_lists__list_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/graduation-lists/{list_id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Graduation Entry */
+        post: operations["add_graduation_entry_api_v1_graduation_lists__list_id__entries_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/graduation-lists/{list_id}/entries/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Graduation Entry */
+        delete: operations["remove_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Graduation Entry */
+        patch: operations["update_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__patch"];
         trace?: never;
     };
     "/api/v1/cep/{zip_code}": {
@@ -498,6 +710,102 @@ export interface components {
              */
             token_type: string;
         };
+        /** BeltApiRead */
+        BeltApiRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Primary Color */
+            primary_color: string;
+            /** Stripe Color */
+            stripe_color: string | null;
+            /** Marks */
+            marks: number;
+            /** Marks Color */
+            marks_color: string;
+            /** Tip Color */
+            tip_color: string | null;
+            /** Min Time Amount */
+            min_time_amount: number | null;
+            min_time_unit: components["schemas"]["DurationUnit"] | null;
+            /** Position */
+            position: number;
+        };
+        /** BeltOrderRequest */
+        BeltOrderRequest: {
+            /** Belt Ids */
+            belt_ids: string[];
+        };
+        /** BeltPayload */
+        BeltPayload: {
+            /** Name */
+            name: string;
+            /** Primary Color */
+            primary_color: string;
+            /** Stripe Color */
+            stripe_color?: string | null;
+            /**
+             * Marks
+             * @default 0
+             */
+            marks: number;
+            /**
+             * Marks Color
+             * @default #d4a017
+             */
+            marks_color: string;
+            /** Tip Color */
+            tip_color?: string | null;
+            /** Min Time Amount */
+            min_time_amount?: number | null;
+            min_time_unit?: components["schemas"]["DurationUnit"] | null;
+        };
+        /** BeltRecordApiRead */
+        BeltRecordApiRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Graduated On
+             * Format: date
+             */
+            graduated_on: string;
+            belt: components["schemas"]["BeltApiRead"];
+        };
+        /** BulkBeltItemApi */
+        BulkBeltItemApi: {
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /**
+             * Belt Id
+             * Format: uuid
+             */
+            belt_id: string;
+            /**
+             * Graduated On
+             * Format: date
+             */
+            graduated_on: string;
+        };
+        /** BulkBeltRequest */
+        BulkBeltRequest: {
+            /** Items */
+            items: components["schemas"]["BulkBeltItemApi"][];
+        };
+        /** BulkBeltResultApiRead */
+        BulkBeltResultApiRead: {
+            /** Saved */
+            saved: number;
+        };
         /** CepAddress */
         CepAddress: {
             /** Zip Code */
@@ -524,6 +832,16 @@ export interface components {
             /** Registration Pending */
             registration_pending: components["schemas"]["PendingEnrollmentRead"][];
         };
+        /**
+         * DurationUnit
+         * @enum {string}
+         */
+        DurationUnit: "days" | "months" | "years";
+        /**
+         * Eligibility
+         * @enum {string}
+         */
+        Eligibility: "eligible" | "not_yet" | "no_belt" | "no_requirement";
         /** EnrollmentApiPayload */
         EnrollmentApiPayload: {
             /**
@@ -542,6 +860,7 @@ export interface components {
             is_exempt: boolean;
             /** @default active */
             status: components["schemas"]["EnrollmentStatus"];
+            current_belt?: components["schemas"]["EnrollmentBeltApiPayload"] | null;
         };
         /** EnrollmentApiRead */
         EnrollmentApiRead: {
@@ -575,11 +894,139 @@ export interface components {
             is_exempt?: boolean | null;
             status?: components["schemas"]["EnrollmentStatus"] | null;
         };
+        /** EnrollmentBeltApiPayload */
+        EnrollmentBeltApiPayload: {
+            /**
+             * Belt Id
+             * Format: uuid
+             */
+            belt_id: string;
+            /**
+             * Graduated On
+             * Format: date
+             */
+            graduated_on: string;
+        };
+        /** EnrollmentBeltsApiRead */
+        EnrollmentBeltsApiRead: {
+            current: components["schemas"]["BeltRecordApiRead"] | null;
+            eligibility: components["schemas"]["Eligibility"];
+            /** Eligible On */
+            eligible_on: string | null;
+            /** History */
+            history: components["schemas"]["BeltRecordApiRead"][];
+        };
         /**
          * EnrollmentStatus
          * @enum {string}
          */
         EnrollmentStatus: "active" | "inactive";
+        /** GraduationCandidateApiRead */
+        GraduationCandidateApiRead: {
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /** Student Name */
+            student_name: string;
+            current: components["schemas"]["BeltRecordApiRead"] | null;
+            eligibility: components["schemas"]["Eligibility"];
+            suggested_target: components["schemas"]["BeltApiRead"] | null;
+        };
+        /** GraduationEntryApiCreate */
+        GraduationEntryApiCreate: {
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /** Target Belt Id */
+            target_belt_id?: string | null;
+        };
+        /** GraduationEntryApiRead */
+        GraduationEntryApiRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /** Student Name */
+            student_name: string;
+            snapshot_belt: components["schemas"]["BeltApiRead"] | null;
+            /** Snapshot Graduated On */
+            snapshot_graduated_on: string | null;
+            eligibility: components["schemas"]["Eligibility"];
+            target_belt: components["schemas"]["BeltApiRead"];
+        };
+        /** GraduationEntryApiUpdate */
+        GraduationEntryApiUpdate: {
+            /**
+             * Target Belt Id
+             * Format: uuid
+             */
+            target_belt_id: string;
+        };
+        /** GraduationListApiCreate */
+        GraduationListApiCreate: {
+            /** Name */
+            name: string;
+            /**
+             * Modality Id
+             * Format: uuid
+             */
+            modality_id: string;
+            /**
+             * Exam Date
+             * Format: date
+             */
+            exam_date: string;
+        };
+        /** GraduationListDetailApiRead */
+        GraduationListDetailApiRead: {
+            summary: components["schemas"]["GraduationListSummaryApiRead"];
+            /** Belts */
+            belts: components["schemas"]["BeltApiRead"][];
+            /** Entries */
+            entries: components["schemas"]["GraduationEntryApiRead"][];
+            /** Candidates */
+            candidates: components["schemas"]["GraduationCandidateApiRead"][];
+        };
+        /** GraduationListSummaryApiRead */
+        GraduationListSummaryApiRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            modality: components["schemas"]["ModalityRefApiRead"];
+            /**
+             * Exam Date
+             * Format: date
+             */
+            exam_date: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Entry Count */
+            entry_count: number;
+        };
+        /** GraduationListUpdate */
+        GraduationListUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Exam Date */
+            exam_date?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -639,6 +1086,22 @@ export interface components {
             emoji: string;
             /** Is Selected */
             is_selected: boolean;
+            /** Has Belts */
+            has_belts: boolean;
+            /** Pending Belt Count */
+            pending_belt_count: number;
+        };
+        /** ModalityRefApiRead */
+        ModalityRefApiRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Emoji */
+            emoji: string;
         };
         /** ModalityToggleRead */
         ModalityToggleRead: {
@@ -662,6 +1125,21 @@ export interface components {
             telegram_user_id: number;
             /** Phone */
             phone?: string | null;
+        };
+        /** PendingBeltEnrollmentApiRead */
+        PendingBeltEnrollmentApiRead: {
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /**
+             * Student Id
+             * Format: uuid
+             */
+            student_id: string;
+            /** Student Name */
+            student_name: string;
         };
         /** PendingEnrollmentRead */
         PendingEnrollmentRead: {
@@ -810,7 +1288,8 @@ export interface components {
             /** Birth Date */
             birth_date?: string | null;
             sex?: components["schemas"]["StudentSex"] | null;
-            enrollment: components["schemas"]["EnrollmentApiPayload"];
+            /** Enrollments */
+            enrollments: components["schemas"]["EnrollmentApiPayload"][];
             address?: components["schemas"]["StudentAddressPayload"] | null;
             /** Responsibles */
             responsibles?: components["schemas"]["StudentResponsiblePayload"][];
@@ -1320,6 +1799,266 @@ export interface operations {
             };
         };
     };
+    list_belts_api_v1_academy_modalities__modality_id__belts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                modality_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeltApiRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_belt_api_v1_academy_modalities__modality_id__belts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                modality_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BeltPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeltApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_taekwondo_preset_api_v1_academy_modalities__modality_id__belts_taekwondo_preset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                modality_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeltApiRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_enrollments_without_belt_api_v1_academy_modalities__modality_id__belts_pending_enrollments_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                modality_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingBeltEnrollmentApiRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_belts_in_bulk_api_v1_academy_modalities__modality_id__belts_bulk_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                modality_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkBeltRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkBeltResultApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_belts_api_v1_academy_modalities__modality_id__belts_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                modality_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BeltOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_belt_api_v1_academy_belts__belt_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                belt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BeltPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeltApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_belt_api_v1_academy_belts__belt_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                belt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_students_api_v1_students_get: {
         parameters: {
             query?: {
@@ -1644,6 +2383,138 @@ export interface operations {
             };
         };
     };
+    read_enrollment_belts_api_v1_students__student_id__enrollments__enrollment_id__belts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: string;
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentBeltsApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_enrollment_belt_api_v1_students__student_id__enrollments__enrollment_id__belts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: string;
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentBeltApiPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_enrollment_belt_api_v1_students__student_id__enrollments__enrollment_id__belts__record_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: string;
+                student_id: string;
+                record_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentBeltApiPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_enrollment_belt_api_v1_students__student_id__enrollments__enrollment_id__belts__record_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enrollment_id: string;
+                student_id: string;
+                record_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_dashboard_summary_api_v1_dashboard_summary_get: {
         parameters: {
             query?: never;
@@ -1660,6 +2531,249 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardSummaryRead"];
+                };
+            };
+        };
+    };
+    list_graduation_lists_api_v1_graduation_lists_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraduationListSummaryApiRead"][];
+                };
+            };
+        };
+    };
+    create_graduation_list_api_v1_graduation_lists_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GraduationListApiCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraduationListSummaryApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_graduation_list_api_v1_graduation_lists__list_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraduationListDetailApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_graduation_list_api_v1_graduation_lists__list_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_graduation_list_api_v1_graduation_lists__list_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GraduationListUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_graduation_entry_api_v1_graduation_lists__list_id__entries_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GraduationEntryApiCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_id: string;
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_id: string;
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GraduationEntryApiUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

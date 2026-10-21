@@ -35,7 +35,9 @@ async def test_dashboard_summary(
             headers=headers,
             json={
                 'name': name,
-                'enrollment': {'modality_id': str(modality_id), **enrollment},
+                'enrollments': [
+                    {'modality_id': str(modality_id), **enrollment}
+                ],
             },
         )
         assert response.status_code == HTTPStatus.CREATED
@@ -77,7 +79,7 @@ async def test_dashboard_isolated_per_academy(
         headers=headers_a,
         json={
             'name': 'Ana',
-            'enrollment': {'modality_id': str(jiu.public_id)},
+            'enrollments': [{'modality_id': str(jiu.public_id)}],
         },
     )
     assert created.status_code == HTTPStatus.CREATED

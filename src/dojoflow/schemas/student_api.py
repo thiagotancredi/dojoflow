@@ -19,6 +19,7 @@ from dojoflow.shared.enums import (
 
 MIN_DUE_DAY = 1
 MAX_DUE_DAY = 28
+MAX_ENROLLMENTS_PER_STUDENT = 10
 
 
 class StudentApiRead(BaseModel):
@@ -131,9 +132,24 @@ class StudentCreateApiRequest(BaseModel):
     email: str | None = Field(default=None, max_length=255)
     birth_date: date | None = None
     sex: StudentSex | None = None
-    enrollment: EnrollmentApiPayload
+    # Uma ou mais modalidades, gravadas juntas (tudo ou nada)
+    enrollments: list[EnrollmentApiPayload] = Field(
+        min_length=1, max_length=MAX_ENROLLMENTS_PER_STUDENT
+    )
     address: StudentAddressPayload | None = None
     responsibles: list[StudentResponsiblePayload] = Field(default_factory=list)
+
+    @field_validator('enrollments')
+    @classmethod
+    def _distinct_modalities(
+        cls, value: list[EnrollmentApiPayload]
+    ) -> list[EnrollmentApiPayload]:
+        modality_ids = [item.modality_id for item in value]
+
+        if len(modality_ids) != len(set(modality_ids)):
+            raise ValueError('Each modality can appear only once.')
+
+        return value
 
 
 class EnrollmentApiUpdateRequest(BaseModel):

@@ -136,26 +136,42 @@ async def create_student(
     db_session_dep: DbSessionDep,
 ) -> StudentApiRead:
     academy_id = current_master.academy_id
-    enrollment = await _to_internal_enrollment(db_session_dep, data.enrollment)
-    current_belt = await _to_internal_current_belt(
-        db_session_dep, data.enrollment, academy_id
-    )
+    # Resolve tudo antes de gravar (UUID desconhecido → 404 sem tocar no banco)
+    enrollments = [
+        (
+            await _to_internal_enrollment(db_session_dep, item),
+            await _to_internal_current_belt(db_session_dep, item, academy_id),
+        )
+        for item in data.enrollments
+    ]
+    first_enrollment, _ = enrollments[0]
     internal_request = StudentCreateRequest(
-        **data.model_dump(exclude={'enrollment'}),
-        enrollment=enrollment,
+        **data.model_dump(exclude={'enrollments'}),
+        enrollment=first_enrollment,
     )
 
-    # Aluno, matrícula e faixa atual: tudo ou nada
+    # Aluno, matrículas e faixas atuais: tudo ou nada
     async with unit_of_work(db_session_dep):
         student = await student_service_dep.create_student(
             academy_id=academy_id,
             data=internal_request,
         )
 
-        if current_belt is not None:
-            await enrollment_belt_service_dep.add_for_modality(
-                academy_id, student.id, enrollment.modality_id, current_belt
-            )
+        for index, (enrollment, current_belt) in enumerate(enrollments):
+            if index > 0:
+                await student_service_dep.add_enrollment(
+                    academy_id=academy_id,
+                    student_id=student.id,
+                    data=enrollment,
+                )
+
+            if current_belt is not None:
+                await enrollment_belt_service_dep.add_for_modality(
+                    academy_id,
+                    student.id,
+                    enrollment.modality_id,
+                    current_belt,
+                )
 
     return StudentApiRead.from_record(student.model_dump())
 

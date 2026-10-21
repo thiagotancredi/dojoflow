@@ -24,7 +24,7 @@ async def test_remove_responsible_link(
         headers=headers,
         json={
             'name': 'Davi Rocha',
-            'enrollment': {'modality_id': str(modality.public_id)},
+            'enrollments': [{'modality_id': str(modality.public_id)}],
             'responsibles': [
                 {
                     'name': 'Paula Rocha',
