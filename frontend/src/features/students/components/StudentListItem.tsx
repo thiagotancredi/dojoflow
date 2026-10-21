@@ -20,7 +20,8 @@ export function StudentListItem({ student }: StudentListItemProps) {
       className={({ isActive }) =>
         cn(
           'flex items-center gap-3 rounded-2xl p-2 transition-colors hover:bg-accent',
-          isActive && 'bg-accent',
+          // Selecionado: fundo + barra na cor de destaque à esquerda
+          isActive && 'bg-muted shadow-[inset_3px_0_0_var(--sidebar-primary)]',
         )
       }
     >

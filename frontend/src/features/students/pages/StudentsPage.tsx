@@ -1,6 +1,12 @@
 import { Plus, Search } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { Link, Outlet, useMatch, useSearchParams } from 'react-router'
+import { useEffect, useRef, useState } from 'react'
+import {
+  Link,
+  Outlet,
+  useMatch,
+  useNavigate,
+  useSearchParams,
+} from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -18,9 +24,25 @@ import type { StudentFilters } from '@/features/students/api'
 import { StudentListItem } from '@/features/students/components/StudentListItem'
 import { useStudents } from '@/features/students/hooks'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
+import { useMediaQuery } from '@/lib/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 
 const ALL_MODALITIES = 'todas'
+
+// O que a lista tem agora; a ficha vazia (StudentsEmptyDetail) usa para
+// escolher a mensagem
+export type StudentsListState =
+  | 'loading'
+  | 'error'
+  | 'empty'
+  | 'no-results'
+  | 'has-items'
+
+// O que a StudentsPage entrega à rota filha (ficha) pelo <Outlet>
+export type StudentsOutletContext = {
+  refreshList: () => void
+  listState: StudentsListState
+}
 
 // Filtros vivem na URL (?busca=&status=&modalidade=&pagina=): recarregar a
 // página ou compartilhar o link mantém a mesma lista.
@@ -51,8 +73,12 @@ export function StudentsPage() {
   const [searchText, setSearchText] = useState(filters.search)
   const debouncedSearch = useDebouncedValue(searchText)
 
-  // Há um aluno aberto? (no celular, a lista some e a ficha ocupa a tela)
-  const hasSelection = useMatch('/app/alunos/:studentId') !== null
+  // Aluno aberto (no celular, a lista some e a ficha ocupa a tela)
+  const selectedId = useMatch('/app/alunos/:studentId')?.params.studentId ?? null
+  const hasSelection = selectedId !== null
+  const navigate = useNavigate()
+  // Mesma quebra (md) que separa barra lateral e barra inferior
+  const isDesktop = useMediaQuery('(min-width: 768px)')
 
   // Muda um filtro na URL; qualquer filtro novo volta para a página 1
   function updateParams(changes: Record<string, string | null>) {
@@ -87,8 +113,43 @@ export function StudentsPage() {
   const totalPages = page ? Math.max(1, Math.ceil(page.total / PAGE_SIZE)) : 1
   const hasFilter = Boolean(filters.search || filters.modalityId)
 
+  // Computador: sempre há uma ficha aberta. Abre o primeiro aluno quando
+  // nenhum está aberto, ou quando a busca/filtro tira o aberto da lista.
+  // Recarregar a lista (ex.: depois de salvar) ou trocar de página não troca.
+  const filterKey = `${filters.search}|${filters.status}|${filters.modalityId ?? ''}`
+  const lastFilterKey = useRef(filterKey)
+
+  useEffect(() => {
+    const items = students.data?.items
+    if (!isDesktop || students.isLoading || !items || items.length === 0) return
+
+    const filterChanged = lastFilterKey.current !== filterKey
+    lastFilterKey.current = filterKey
+    const selectedVisible = items.some((item) => item.id === selectedId)
+
+    if (!selectedId || (filterChanged && !selectedVisible)) {
+      const query = params.toString()
+      // replace: não cria um passo extra no histórico (o "voltar" sai da tela)
+      navigate(`/app/alunos/${items[0].id}${query ? `?${query}` : ''}`, {
+        replace: true,
+      })
+    }
+  }, [isDesktop, students.data, students.isLoading, filterKey, selectedId, params, navigate])
+
+  const listState: StudentsListState = students.error
+    ? 'error'
+    : !page
+      ? 'loading'
+      : page.total > 0
+        ? 'has-items'
+        : hasFilter || filters.status === 'inactive'
+          ? 'no-results'
+          : 'empty'
+
   return (
-    <div>
+    // No computador, a tela inteira tem a altura da janela (2.5rem = padding
+    // do AppLayout); lista e ficha rolam por dentro
+    <div className="md:flex md:h-[calc(100dvh-2.5rem)] md:flex-col">
       <PageHeader
         title="Alunos"
         actions={
@@ -100,11 +161,11 @@ export function StudentsPage() {
         }
       />
 
-      <div className="flex gap-4">
+      <div className="flex gap-4 md:min-h-0 md:flex-1">
         <section
           className={cn(
-            'w-full shrink-0 space-y-2 rounded-3xl bg-card p-3 md:w-80',
-            hasSelection && 'hidden md:block',
+            'w-full shrink-0 space-y-2 rounded-3xl bg-card p-3 md:flex md:w-[360px] md:flex-col md:gap-2 md:space-y-0',
+            hasSelection && 'hidden',
           )}
         >
           <div className="relative">
@@ -170,6 +231,8 @@ export function StudentsPage() {
             </Select>
           </div>
 
+          {/* Só os alunos rolam; busca, filtros e paginação ficam no lugar */}
+          <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">
           <StudentsList
             filters={filters}
             hasFilter={hasFilter}
@@ -177,6 +240,7 @@ export function StudentsPage() {
             onClearFilters={clearFilters}
             onLastPage={() => updateParams({ pagina: String(totalPages) })}
           />
+          </div>
 
           {page && page.total > 0 && (
             <div className="flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
@@ -211,10 +275,20 @@ export function StudentsPage() {
         </section>
 
         <section
-          className={cn('min-w-0 flex-1', !hasSelection && 'hidden md:block')}
+          className={cn(
+            'min-w-0 flex-1 md:overflow-y-auto md:rounded-3xl',
+            !hasSelection && 'hidden md:block',
+          )}
         >
           {/* A ficha avisa a lista quando salva algo (nome, matrículas…) */}
-          <Outlet context={{ refreshList: students.refetch }} />
+          <Outlet
+            context={
+              {
+                refreshList: students.refetch,
+                listState,
+              } satisfies StudentsOutletContext
+            }
+          />
         </section>
       </div>
     </div>
