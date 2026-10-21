@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # When set, POST /onboarding requires X-Internal-Api-Key header.
     INTERNAL_API_KEY: str = ''
 
+    # E-mail do único administrador da plataforma (painel admin.*).
+    # Vazio = ninguém é administrador.
+    ADMIN_EMAIL: str = ''
+
     @model_validator(mode='after')
     def _refuse_default_secret_outside_dev(self) -> Self:
         if self.ENVIRONMENT != 'dev' and self.JWT_SECRET == DEFAULT_JWT_SECRET:

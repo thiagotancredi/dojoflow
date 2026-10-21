@@ -21,3 +21,8 @@ class RefreshSession(BaseModel):
         'refresh_session.id',
         nullable=True,
     )
+    # Modo suporte: academia vista pelo administrador nesta sessão
+    acting_academy_id: Mapped[int | None] = int_fk(
+        'academy.id',
+        nullable=True,
+    )

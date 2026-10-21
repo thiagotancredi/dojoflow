@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from dojoflow.api.exception_handlers import register_exception_handlers
+from dojoflow.api.routes.admin import router as admin_router
 from dojoflow.api.routes.auth import router as auth_router
 from dojoflow.api.routes.belts import router as belts_router
 from dojoflow.api.routes.billing import (
@@ -59,3 +60,4 @@ app.include_router(dashboard_router, prefix=settings.API_V1_PREFIX)
 app.include_router(graduation_lists_router, prefix=settings.API_V1_PREFIX)
 app.include_router(cep_router, prefix=settings.API_V1_PREFIX)
 app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)
+app.include_router(admin_router, prefix=settings.API_V1_PREFIX)

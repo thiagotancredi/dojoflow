@@ -16,6 +16,8 @@ class MasterContextRead(BaseModel):
     academy_public_id: UUID
     academy_name: str
     academy_status: AcademyStatus
+    # Sessão de suporte: administrador vendo outra academia
+    support_mode: bool = False
 
 
 class AcademyApiRead(BaseModel):
@@ -31,6 +33,7 @@ class MasterContextApiRead(BaseModel):
     phone: str | None
     telegram_linked: bool
     academy: AcademyApiRead
+    support_mode: bool
 
     @classmethod
     def from_context(
@@ -42,6 +45,7 @@ class MasterContextApiRead(BaseModel):
             email=context.email,
             phone=context.phone,
             telegram_linked=context.telegram_user_id is not None,
+            support_mode=context.support_mode,
             academy=AcademyApiRead(
                 id=context.academy_public_id,
                 name=context.academy_name,

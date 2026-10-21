@@ -1,0 +1,65 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Cabeçalhos e compressão, iguais nos dois endereços
+(common) {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# Site: arquivos de /assets têm hash no nome e podem ficar em cache
+# para sempre; o resto (index.html) é revalidado a cada visita.
+(spa) {
+	handle {
+		root * /srv
+		@assets path /assets/*
+		@pages not path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		header @pages Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+# App dos mestres
+{$DOMAIN} {
+	import common
+
+	handle /api/* {
+		# Bot do Telegram desligado em produção
+		respond /api/v1/telegram/* 404
+		# Cadastro público fechado: academias nascem só pelo painel
+		respond /api/v1/auth/register 404
+		# API do painel só pelo endereço admin.
+		respond /api/v1/admin/* 404
+		reverse_proxy api:8000
+	}
+
+	import spa
+}
+
+# Painel do administrador (mesmo site; o app detecta o endereço admin.)
+admin.{$DOMAIN} {
+	import common
+	header X-Robots-Tag "noindex, nofollow"
+
+	handle /api/* {
+		respond /api/v1/telegram/* 404
+		respond /api/v1/auth/register 404
+		reverse_proxy api:8000
+	}
+
+	import spa
+}

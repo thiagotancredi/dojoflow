@@ -60,6 +60,7 @@ async def test_register_web_should_create_academy_and_master_without_telegram(
         'phone',
         'telegram_linked',
         'academy',
+        'support_mode',
     }
     assert set(me['academy']) == {'id', 'name', 'status'}
     uuid.UUID(me['id'])

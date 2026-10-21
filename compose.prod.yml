@@ -1,0 +1,58 @@
+# Produção (servidor). Lê as variáveis do arquivo .env ao lado deste
+# (modelo em deploy/env.prod.example). Só o Caddy (web) fica exposto,
+# nas portas 80 e 443; banco e API ficam na rede interna do Docker.
+#
+#   docker compose -f compose.prod.yml up -d --build
+#   docker compose -f compose.prod.yml run --rm api alembic upgrade head
+
+name: dojoflow
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dojoflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env}
+      POSTGRES_DB: dojoflow
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U dojoflow -d dojoflow']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://dojoflow:${POSTGRES_PASSWORD}@db:5432/dojoflow
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN:?defina no .env}
+      ACME_EMAIL: ${ACME_EMAIL:?defina no .env}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+volumes:
+  db_data:
+  caddy_data:
+  caddy_config:

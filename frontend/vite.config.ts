@@ -14,8 +14,9 @@ export default defineConfig({
     },
   },
   server: {
-    // Libera o acesso pelo túnel da Cloudflare (para ver no celular)
-    allowedHosts: ['.trycloudflare.com'],
+    // Libera o acesso pelo túnel da Cloudflare (para ver no celular) e o
+    // painel do administrador em http://admin.localhost:5173
+    allowedHosts: ['.trycloudflare.com', 'admin.localhost'],
     // Em dev, o navegador chama /api no próprio Vite (porta 5173) e o Vite
     // repassa para o FastAPI. Assim tudo é "mesma origem" e o cookie de
     // refresh funciona sem CORS.
