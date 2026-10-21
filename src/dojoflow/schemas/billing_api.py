@@ -3,9 +3,10 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AfterValidator, BaseModel, Field, field_validator
 
 from dojoflow.schemas.billing import (
+    AllocationPreview,
     AllocationRead,
     ChargeRead,
     ChargeStatus,
@@ -101,7 +102,11 @@ class StudentBillingApiRead(BaseModel):
 
 
 # Valor de cobrança: positivo, até 99.999.999,99 com 2 casas
-Money = Annotated[Decimal, Field(gt=0, max_digits=10, decimal_places=2)]
+Money = Annotated[
+    Decimal,
+    Field(gt=0, max_digits=10, decimal_places=2),
+    AfterValidator(lambda value: value.quantize(Decimal('0.01'))),
+]
 # Faixa de datas aceitável para cobranças (evita datas absurdas)
 ChargeDate = Annotated[
     date,
@@ -126,3 +131,33 @@ class LaunchChargeApiPayload(BaseModel):
 class UpdateChargeApiPayload(BaseModel):
     amount: Money | None = None
     due_date: ChargeDate | None = None
+
+
+class PaymentPreviewApiPayload(BaseModel):
+    amount: Money
+
+
+class AllocationPreviewApiRead(AllocationApiRead):
+    settles: bool
+
+    @classmethod
+    def from_preview(
+        cls, allocation: AllocationPreview
+    ) -> 'AllocationPreviewApiRead':
+        return cls(
+            charge_id=allocation.charge_public_id,
+            label=allocation.label,
+            amount=allocation.amount,
+            settles=allocation.settles,
+        )
+
+
+class PaymentPreviewApiRead(BaseModel):
+    allocations: list[AllocationPreviewApiRead]
+
+
+class CreatePaymentApiPayload(BaseModel):
+    amount: Money
+    paid_on: ChargeDate
+    method: PaymentMethod | None = None
+    notes: str | None = Field(default=None, max_length=255)

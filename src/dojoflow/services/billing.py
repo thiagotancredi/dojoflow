@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import delete, exists, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
@@ -14,6 +14,7 @@ from dojoflow.models.payment import Payment
 from dojoflow.models.payment_allocation import PaymentAllocation
 from dojoflow.models.payment_transaction import PaymentTransaction
 from dojoflow.schemas.billing import (
+    AllocationPreview,
     AllocationRead,
     ChargeRead,
     PaymentRead,
@@ -21,15 +22,19 @@ from dojoflow.schemas.billing import (
 )
 from dojoflow.services.belt_rules import local_today
 from dojoflow.services.billing_rules import (
+    OpenCharge,
+    allocate_oldest_first,
     billing_status,
     due_date_for,
     first_monthly_month,
+    format_brl,
     join_names,
     month_name,
 )
 from dojoflow.shared.enums import (
     EnrollmentStatus,
     PaymentKind,
+    PaymentMethod,
     PaymentStatus,
 )
 from dojoflow.shared.exceptions import ConflictError
@@ -63,6 +68,23 @@ def open_label(charges: list[ChargeRead], current_year: int) -> str:
     })
     names = [month_name(month, current_year) for month in months]
     return join_names([ENROLLMENT_FEE_LABEL, *names] if has_fee else names)
+
+
+def _refresh_paid_status(charge: Payment, paid_on: date | None) -> None:
+    """Situação gravada a partir do valor já alocado na cobrança."""
+    if charge.status is PaymentStatus.WAIVED:
+        return
+    if charge.amount_paid >= (charge.amount_due or Decimal(0)):
+        if charge.status is not PaymentStatus.PAID:
+            charge.paid_at = paid_on
+        charge.status = PaymentStatus.PAID
+        return
+    charge.status = (
+        PaymentStatus.PARTIAL
+        if charge.amount_paid > 0
+        else PaymentStatus.PENDING
+    )
+    charge.paid_at = None
 
 
 class BillingService:
@@ -182,8 +204,8 @@ class BillingService:
             open_months=open_label(open_charges, today.year),
             whatsapp_url=None,
             charges=charges,
-            payments=await self._student_payments(
-                academy_id, student_id, today
+            payments=await self._payments(
+                academy_id, today, PaymentTransaction.student_id == student_id
             ),
         )
 
@@ -228,6 +250,7 @@ class BillingService:
                         due_date,
                         today,
                     ),
+                    created_at=payment.created_at,
                 )
             )
 
@@ -339,19 +362,177 @@ class BillingService:
         await self.db_session.flush()
         return await self._charge(academy_id, charge_id, local_today())
 
-    async def _student_payments(
+    async def _lock_student_charges(
+        self, academy_id: int, student_id: int
+    ) -> dict[int, Payment]:
+        # Duas baixas ao mesmo tempo para o mesmo aluno: a segunda espera a
+        # primeira terminar e enxerga os saldos já atualizados
+        rows = await self.db_session.scalars(
+            select(Payment)
+            .join(Enrollment, Enrollment.id == Payment.enrollment_id)
+            .where(
+                Payment.academy_id == academy_id,
+                Enrollment.student_id == student_id,
+            )
+            .with_for_update(of=Payment)
+            .execution_options(populate_existing=True)
+        )
+        return {charge.id: charge for charge in rows}
+
+    async def _plan_allocations(
         self,
         academy_id: int,
         student_id: int,
+        amount: Decimal,
         today: date,
+    ) -> list[tuple[ChargeRead, Decimal]]:
+        charges = await self._charges(
+            academy_id, today, Enrollment.student_id == student_id
+        )
+        open_charges = {
+            c.id: c for c in charges if c.status not in CLOSED_STATUSES
+        }
+
+        if not open_charges:
+            raise ConflictError(
+                'Este aluno não tem nada em aberto.', code='NOTHING_TO_PAY'
+            )
+
+        open_total = sum(
+            (c.open_amount for c in open_charges.values()), Decimal(0)
+        )
+        if amount > open_total:
+            raise ConflictError(
+                'O valor é maior que o total em aberto. '
+                f'O máximo é {format_brl(open_total)}.',
+                code='PAYMENT_EXCEEDS_OPEN',
+            )
+
+        plan = allocate_oldest_first(
+            [
+                OpenCharge(c.id, c.due_date, c.created_at, c.open_amount)
+                for c in open_charges.values()
+            ],
+            amount,
+        )
+        return [(open_charges[charge_id], part) for charge_id, part in plan]
+
+    async def preview_payment(
+        self,
+        academy_id: int,
+        student_id: int,
+        amount: Decimal,
+    ) -> list[AllocationPreview]:
+        """Como a baixa vai ser abatida, sem gravar nada."""
+        today = local_today()
+        plan = await self._plan_allocations(
+            academy_id, student_id, amount, today
+        )
+
+        return [
+            AllocationPreview(
+                charge_public_id=charge.public_id,
+                label=_charge_label(
+                    charge.kind, charge.reference_month, today.year
+                ),
+                amount=part.quantize(CENTS),
+                settles=part == charge.open_amount,
+            )
+            for charge, part in plan
+        ]
+
+    @transactional
+    async def create_payment(  # noqa: PLR0913, PLR0917
+        self,
+        academy_id: int,
+        student_id: int,
+        amount: Decimal,
+        paid_on: date,
+        method: PaymentMethod | None,
+        notes: str | None,
+    ) -> PaymentRead:
+        """Baixa do aluno, abatendo da cobrança mais antiga à mais nova."""
+        today = local_today()
+        locked = await self._lock_student_charges(academy_id, student_id)
+        plan = await self._plan_allocations(
+            academy_id, student_id, amount, today
+        )
+
+        transaction = PaymentTransaction(
+            academy_id=academy_id,
+            student_id=student_id,
+            payment_method=method,
+            gross_amount=amount,
+            received_at=paid_on,
+            notes=notes,
+        )
+        self.db_session.add(transaction)
+        await self.db_session.flush()
+
+        for charge, part in plan:
+            self.db_session.add(
+                PaymentAllocation(
+                    academy_id=academy_id,
+                    payment_transaction_id=transaction.id,
+                    payment_id=charge.id,
+                    allocated_amount=part,
+                )
+            )
+            row = locked[charge.id]
+            row.amount_paid += part
+            _refresh_paid_status(row, paid_on)
+
+        await self.db_session.flush()
+        (payment,) = await self._payments(
+            academy_id, today, PaymentTransaction.id == transaction.id
+        )
+        return payment
+
+    @transactional
+    async def delete_payment(
+        self,
+        academy_id: int,
+        student_id: int,
+        payment_id: int,
+    ) -> None:
+        """Desfaz a baixa: cada cobrança volta ao saldo de antes dela."""
+        locked = await self._lock_student_charges(academy_id, student_id)
+        allocations = (
+            await self.db_session.scalars(
+                select(PaymentAllocation).where(
+                    PaymentAllocation.academy_id == academy_id,
+                    PaymentAllocation.payment_transaction_id == payment_id,
+                )
+            )
+        ).all()
+
+        for allocation in allocations:
+            charge = locked[allocation.payment_id]
+            charge.amount_paid -= allocation.allocated_amount
+            _refresh_paid_status(charge, None)
+
+        await self.db_session.execute(
+            delete(PaymentAllocation).where(
+                PaymentAllocation.payment_transaction_id == payment_id
+            )
+        )
+        await self.db_session.execute(
+            delete(PaymentTransaction).where(
+                PaymentTransaction.id == payment_id,
+                PaymentTransaction.academy_id == academy_id,
+            )
+        )
+
+    async def _payments(
+        self,
+        academy_id: int,
+        today: date,
+        *filters: ColumnElement[bool],
     ) -> list[PaymentRead]:
         transactions = (
             await self.db_session.scalars(
                 select(PaymentTransaction)
-                .where(
-                    PaymentTransaction.academy_id == academy_id,
-                    PaymentTransaction.student_id == student_id,
-                )
+                .where(PaymentTransaction.academy_id == academy_id, *filters)
                 .order_by(
                     PaymentTransaction.received_at.desc(),
                     PaymentTransaction.id.desc(),

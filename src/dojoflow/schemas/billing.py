@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -23,12 +23,21 @@ class ChargeRead(BaseModel):
     amount: Decimal
     paid: Decimal
     status: ChargeStatus
+    created_at: datetime
+
+    @property
+    def open_amount(self) -> Decimal:
+        return self.amount - self.paid
 
 
 class AllocationRead(BaseModel):
     charge_public_id: UUID
     label: str
     amount: Decimal
+
+
+class AllocationPreview(AllocationRead):
+    settles: bool
 
 
 class PaymentRead(BaseModel):

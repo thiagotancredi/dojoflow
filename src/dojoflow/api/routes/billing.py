@@ -5,12 +5,18 @@ from dojoflow.api.dependencies.billing import BillingServiceDep
 from dojoflow.api.dependencies.db_session import DbSessionDep
 from dojoflow.api.dependencies.public_ids import (
     ChargeIdDep,
+    PaymentIdDep,
     StudentIdDep,
     resolve_student_enrollment_id,
 )
 from dojoflow.schemas.billing_api import (
+    AllocationPreviewApiRead,
     ChargeApiRead,
+    CreatePaymentApiPayload,
     LaunchChargeApiPayload,
+    PaymentApiRead,
+    PaymentPreviewApiPayload,
+    PaymentPreviewApiRead,
     StudentBillingApiRead,
     UpdateChargeApiPayload,
 )
@@ -93,3 +99,54 @@ async def unwaive_charge(
     )
 
     return ChargeApiRead.from_internal(charge)
+
+
+@router.post(path='/payments/preview', status_code=status.HTTP_200_OK)
+async def preview_payment(
+    student_id: StudentIdDep,
+    data: PaymentPreviewApiPayload,
+    current_master: CurrentMasterDep,
+    billing_service_dep: BillingServiceDep,
+) -> PaymentPreviewApiRead:
+    allocations = await billing_service_dep.preview_payment(
+        current_master.academy_id, student_id, data.amount
+    )
+
+    return PaymentPreviewApiRead(
+        allocations=[
+            AllocationPreviewApiRead.from_preview(item) for item in allocations
+        ]
+    )
+
+
+@router.post(path='/payments', status_code=status.HTTP_201_CREATED)
+async def create_payment(
+    student_id: StudentIdDep,
+    data: CreatePaymentApiPayload,
+    current_master: CurrentMasterDep,
+    billing_service_dep: BillingServiceDep,
+) -> PaymentApiRead:
+    payment = await billing_service_dep.create_payment(
+        current_master.academy_id,
+        student_id,
+        data.amount,
+        data.paid_on,
+        data.method,
+        data.notes,
+    )
+
+    return PaymentApiRead.from_internal(payment)
+
+
+@router.delete(
+    path='/payments/{payment_id}', status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_payment(
+    student_id: StudentIdDep,
+    payment_id: PaymentIdDep,
+    current_master: CurrentMasterDep,
+    billing_service_dep: BillingServiceDep,
+) -> None:
+    await billing_service_dep.delete_payment(
+        current_master.academy_id, student_id, payment_id
+    )

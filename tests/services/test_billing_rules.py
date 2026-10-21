@@ -9,6 +9,7 @@ from dojoflow.services.billing_rules import (
     billing_status,
     due_date_for,
     first_monthly_month,
+    format_brl,
     months_label,
 )
 
@@ -134,3 +135,9 @@ def test_months_label():
 def test_months_label_single_and_empty():
     assert months_label([date(2027, 5, 1)], current_year=2027) == 'maio'
     assert not months_label([], current_year=2027)
+
+
+def test_format_brl():
+    assert format_brl(Decimal('150')) == 'R$ 150,00'
+    assert format_brl(Decimal('1234.5')) == 'R$ 1.234,50'
+    assert format_brl(Decimal('0.05')) == 'R$ 0,05'

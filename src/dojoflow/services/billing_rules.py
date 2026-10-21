@@ -113,3 +113,9 @@ def months_label(months: list[date], current_year: int | None = None) -> str:
     return join_names([
         month_name(month, year) for month in sorted(set(months))
     ])
+
+
+def format_brl(value: Decimal) -> str:
+    """Ex.: Decimal('1234.5') → "R$ 1.234,50"."""
+    text = f'{value.quantize(Decimal("0.01")):,.2f}'
+    return 'R$ ' + text.replace(',', '_').replace('.', ',').replace('_', '.')

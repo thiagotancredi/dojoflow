@@ -452,3 +452,233 @@ async def test_charge_of_other_student_is_not_found(
 
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.json()['code'] == 'CHARGE_NOT_FOUND'
+
+
+async def _two_months_student(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict:
+    """Janeiro e fevereiro/2027 de R$ 100 (vencimento dia 15), hoje 20/02."""
+    headers = await auth_headers(client)
+    taekwondo = await add_modality(db_session, 'Taekwondo')
+    student_id, _ = await add_student(
+        db_session,
+        taekwondo,
+        monthly_fee='100',
+        due_day=15,
+        billing_start_month='2027-01-01',
+    )
+    _freeze_today(monkeypatch, date(2027, 2, 20))
+    body = await _read(client, student_id, headers)
+    feb, jan = body['charges']
+
+    return {
+        'headers': headers,
+        'student_id': student_id,
+        'url': _url(student_id),
+        'jan': jan,
+        'feb': feb,
+    }
+
+
+async def _pay(
+    client: AsyncClient, ctx: dict, amount: str, paid_on: str = '2027-02-20'
+):
+    return await client.post(
+        f'{ctx["url"]}/payments',
+        headers=ctx['headers'],
+        json={'amount': amount, 'paid_on': paid_on, 'method': 'pix'},
+    )
+
+
+def _by_month(body: dict) -> dict:
+    return {c['reference_month']: c for c in body['charges']}
+
+
+@pytest.mark.asyncio
+async def test_payment_example_from_spec(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _two_months_student(client, db_session, monkeypatch)
+
+    first = await _pay(client, ctx, '50', paid_on='2027-02-10')
+    assert first.status_code == HTTPStatus.CREATED, first.text
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    assert _by_month(body)['2027-01-01']['paid'] == '50.00'
+    # Parcial e vencida conta como atrasada
+    assert _by_month(body)['2027-01-01']['status'] == 'overdue'
+
+    second = await _pay(client, ctx, '150', paid_on='2027-02-20')
+    assert second.status_code == HTTPStatus.CREATED, second.text
+    payment = second.json()
+    assert payment['amount'] == '150.00'
+    assert payment['paid_on'] == '2027-02-20'
+    assert payment['method'] == 'pix'
+
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    charges = _by_month(body)
+    assert charges['2027-01-01']['status'] == 'paid'
+    assert charges['2027-02-01']['status'] == 'paid'
+    assert body['open_total'] == '0.00'
+    # Histórico: a baixa mais nova em cima
+    assert [
+        [(a['label'], a['amount']) for a in p['allocations']]
+        for p in body['payments']
+    ] == [
+        [('janeiro', '50.00'), ('fevereiro', '100.00')],
+        [('janeiro', '50.00')],
+    ]
+    assert (
+        body['payments'][1]['allocations'][0]['charge_id'] == ctx['jan']['id']
+    )
+
+    jan = await db_session.scalar(
+        select(Payment).where(Payment.public_id == uuid.UUID(ctx['jan']['id']))
+    )
+    await db_session.refresh(jan)
+    assert jan.status.value == 'paid'
+    assert jan.paid_at == date(2027, 2, 20)
+
+
+@pytest.mark.asyncio
+async def test_payment_above_open_total_is_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _two_months_student(client, db_session, monkeypatch)
+
+    response = await _pay(client, ctx, '200.01')
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'PAYMENT_EXCEEDS_OPEN'
+    assert 'R$ 200,00' in response.json()['detail']
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    assert body['payments'] == []
+
+
+@pytest.mark.asyncio
+async def test_payment_without_open_charges_is_rejected(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await auth_headers(client)
+    taekwondo = await add_modality(db_session, 'Taekwondo')
+    student_id, _ = await add_student(db_session, taekwondo)
+
+    response = await client.post(
+        f'{_url(student_id)}/payments',
+        headers=headers,
+        json={'amount': '10', 'paid_on': '2027-02-20'},
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'NOTHING_TO_PAY'
+
+
+@pytest.mark.asyncio
+async def test_payment_skips_waived_charge(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _two_months_student(client, db_session, monkeypatch)
+    await client.post(
+        f'{ctx["url"]}/charges/{ctx["jan"]["id"]}/waive',
+        headers=ctx['headers'],
+    )
+
+    response = await _pay(client, ctx, '100')
+
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    assert [a['label'] for a in response.json()['allocations']] == [
+        'fevereiro'
+    ]
+
+
+@pytest.mark.asyncio
+async def test_delete_payment_restores_previous_balances(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _two_months_student(client, db_session, monkeypatch)
+    await _pay(client, ctx, '50', paid_on='2027-02-10')
+    second = (await _pay(client, ctx, '120')).json()
+
+    response = await client.delete(
+        f'{ctx["url"]}/payments/{second["id"]}', headers=ctx['headers']
+    )
+
+    assert response.status_code == HTTPStatus.NO_CONTENT, response.text
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    charges = _by_month(body)
+    assert charges['2027-01-01']['paid'] == '50.00'
+    assert charges['2027-02-01']['paid'] == '0.00'
+    assert charges['2027-02-01']['status'] == 'overdue'
+    assert body['open_total'] == '150.00'
+    assert len(body['payments']) == 1
+
+    jan = await db_session.scalar(
+        select(Payment).where(Payment.public_id == uuid.UUID(ctx['jan']['id']))
+    )
+    await db_session.refresh(jan)
+    assert jan.status.value == 'partial'
+    assert jan.paid_at is None
+
+
+@pytest.mark.asyncio
+async def test_preview_matches_payment(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _two_months_student(client, db_session, monkeypatch)
+
+    preview = await client.post(
+        f'{ctx["url"]}/payments/preview',
+        headers=ctx['headers'],
+        json={'amount': '120'},
+    )
+
+    assert preview.status_code == HTTPStatus.OK, preview.text
+    assert preview.json()['allocations'] == [
+        {
+            'charge_id': ctx['jan']['id'],
+            'label': 'janeiro',
+            'amount': '100.00',
+            'settles': True,
+        },
+        {
+            'charge_id': ctx['feb']['id'],
+            'label': 'fevereiro',
+            'amount': '20.00',
+            'settles': False,
+        },
+    ]
+    payment = (await _pay(client, ctx, '120')).json()
+    assert [(a['charge_id'], a['amount']) for a in payment['allocations']] == [
+        (a['charge_id'], a['amount']) for a in preview.json()['allocations']
+    ]
+
+
+@pytest.mark.asyncio
+async def test_payment_of_other_student_is_not_found(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _two_months_student(client, db_session, monkeypatch)
+    payment = (await _pay(client, ctx, '50')).json()
+    judo = await add_modality(db_session, 'Judô')
+    other_student, _ = await add_student(db_session, judo, name='Bruno Dias')
+
+    response = await client.delete(
+        f'{_url(other_student)}/payments/{payment["id"]}',
+        headers=ctx['headers'],
+    )
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.json()['code'] == 'PAYMENT_NOT_FOUND'

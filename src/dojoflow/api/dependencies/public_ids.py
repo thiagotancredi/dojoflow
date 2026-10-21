@@ -19,6 +19,7 @@ from dojoflow.models.graduation_list import (
 )
 from dojoflow.models.modality import Modality
 from dojoflow.models.payment import Payment
+from dojoflow.models.payment_transaction import PaymentTransaction
 from dojoflow.models.student import Student
 from dojoflow.shared.exceptions import NotFoundError
 
@@ -144,6 +145,23 @@ async def _resolve_charge_id(
 
 
 ChargeIdDep = Annotated[int, Depends(_resolve_charge_id)]
+
+
+async def _resolve_payment_id(
+    payment_id: UUID,
+    student_id: StudentIdDep,
+    db_session_dep: DbSessionDep,
+) -> int:
+    return await resolve_public_id(
+        db_session_dep,
+        PaymentTransaction,
+        payment_id,
+        code='PAYMENT_NOT_FOUND',
+        extra_filters=[PaymentTransaction.student_id == student_id],
+    )
+
+
+PaymentIdDep = Annotated[int, Depends(_resolve_payment_id)]
 
 
 async def _resolve_enabled_modality_id(
