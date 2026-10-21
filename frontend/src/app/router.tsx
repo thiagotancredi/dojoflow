@@ -3,6 +3,7 @@ import { Navigate, createBrowserRouter } from 'react-router'
 import { AppLayout } from '@/app/layouts/AppLayout'
 import { NotFoundPage } from '@/app/NotFoundPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { SetAccessPage } from '@/features/auth/pages/SetAccessPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { BulkBeltsPage } from '@/features/belts/pages/BulkBeltsPage'
 import { ModalityBeltsPage } from '@/features/belts/pages/ModalityBeltsPage'
@@ -21,6 +22,8 @@ import { StudentsPage } from '@/features/students/pages/StudentsPage'
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/app" replace /> },
   { path: '/login', element: <LoginPage /> },
+  // Link do /web no bot: definir e-mail e senha (público, o token prova quem é)
+  { path: '/definir-acesso', element: <SetAccessPage /> },
   {
     path: '/app',
     // RequireAuth manda para /login quem não tem sessão

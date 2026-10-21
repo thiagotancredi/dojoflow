@@ -45,9 +45,17 @@ export function setRefreshHandler(
 // (o corpo de uma requisição só pode ser lido uma vez).
 const retryCopies = new Map<string, Request>()
 
-// Rotas /auth/* nunca disparam refresh (ex.: senha errada no login dá 401)
-function isAuthRoute(request: Request) {
-  return new URL(request.url).pathname.startsWith('/api/v1/auth/')
+// Rotas da própria sessão nunca disparam refresh (ex.: senha errada no login
+// dá 401). As outras /auth/* (me, set-credentials, telegram) renovam normal.
+const SESSION_ROUTES = new Set([
+  '/api/v1/auth/login',
+  '/api/v1/auth/register',
+  '/api/v1/auth/refresh',
+  '/api/v1/auth/logout',
+])
+
+function isSessionRoute(request: Request) {
+  return SESSION_ROUTES.has(new URL(request.url).pathname)
 }
 
 api.use({
@@ -56,7 +64,7 @@ api.use({
     if (accessToken) {
       request.headers.set('Authorization', `Bearer ${accessToken}`)
     }
-    if (!isAuthRoute(request)) {
+    if (!isSessionRoute(request)) {
       retryCopies.set(id, request.clone())
     }
     return request

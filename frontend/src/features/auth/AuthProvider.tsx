@@ -68,17 +68,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [applySession, clearSession])
 
+  const startSession = useCallback(
+    async (token: string) => {
+      setApiToken(token)
+
+      try {
+        applySession(token, await getMe())
+      } catch (error) {
+        clearSession()
+        throw error
+      }
+    },
+    [applySession, clearSession],
+  )
+
+  // useCallback mantém a mesma função entre renderizações, para poder ser
+  // usada com segurança dentro de um useEffect (ex.: o polling do Telegram)
+  const reloadMaster = useCallback(async () => {
+    const me = await getMe()
+    setMaster(me)
+    return me
+  }, [])
+
   async function signIn(email: string, password: string) {
     // Se o login falhar, o erro sobe para quem chamou (o LoginPage).
     const { access_token } = await login(email, password)
-    setApiToken(access_token)
-
-    try {
-      applySession(access_token, await getMe())
-    } catch (error) {
-      clearSession()
-      throw error
-    }
+    await startSession(access_token)
   }
 
   async function signOut() {
@@ -91,7 +106,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext value={{ status, master, accessToken, signIn, signOut }}>
+    <AuthContext
+      value={{
+        status,
+        master,
+        accessToken,
+        signIn,
+        signOut,
+        startSession,
+        reloadMaster,
+      }}
+    >
       {children}
     </AuthContext>
   )
