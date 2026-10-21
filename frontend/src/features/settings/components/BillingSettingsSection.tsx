@@ -1,5 +1,5 @@
 import { MessageCircle, RotateCcw, TriangleAlert } from 'lucide-react'
-import { useRef } from 'react'
+import { Fragment, useRef } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -7,6 +7,7 @@ import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/features/auth/useAuth'
 import type { BillingSettings } from '@/features/billing/api'
@@ -53,11 +54,11 @@ export function BillingSettingsSection() {
   const settings = useBillingSettings()
 
   return (
-    <section className="space-y-4 rounded-3xl bg-card p-5">
+    <section className="space-y-6 rounded-3xl bg-card p-5">
       <div>
         <h2 className="font-semibold">Cobrança</h2>
         <p className="text-xs text-muted-foreground">
-          Usado na mensagem de cobrança que abre no WhatsApp.
+          Como você cobra os alunos pelo WhatsApp.
         </p>
       </div>
       {settings.isLoading && !settings.data ? (
@@ -146,116 +147,148 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
   const errors = form.formState.errors
 
   return (
-    <form noValidate onSubmit={form.handleSubmit(save)} className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <FormField label="Chave Pix" htmlFor="billing-pix">
-          <Input
-            id="billing-pix"
-            placeholder="e-mail, telefone, CPF/CNPJ ou chave aleatória"
-            maxLength={140}
-            className="rounded-xl"
-            {...register('pix_key')}
-          />
-        </FormField>
-        <FormField label="Nome de quem recebe" htmlFor="billing-recipient">
-          <Input
-            id="billing-recipient"
-            placeholder="como aparece no Pix"
-            maxLength={120}
-            className="rounded-xl"
-            {...register('recipient_name')}
-          />
-        </FormField>
+    <form noValidate onSubmit={form.handleSubmit(save)} className="space-y-8">
+      {/* Bloco 1: para onde o aluno paga */}
+      <div className="space-y-4">
+        <BlockTitle
+          title="Pix"
+          description="Aparece na mensagem para o aluno saber para onde pagar."
+        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Chave Pix" htmlFor="billing-pix">
+            <Input
+              id="billing-pix"
+              placeholder="e-mail, telefone, CPF/CNPJ ou chave aleatória"
+              maxLength={140}
+              className="rounded-xl"
+              {...register('pix_key')}
+            />
+          </FormField>
+          <FormField label="Nome de quem recebe" htmlFor="billing-recipient">
+            <Input
+              id="billing-recipient"
+              placeholder="como aparece no Pix"
+              maxLength={120}
+              className="rounded-xl"
+              {...register('recipient_name')}
+            />
+          </FormField>
+        </div>
       </div>
 
-      {/* Editor à esquerda, prévia à direita (um embaixo do outro no celular) */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="billing-message" className="text-sm font-semibold">
+      <Separator />
+
+      {/* Bloco 2: o texto (esquerda) e como ele chega (direita) */}
+      <div className="space-y-4">
+        <BlockTitle
+          title="Mensagem de cobrança"
+          description="O texto que abre no WhatsApp quando você cobra um aluno."
+        />
+        <div className="grid gap-8 lg:grid-cols-2">
+          <div className="space-y-4">
+            <Label htmlFor="billing-message" className="sr-only">
               Mensagem de cobrança
             </Label>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="rounded-full text-xs"
-              onClick={() =>
-                setValue('message_template', DEFAULT_MESSAGE_TEMPLATE, {
-                  shouldDirty: true,
-                })
-              }
-            >
-              <RotateCcw /> Restaurar texto padrão
-            </Button>
-          </div>
-          <Textarea
-            id="billing-message"
-            maxLength={1000}
-            className="min-h-44 rounded-xl"
-            {...messageField}
-            ref={(element) => {
-              registerMessageRef(element)
-              messageRef.current = element
-            }}
-          />
-          {errors.message_template && (
-            <p role="alert" className="text-xs text-destructive">
-              {errors.message_template.message}
-            </p>
-          )}
+            <Textarea
+              id="billing-message"
+              maxLength={1000}
+              className="min-h-48 rounded-xl"
+              {...messageField}
+              ref={(element) => {
+                registerMessageRef(element)
+                messageRef.current = element
+              }}
+            />
+            {errors.message_template && (
+              <p role="alert" className="text-xs text-destructive">
+                {errors.message_template.message}
+              </p>
+            )}
 
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              Clique para colocar no texto, onde está o cursor:
-            </p>
-            <ul className="grid gap-1.5 sm:grid-cols-2">
-              {MARKERS.map(({ marker, help }) => (
-                <li key={marker}>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Inserir no texto (entra onde está o cursor):
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {MARKERS.map(({ marker, help }) => (
                   <button
+                    key={marker}
                     type="button"
+                    title={help}
                     onClick={() => insertMarker(marker)}
-                    className="flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left hover:bg-accent"
+                    className="rounded-full border px-3 py-1 font-mono text-xs hover:bg-accent"
                   >
-                    <code className="shrink-0 font-mono text-xs font-semibold">
-                      {marker}
-                    </code>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {help}
-                    </span>
+                    {marker}
                   </button>
-                </li>
-              ))}
-            </ul>
+                ))}
+              </div>
+              <details className="text-xs text-muted-foreground">
+                <summary className="w-fit cursor-pointer hover:text-foreground">
+                  O que cada marcador significa?
+                </summary>
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                  {MARKERS.map(({ marker, help }) => (
+                    <Fragment key={marker}>
+                      <dt className="font-mono text-foreground">{marker}</dt>
+                      <dd>{help}</dd>
+                    </Fragment>
+                  ))}
+                </dl>
+              </details>
+            </div>
           </div>
-        </div>
 
-        <div className="space-y-3">
-          <div>
-            <p className="flex items-center gap-1.5 text-sm font-semibold">
+          <div className="space-y-3">
+            <p className="flex items-center gap-1.5 text-sm font-medium">
               <MessageCircle className="size-4" /> Prévia no WhatsApp
             </p>
+            <WhatsAppMessage text={preview} />
             <p className="text-xs text-muted-foreground">
-              Como a mensagem chega, num exemplo: aluna Ana, devendo R$ 150,00
-              de janeiro e fevereiro.
+              Exemplo: aluna Ana, devendo R$ 150,00 de janeiro e fevereiro.
             </p>
+            {!pixKey.trim() && (template ?? '').includes('{pix}') && (
+              <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                <TriangleAlert className="mt-px size-3.5 shrink-0 text-status-pending" />
+                Sem chave Pix, a mensagem sai com o "Pix:" vazio. Preencha a
+                chave no bloco Pix.
+              </p>
+            )}
           </div>
-          <WhatsAppMessage text={preview} />
-          {!pixKey.trim() && (template ?? '').includes('{pix}') && (
-            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-              <TriangleAlert className="mt-px size-3.5 shrink-0 text-status-pending" />
-              Sem chave Pix, a mensagem sai com o "Pix:" vazio. Preencha a
-              chave acima.
-            </p>
-          )}
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          className="rounded-full"
+          onClick={() =>
+            setValue('message_template', DEFAULT_MESSAGE_TEMPLATE, {
+              shouldDirty: true,
+            })
+          }
+        >
+          <RotateCcw /> Restaurar texto padrão
+        </Button>
         <Button type="submit" className="rounded-full" disabled={isPending}>
           {isPending ? 'Salvando…' : 'Salvar'}
         </Button>
       </div>
     </form>
+  )
+}
+
+function BlockTitle({
+  title,
+  description,
+}: {
+  title: string
+  description: string
+}) {
+  return (
+    <div className="space-y-1">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <p className="text-xs text-muted-foreground">{description}</p>
+    </div>
   )
 }
