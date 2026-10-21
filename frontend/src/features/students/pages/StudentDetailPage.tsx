@@ -1,30 +1,52 @@
-import { ArrowLeft, Pencil, Phone } from 'lucide-react'
-import { Link, useParams } from 'react-router'
+import { ArrowLeft, Phone } from 'lucide-react'
+import { Link, useLocation, useParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { EnrollmentCard } from '@/features/students/components/EnrollmentCard'
 import { StudentAvatar } from '@/features/students/components/StudentAvatar'
-import { mockStudents } from '@/features/students/mock-data'
+import { AddressTab } from '@/features/students/components/tabs/AddressTab'
+import { BasicDataTab } from '@/features/students/components/tabs/BasicDataTab'
+import { EnrollmentsTab } from '@/features/students/components/tabs/EnrollmentsTab'
+import { ResponsiblesTab } from '@/features/students/components/tabs/ResponsiblesTab'
+import { useStudent } from '@/features/students/hooks'
+import { formatPhone } from '@/lib/format'
 
-// Ficha do aluno: lê o ":studentId" da URL (/app/alunos/ana-lima).
+// Ficha do aluno: lê o ":studentId" da URL (/app/alunos/<uuid>).
 export function StudentDetailPage() {
   const { studentId } = useParams()
-  const student = mockStudents.find((item) => item.id === studentId)
+  const { search } = useLocation()
+  const { data, isLoading, refetch } = useStudent(studentId)
+  const backToList = `/app/alunos${search}`
 
-  if (!student) {
+  // Só a primeira carga mostra "carregando"; recarregar depois de salvar
+  // mantém a ficha (e a aba aberta) na tela
+  if (isLoading && !data) {
     return (
       <div className="rounded-3xl bg-card p-8 text-center text-sm text-muted-foreground">
-        Aluno não encontrado.
+        Carregando aluno…
       </div>
     )
   }
+
+  if (!data) {
+    // UUID inválido (422) ou de outra academia (404): para o mestre, é o mesmo
+    return (
+      <div className="space-y-3 rounded-3xl bg-card p-8 text-center text-sm">
+        <p className="font-medium">Aluno não encontrado.</p>
+        <Button asChild variant="outline" className="rounded-full">
+          <Link to={backToList}>Voltar para a lista</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  const { student } = data
 
   return (
     <article className="space-y-4 rounded-3xl bg-card p-5">
       {/* "Voltar" só no celular, onde a lista está escondida */}
       <Link
-        to="/app/alunos"
+        to={backToList}
         className="flex items-center gap-1 text-sm text-muted-foreground md:hidden"
       >
         <ArrowLeft className="size-4" /> Alunos
@@ -37,17 +59,15 @@ export function StudentDetailPage() {
           {student.phone && (
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Phone className="size-3.5" />
-              {student.phone}
-              {student.phoneIsWhatsapp && ' · WhatsApp'}
+              {formatPhone(student.phone)}
+              {student.phone_is_whatsapp && ' · WhatsApp'}
             </p>
           )}
         </div>
-        <Button variant="outline" size="sm" className="rounded-full">
-          <Pencil /> Editar
-        </Button>
       </div>
 
-      <Tabs defaultValue="enrollments">
+      {/* key: ao trocar de aluno, as abas voltam ao estado inicial */}
+      <Tabs key={student.id} defaultValue="enrollments">
         <TabsList variant="line">
           <TabsTrigger value="enrollments">Matrículas</TabsTrigger>
           <TabsTrigger value="data">Dados</TabsTrigger>
@@ -55,34 +75,17 @@ export function StudentDetailPage() {
           <TabsTrigger value="responsibles">Responsáveis</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="enrollments">
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            {student.enrollments.map((enrollment) => (
-              <EnrollmentCard key={enrollment.id} enrollment={enrollment} />
-            ))}
-          </div>
+        <TabsContent value="enrollments" className="pt-2">
+          <EnrollmentsTab student={data} onChanged={refetch} />
         </TabsContent>
-
-        <TabsContent value="data" className="space-y-1 text-sm">
-          <p>Telefone: {student.phone ?? '—'}</p>
-          <p>E-mail: {student.email ?? '—'}</p>
+        <TabsContent value="data" className="pt-2">
+          <BasicDataTab student={data} onChanged={refetch} />
         </TabsContent>
-
-        <TabsContent value="address" className="text-sm">
-          {student.address
-            ? `${student.address.street}, ${student.address.number} — ${student.address.neighborhood}, ${student.address.city}/${student.address.state}`
-            : 'Sem endereço cadastrado.'}
+        <TabsContent value="address" className="pt-2">
+          <AddressTab student={data} onChanged={refetch} />
         </TabsContent>
-
-        <TabsContent value="responsibles" className="space-y-1 text-sm">
-          {student.responsibles.length === 0
-            ? 'Nenhum responsável.'
-            : student.responsibles.map((responsible) => (
-                <p key={responsible.id}>
-                  {responsible.name} ({responsible.relationship}) ·{' '}
-                  {responsible.phone}
-                </p>
-              ))}
+        <TabsContent value="responsibles" className="pt-2">
+          <ResponsiblesTab student={data} onChanged={refetch} />
         </TabsContent>
       </Tabs>
     </article>

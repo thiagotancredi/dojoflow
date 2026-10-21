@@ -4,6 +4,9 @@ import type { Schemas } from '@/lib/api/client'
 export type StudentPage = Schemas['StudentPageRead']
 export type StudentSummary = Schemas['StudentListItemRead']
 export type EnrollmentStatus = Schemas['EnrollmentStatus']
+export type StudentDetail = Schemas['StudentDetailRead']
+export type Enrollment = Schemas['EnrollmentApiRead']
+export type ResponsibleLink = Schemas['ResponsibleLinkApiRead']
 
 export const PAGE_SIZE = 20
 
@@ -27,6 +30,16 @@ export function listStudents(filters: StudentFilters, signal?: AbortSignal) {
           page_size: PAGE_SIZE,
         },
       },
+      signal,
+    }),
+  )
+}
+
+// Ficha completa: dados, endereço, responsáveis e matrículas
+export function getStudent(studentId: string, signal?: AbortSignal) {
+  return unwrap(
+    api.GET('/api/v1/students/{student_id}', {
+      params: { path: { student_id: studentId } },
       signal,
     }),
   )

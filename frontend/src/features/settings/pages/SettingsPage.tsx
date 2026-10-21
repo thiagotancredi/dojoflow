@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/features/auth/useAuth'
 import { ModalitiesSection } from '@/features/modalities/components/ModalitiesSection'
+import { formatPhone } from '@/lib/format'
 
 // Configurações da academia: dados (só leitura por enquanto), modalidades e conta.
 export function SettingsPage() {
@@ -124,13 +125,3 @@ function initials(name: string) {
 }
 
 // "62999990000" → "(62) 99999-0000"; outros formatos ficam como vieram
-function formatPhone(phone: string) {
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length === 11) {
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
-  }
-  if (digits.length === 10) {
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
-  }
-  return phone
-}
