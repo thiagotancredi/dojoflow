@@ -4,6 +4,7 @@ import { AppLayout } from '@/app/layouts/AppLayout'
 import { NotFoundPage } from '@/app/NotFoundPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
+import { BulkBeltsPage } from '@/features/belts/pages/BulkBeltsPage'
 import { ModalityBeltsPage } from '@/features/belts/pages/ModalityBeltsPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
@@ -47,6 +48,10 @@ export const router = createBrowserRouter([
       {
         path: 'configuracoes/modalidades/:modalityId/faixas',
         element: <ModalityBeltsPage />,
+      },
+      {
+        path: 'configuracoes/modalidades/:modalityId/faixas/lancar',
+        element: <BulkBeltsPage />,
       },
     ],
   },
