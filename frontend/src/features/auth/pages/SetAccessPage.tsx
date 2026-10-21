@@ -63,7 +63,7 @@ export function SetAccessPage() {
       <div className="w-full max-w-md space-y-4 rounded-3xl bg-card p-8 shadow-xl shadow-primary/10">
         <div className="flex items-center gap-3">
           <Logo />
-          <span className="font-semibold">DojoFlow</span>
+          <span className="font-semibold">Katsuflow</span>
         </div>
 
         {token ? (
