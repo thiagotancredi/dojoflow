@@ -2,7 +2,7 @@ import { api, unwrap } from '@/lib/api/client'
 import type { Schemas } from '@/lib/api/client'
 
 export type StudentPage = Schemas['StudentPageRead']
-export type StudentListItem = Schemas['StudentListItemRead']
+export type StudentSummary = Schemas['StudentListItemRead']
 export type EnrollmentStatus = Schemas['EnrollmentStatus']
 
 export const PAGE_SIZE = 20

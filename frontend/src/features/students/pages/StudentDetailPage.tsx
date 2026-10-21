@@ -31,7 +31,7 @@ export function StudentDetailPage() {
       </Link>
 
       <div className="flex items-center gap-3">
-        <StudentAvatar name={student.name} size="lg" />
+        <StudentAvatar size="lg" />
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-lg font-semibold">{student.name}</h2>
           {student.phone && (
