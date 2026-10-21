@@ -9,8 +9,12 @@ Implementado na branch `feat/admin-panel`, seguindo as 7 tarefas de
 `docs/superpowers/plans/2026-10-21-admin-panel.md`. Backend: 389 testes
 passando; ruff, typos, `tsc`, ESLint e build do site limpos. Teste local com a
 pilha de produção (Caddy + API + Postgres): painel só no `admin.`, cadastro
-público fechado nos dois endereços, modo suporte de ponta a ponta. Falta: o
-passeio no navegador (Thiago) e a revisão final da branch.
+público fechado nos dois endereços, modo suporte de ponta a ponta. Revisão
+final independente feita: 1 crítico (aba aberta trocava de academia em
+silêncio quando outra aba entrava em suporte) e 2 importantes (trocar a
+própria senha pelo painel; e-mail de administrador "tomado" por outro mestre)
+corrigidos; 393 testes. Falta: o passeio no navegador (Thiago), incluindo o
+caso de duas abas "Entrar".
 
 **Na produção:** pôr `ADMIN_EMAIL=thiagotancredii@gmail.com` no `.env` do
 servidor; rodar a migração `d80e611e8464_support_mode`; criar a academia do
