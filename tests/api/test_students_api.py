@@ -34,12 +34,14 @@ def _create_payload(modality_id: str, **enrollment: object) -> dict:
         'phone': '62999990001',
         'phone_is_whatsapp': True,
         'sex': 'female',
-        'enrollment': {
-            'modality_id': modality_id,
-            'monthly_fee': '150.00',
-            'due_day': 10,
-            **enrollment,
-        },
+        'enrollments': [
+            {
+                'modality_id': modality_id,
+                'monthly_fee': '150.00',
+                'due_day': 10,
+                **enrollment,
+            }
+        ],
         'address': {
             'zip_code': '74000000',
             'street': 'Rua A',
@@ -284,6 +286,93 @@ async def test_student_patch_null_name_is_rejected(
         f'/api/v1/students/{created.json()["id"]}',
         headers=headers,
         json={'name': None},
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+async def _total_students(client: AsyncClient, headers: dict[str, str]) -> int:
+    response = await client.get('/api/v1/students', headers=headers)
+
+    return response.json()['total']
+
+
+@pytest.mark.asyncio
+async def test_create_student_with_several_enrollments(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers = await auth_headers(client)
+    jiu = await _enable_modality(client, db_session, headers, 'Jiu')
+    boxing = await _enable_modality(client, db_session, headers, 'Boxe')
+
+    created = await client.post(
+        '/api/v1/students',
+        headers=headers,
+        json={
+            'name': 'Ana Lima',
+            'enrollments': [
+                {'modality_id': jiu, 'monthly_fee': '150.00', 'due_day': 10},
+                {'modality_id': boxing, 'is_exempt': True},
+            ],
+        },
+    )
+
+    assert created.status_code == HTTPStatus.CREATED, created.text
+    detail = await client.get(
+        f'/api/v1/students/{created.json()["id"]}', headers=headers
+    )
+    enrollments = {
+        item['modality_id']: item for item in detail.json()['enrollments']
+    }
+    assert set(enrollments) == {jiu, boxing}
+    assert enrollments[jiu]['monthly_fee'] == '150.00'
+    assert enrollments[boxing]['is_exempt'] is True
+
+
+@pytest.mark.asyncio
+async def test_invalid_second_enrollment_creates_nothing(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers = await auth_headers(client)
+    jiu = await _enable_modality(client, db_session, headers, 'Jiu')
+    not_offered = str((await create_modality(db_session, 'Boxe')).public_id)
+
+    response = await client.post(
+        '/api/v1/students',
+        headers=headers,
+        json={
+            'name': 'Ana Lima',
+            'enrollments': [
+                {'modality_id': jiu},
+                {'modality_id': not_offered},
+            ],
+        },
+    )
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.json()['code'] == 'MODALITY_NOT_ENABLED'
+    assert await _total_students(client, headers) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('repeat', [True, False])
+async def test_enrollments_must_be_non_empty_and_distinct(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    repeat: bool,
+) -> None:
+    headers = await auth_headers(client)
+    jiu = await _enable_modality(client, db_session, headers, 'Jiu')
+    enrollments = (
+        [{'modality_id': jiu}, {'modality_id': jiu}] if repeat else []
+    )
+
+    response = await client.post(
+        '/api/v1/students',
+        headers=headers,
+        json={'name': 'Ana Lima', 'enrollments': enrollments},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY

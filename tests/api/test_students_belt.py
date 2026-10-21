@@ -36,7 +36,7 @@ async def _create(
     return await client.post(
         '/api/v1/students',
         headers=ctx['headers'],
-        json={'name': 'Gabriel Rocha', 'enrollment': enrollment},
+        json={'name': 'Gabriel Rocha', 'enrollments': [enrollment]},
     )
 
 

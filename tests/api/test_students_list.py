@@ -42,7 +42,7 @@ async def _student(
         headers=headers,
         json={
             'name': name,
-            'enrollment': {'modality_id': modality_id, 'status': status},
+            'enrollments': [{'modality_id': modality_id, 'status': status}],
         },
     )
 
