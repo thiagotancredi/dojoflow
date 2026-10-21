@@ -256,6 +256,8 @@
  * do menu, filtros/abas selecionados, gráficos). Botões em grafite.
  */
 [data-theme='grafite'] {
+  /* Controles nativos (ícone de data, barras de rolagem) no tom do tema */
+  color-scheme: light;
   --app-bg-from: #e6e6e4;
   --app-bg-to: #efefed;
 
@@ -335,6 +337,7 @@
 
 /* Versão escura do grafite (classe .dark no <html>, ligada pelo botão) */
 [data-theme='grafite'].dark {
+  color-scheme: dark;
   --app-bg-from: #101112;
   --app-bg-to: #141516;
 

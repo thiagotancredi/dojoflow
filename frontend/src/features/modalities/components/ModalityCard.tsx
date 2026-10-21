@@ -14,11 +14,13 @@ type ModalityCardProps = {
   option: ModalityOption
   // Abre a confirmação de remoção (quem confirma é a seção)
   onRemove: () => void
+  // Alguma modalidade esperando a API: trava o menu (evita remover duas vezes)
+  disabled: boolean
 }
 
 // Cartão de uma modalidade oferecida: situação das faixas, clique abre as
 // faixas, menu ⋯ com "Ver faixas" e "Remover da academia".
-export function ModalityCard({ option, onRemove }: ModalityCardProps) {
+export function ModalityCard({ option, onRemove, disabled }: ModalityCardProps) {
   const beltsUrl = `/app/configuracoes/modalidades/${option.id}/faixas`
 
   return (
@@ -35,11 +37,14 @@ export function ModalityCard({ option, onRemove }: ModalityCardProps) {
         <span className="grid size-10 place-items-center rounded-xl bg-muted text-lg">
           {option.emoji}
         </span>
-        <DropdownMenu>
+        {/* modal={false}: abrir a confirmação a partir do menu não deixa a
+            página travada depois (problema conhecido do Radix) */}
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
+              disabled={disabled}
               aria-label={`Opções de ${option.name}`}
               className="relative z-10 size-8 rounded-full"
             >

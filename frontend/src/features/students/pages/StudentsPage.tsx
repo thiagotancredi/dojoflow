@@ -121,14 +121,23 @@ export function StudentsPage() {
 
   useEffect(() => {
     const items = students.data?.items
-    if (!isDesktop || students.isLoading || !items || items.length === 0) return
+    if (!isDesktop || students.isLoading || !items) return
 
     const filterChanged = lastFilterKey.current !== filterKey
     lastFilterKey.current = filterKey
+    const query = params.toString()
+
+    // Busca/filtro sem resultado: fecha a ficha aberta para a direita mostrar
+    // "Nenhum aluno com esses filtros" (em vez da ficha de alguém fora da lista)
+    if (items.length === 0) {
+      if (filterChanged && selectedId) {
+        navigate(`/app/alunos${query ? `?${query}` : ''}`, { replace: true })
+      }
+      return
+    }
     const selectedVisible = items.some((item) => item.id === selectedId)
 
     if (!selectedId || (filterChanged && !selectedVisible)) {
-      const query = params.toString()
       // replace: não cria um passo extra no histórico (o "voltar" sai da tela)
       navigate(`/app/alunos/${items[0].id}${query ? `?${query}` : ''}`, {
         replace: true,
@@ -276,7 +285,8 @@ export function StudentsPage() {
 
         <section
           className={cn(
-            'min-w-0 flex-1 md:overflow-y-auto md:rounded-3xl',
+            // bg-card: o painel vai até o fim da tela mesmo com ficha curta
+            'min-w-0 flex-1 md:overflow-y-auto md:rounded-3xl md:bg-card',
             !hasSelection && 'hidden md:block',
           )}
         >

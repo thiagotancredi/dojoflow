@@ -131,6 +131,7 @@ export function ModalitiesSection() {
                       key={option.id}
                       option={option}
                       onRemove={() => setToRemove(option)}
+                      disabled={pendingId !== null}
                     />
                   ))}
                 </div>
