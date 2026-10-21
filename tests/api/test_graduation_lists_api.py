@@ -4,7 +4,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.helpers.auth import auth_headers, create_modality
+from tests.helpers.auth import (
+    auth_headers,
+    create_modality,
+    other_academy_headers,
+)
 from tests.helpers.graduation import (
     create_belt,
     create_student,
@@ -253,9 +257,7 @@ async def test_other_academy_cannot_see_list(
 ) -> None:
     ctx = await _setup(client, db_session)
     created = await _create_list(client, ctx)
-    other = await auth_headers(
-        client, email='outro@dojoflow.test', phone='62988880000'
-    )
+    other = await other_academy_headers(db_session)
 
     response = await client.get(f'{LISTS_URL}/{created["id"]}', headers=other)
     listed = await client.get(LISTS_URL, headers=other)

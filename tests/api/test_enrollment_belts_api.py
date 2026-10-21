@@ -5,7 +5,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.helpers.auth import auth_headers
+from tests.helpers.auth import auth_headers, other_academy_headers
 from tests.helpers.graduation import (
     create_belt,
     create_student,
@@ -166,9 +166,7 @@ async def test_belt_from_other_academy_not_found(
     db_session: AsyncSession,
 ) -> None:
     ctx = await _setup(client, db_session)
-    other = await auth_headers(
-        client, email='outro@dojoflow.test', phone='62988880000'
-    )
+    other = await other_academy_headers(db_session)
     await client.put(
         f'/api/v1/academy/modalities/{ctx["taekwondo"]}/toggle',
         headers=other,

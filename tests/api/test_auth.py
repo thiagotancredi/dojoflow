@@ -19,6 +19,7 @@ from dojoflow.services.academy import AcademyService
 from dojoflow.services.auth import AuthService
 from dojoflow.services.master import MasterService
 from dojoflow.services.onboarding import OnboardingService
+from tests.helpers.auth import SEED
 from tests.helpers.onboarding import register_onboarding, register_web
 
 EXPECTED_ACADEMY_COUNT = 2
@@ -350,10 +351,14 @@ async def test_telegram_and_web_registration_both_work(
     assert web_response.status_code == HTTPStatus.CREATED
 
     academy_count = await db_session.scalar(
-        select(func.count()).select_from(Academy)
+        select(func.count())
+        .select_from(Academy)
+        .where(Academy.id != SEED.academy_id)
     )
     master_count = await db_session.scalar(
-        select(func.count()).select_from(Master)
+        select(func.count())
+        .select_from(Master)
+        .where(Master.id != SEED.master_id)
     )
 
     assert academy_count == EXPECTED_ACADEMY_COUNT

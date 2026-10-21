@@ -4,7 +4,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.helpers.auth import auth_headers, create_modality
+from tests.helpers.auth import (
+    auth_headers,
+    create_modality,
+    other_academy_headers,
+)
 
 ACTIVE_STUDENTS = 3
 TOTAL_ENROLLMENTS = 4
@@ -78,11 +82,7 @@ async def test_dashboard_isolated_per_academy(
     )
     assert created.status_code == HTTPStatus.CREATED
 
-    headers_b = await auth_headers(
-        client,
-        email='outro@dojoflow.test',
-        academy_name='Outra Academia',
-    )
+    headers_b = await other_academy_headers(db_session)
 
     response_b = await client.get(
         '/api/v1/dashboard/summary', headers=headers_b
