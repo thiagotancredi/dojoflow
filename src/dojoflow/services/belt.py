@@ -8,7 +8,7 @@ from dojoflow.models.graduation_list import GraduationListEntry
 from dojoflow.models.modality import Modality
 from dojoflow.repositories.belt import BeltRepository
 from dojoflow.schemas.belt import BeltPayload, BeltRead
-from dojoflow.services.belt_presets import TAEKWONDO_NAME, TAEKWONDO_PRESET
+from dojoflow.services.belt_presets import BELT_PRESETS
 from dojoflow.shared.exceptions import ConflictError, NotFoundError
 
 
@@ -158,7 +158,7 @@ class BeltService:
         await self._renumber(belt_ids)
 
     @transactional
-    async def apply_taekwondo_preset(
+    async def apply_preset(
         self,
         academy_id: int,
         modality_id: int,
@@ -166,10 +166,11 @@ class BeltService:
         modality_name = await self.db_session.scalar(
             select(Modality.name).where(Modality.id == modality_id)
         )
+        preset = BELT_PRESETS.get(modality_name or '')
 
-        if modality_name != TAEKWONDO_NAME:
+        if preset is None:
             raise ConflictError(
-                'The default sequence is only available for Taekwondo.',
+                'This modality has no default belt sequence.',
                 code='PRESET_NOT_AVAILABLE',
             )
 
@@ -179,7 +180,7 @@ class BeltService:
                 code='BELTS_ALREADY_EXIST',
             )
 
-        for payload in TAEKWONDO_PRESET:
+        for payload in preset:
             await self.create(academy_id, modality_id, payload)
 
         return await self.list_by_modality(academy_id, modality_id)

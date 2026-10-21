@@ -16,7 +16,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
     'Essa faixa está no histórico de algum aluno ou numa lista de graduação e não pode ser excluída. Você pode renomeá-la.',
   BELT_ORDER_MISMATCH: 'A lista de faixas mudou. Recarregue a página.',
   BELTS_ALREADY_EXIST: 'Esta modalidade já tem faixas cadastradas.',
-  PRESET_NOT_AVAILABLE: 'A sequência padrão existe só para o Taekwondo.',
+  PRESET_NOT_AVAILABLE: 'Esta modalidade não tem sequência padrão.',
   BELT_NOT_FOUND: 'Faixa não encontrada.',
   BELT_MODALITY_MISMATCH: 'Essa faixa é de outra modalidade.',
   BELT_RECORD_NOT_FOUND: 'Registro de faixa não encontrado.',

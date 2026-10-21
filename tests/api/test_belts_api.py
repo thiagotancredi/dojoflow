@@ -16,6 +16,7 @@ from tests.helpers.graduation import (
 )
 
 TAEKWONDO_BELT_COUNT = 19
+KICKBOXING_BELT_COUNT = 15
 
 
 def _belts_url(modality_id: str) -> str:
@@ -212,7 +213,7 @@ async def test_taekwondo_preset(
     headers = await auth_headers(client)
     taekwondo = await enable_modality(client, db_session, headers, 'Taekwondo')
     judo = await enable_modality(client, db_session, headers, 'Judô')
-    preset_url = f'{_belts_url(taekwondo)}/taekwondo-preset'
+    preset_url = f'{_belts_url(taekwondo)}/preset'
 
     response = await client.post(preset_url, headers=headers)
 
@@ -222,9 +223,22 @@ async def test_taekwondo_preset(
     assert belts[0]['name'] == 'Branca'
     assert belts[5]['name'] == 'Verde e azul'
     assert belts[5]['stripe_color'] == '#1d4ed8'
-    assert (belts[9]['min_time_amount'], belts[9]['min_time_unit']) == (
+    assert [belt['min_time_amount'] for belt in belts[:9]] == [
+        3,
+        2,
+        4,
+        4,
+        4,
+        5,
+        8,
         6,
-        'months',
+        8,
+    ]
+    assert {belt['min_time_unit'] for belt in belts[:9]} == {'months'}
+    assert belts[9]['name'] == 'Vermelha e preta'
+    assert (belts[9]['min_time_amount'], belts[9]['min_time_unit']) == (
+        1,
+        'years',
     )
     assert belts[10]['name'] == 'Preta 1º Dan'
     assert belts[10]['marks'] == 1
@@ -244,11 +258,43 @@ async def test_taekwondo_preset(
     assert again.status_code == HTTPStatus.CONFLICT
     assert again.json()['code'] == 'BELTS_ALREADY_EXIST'
 
-    other = await client.post(
-        f'{_belts_url(judo)}/taekwondo-preset', headers=headers
-    )
+    other = await client.post(f'{_belts_url(judo)}/preset', headers=headers)
     assert other.status_code == HTTPStatus.CONFLICT
     assert other.json()['code'] == 'PRESET_NOT_AVAILABLE'
+
+
+@pytest.mark.asyncio
+async def test_kickboxing_preset(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers = await auth_headers(client)
+    kickboxing = await enable_modality(
+        client, db_session, headers, 'Kickboxing'
+    )
+
+    response = await client.post(
+        f'{_belts_url(kickboxing)}/preset', headers=headers
+    )
+
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    belts = response.json()
+    assert len(belts) == KICKBOXING_BELT_COUNT
+    assert [
+        (belt['name'], belt['min_time_amount'], belt['min_time_unit'])
+        for belt in belts[:6]
+    ] == [
+        ('Branca', 4, 'months'),
+        ('Amarela', 6, 'months'),
+        ('Laranja', 6, 'months'),
+        ('Verde', 8, 'months'),
+        ('Azul', 10, 'months'),
+        ('Marrom', 1, 'years'),
+    ]
+    # Pretas iguais às do Taekwondo
+    assert belts[6]['name'] == 'Preta 1º Dan'
+    assert belts[14]['name'] == 'Preta 9º Dan'
+    assert belts[14]['min_time_amount'] is None
 
 
 @pytest.mark.asyncio

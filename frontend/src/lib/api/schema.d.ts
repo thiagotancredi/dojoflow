@@ -259,7 +259,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/academy/modalities/{modality_id}/belts/taekwondo-preset": {
+    "/api/v1/academy/modalities/{modality_id}/belts/preset": {
         parameters: {
             query?: never;
             header?: never;
@@ -268,8 +268,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Apply Taekwondo Preset */
-        post: operations["apply_taekwondo_preset_api_v1_academy_modalities__modality_id__belts_taekwondo_preset_post"];
+        /** Apply Belt Preset */
+        post: operations["apply_belt_preset_api_v1_academy_modalities__modality_id__belts_preset_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1865,7 +1865,7 @@ export interface operations {
             };
         };
     };
-    apply_taekwondo_preset_api_v1_academy_modalities__modality_id__belts_taekwondo_preset_post: {
+    apply_belt_preset_api_v1_academy_modalities__modality_id__belts_preset_post: {
         parameters: {
             query?: never;
             header?: never;

@@ -64,10 +64,11 @@ export function reorderBelts(modalityId: string, beltIds: string[]) {
   )
 }
 
-export function applyTaekwondoPreset(modalityId: string) {
+// Cria a sequência padrão (só Taekwondo e Kickboxing têm uma)
+export function applyBeltPreset(modalityId: string) {
   return unwrap(
     api.POST(
-      '/api/v1/academy/modalities/{modality_id}/belts/taekwondo-preset',
+      '/api/v1/academy/modalities/{modality_id}/belts/preset',
       modalityPath(modalityId),
     ),
   )

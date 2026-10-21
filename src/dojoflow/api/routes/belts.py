@@ -59,15 +59,15 @@ async def create_belt(
 
 
 @router.post(
-    path='/modalities/{modality_id}/belts/taekwondo-preset',
+    path='/modalities/{modality_id}/belts/preset',
     status_code=status.HTTP_201_CREATED,
 )
-async def apply_taekwondo_preset(
+async def apply_belt_preset(
     modality_id: EnabledModalityIdDep,
     current_master: CurrentMasterDep,
     belt_service_dep: BeltServiceDep,
 ) -> list[BeltApiRead]:
-    belts = await belt_service_dep.apply_taekwondo_preset(
+    belts = await belt_service_dep.apply_preset(
         current_master.academy_id, modality_id
     )
 

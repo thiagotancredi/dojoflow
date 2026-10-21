@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  applyTaekwondoPreset,
+  applyBeltPreset,
   createBelt,
   deleteBelt,
   reorderBelts,
@@ -27,6 +27,9 @@ import { minTimeLabel } from '@/features/belts/rules'
 import { useAcademyModalities } from '@/features/modalities/hooks'
 import { isValidationError, showApiError } from '@/lib/api/errors'
 import { useMutation } from '@/lib/hooks/useMutation'
+
+// Modalidades com sequência padrão no backend (services/belt_presets.py)
+const PRESET_MODALITIES = new Set(['taekwondo', 'kickboxing'])
 
 // Configurações → Modalidades → Faixas (tela 1 da spec das faixas)
 export function ModalityBeltsPage() {
@@ -46,7 +49,7 @@ export function ModalityBeltsPage() {
       : createBelt(modalityId, payload),
   )
   const reorder = useMutation((ids: string[]) => reorderBelts(modalityId, ids))
-  const preset = useMutation(() => applyTaekwondoPreset(modalityId))
+  const preset = useMutation(() => applyBeltPreset(modalityId))
 
   function refresh() {
     belts.refetch()
@@ -94,8 +97,10 @@ export function ModalityBeltsPage() {
 
   async function runPreset() {
     try {
-      await preset.mutate()
-      toast.success('Sequência do Taekwondo criada (19 faixas)')
+      const created = await preset.mutate()
+      toast.success(
+        `Sequência do ${modality?.name} criada (${created.length} faixas)`,
+      )
       refresh()
     } catch (error) {
       showApiError(error)
@@ -105,7 +110,9 @@ export function ModalityBeltsPage() {
   // Trava até salvar E a lista nova chegar (o próximo movimento parte dela)
   const reordering = reorder.isPending || belts.isLoading
   const pending = modality?.pending_belt_count ?? 0
-  const isTaekwondo = modality?.name.trim().toLowerCase() === 'taekwondo'
+  const hasPreset = PRESET_MODALITIES.has(
+    modality?.name.trim().toLowerCase() ?? '',
+  )
 
   return (
     <div className="space-y-4">
@@ -160,7 +167,7 @@ export function ModalityBeltsPage() {
               Cadastre da menor para a maior. Graus e dans são faixas próprias
               (ex.: Preta 1º Dan).
             </p>
-            {isTaekwondo && (
+            {hasPreset && (
               <>
                 <Button
                   className="rounded-full"
@@ -169,10 +176,11 @@ export function ModalityBeltsPage() {
                 >
                   {preset.isPending
                     ? 'Criando…'
-                    : 'Usar a sequência padrão do Taekwondo'}
+                    : `Usar a sequência padrão do ${modality?.name}`}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Cria 19 faixas (Branca até Preta 9º Dan). Tudo editável depois.
+                  Cria as faixas da Branca até a Preta 9º Dan. Tudo editável
+                  depois.
                 </p>
               </>
             )}
