@@ -8,7 +8,6 @@ import {
   Search,
 } from 'lucide-react'
 import { useState } from 'react'
-import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import {
@@ -38,6 +37,7 @@ import {
 import type { AdminAcademy, AdminCredentials } from '@/features/admin/api'
 import { AcademyFormDialog } from '@/features/admin/components/AcademyFormDialog'
 import { CredentialsDialog } from '@/features/admin/components/CredentialsDialog'
+import { EnterAcademyButton } from '@/features/admin/components/EnterAcademyButton'
 import type { Credentials } from '@/features/admin/components/CredentialsDialog'
 import { showApiError } from '@/lib/api/errors'
 import { formatPhone } from '@/lib/format'
@@ -160,12 +160,7 @@ const CONFIRM_TEXT: Record<
   },
 }
 
-type AdminAcademiesPageProps = {
-  // Botão "Entrar" de cada academia (modo suporte)
-  renderEnter?: (academy: AdminAcademy) => ReactNode
-}
-
-export function AdminAcademiesPage({ renderEnter }: AdminAcademiesPageProps) {
+export function AdminAcademiesPage() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search.trim())
   const academies = useResource(
@@ -325,7 +320,7 @@ export function AdminAcademiesPage({ renderEnter }: AdminAcademiesPageProps) {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          {renderEnter?.(academy)}
+                          <EnterAcademyButton academy={academy} />
                           <Button
                             variant="ghost"
                             size="icon"
@@ -372,7 +367,7 @@ export function AdminAcademiesPage({ renderEnter }: AdminAcademiesPageProps) {
                   desde {createdAt(academy.created_at)}
                 </p>
                 <div className="mt-3 flex items-center gap-2">
-                  {renderEnter?.(academy)}
+                  <EnterAcademyButton academy={academy} className="flex-1" />
                   <Button
                     variant="outline"
                     size="sm"

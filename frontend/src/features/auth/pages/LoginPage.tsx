@@ -34,7 +34,9 @@ export function LoginPage({ redirectTo = '/app' }: { redirectTo?: string }) {
       setError(
         apiError.code === 'INVALID_CREDENTIALS'
           ? 'E-mail ou senha incorretos.'
-          : 'Não foi possível entrar. Tente novamente.',
+          : apiError.code === 'ACADEMY_BLOCKED'
+            ? 'Academia desativada. Fale com o suporte.'
+            : 'Não foi possível entrar. Tente novamente.',
       )
     }
   }

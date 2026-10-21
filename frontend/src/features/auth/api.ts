@@ -46,6 +46,12 @@ export async function getMe(): Promise<Master> {
   return data
 }
 
+// Troca o código de uso único do painel (admin.*) por uma sessão de
+// suporte: o administrador vê a academia escolhida, por até 8 h
+export function exchangeSupportCode(code: string): Promise<AuthTokens> {
+  return unwrap(api.POST('/api/v1/auth/support/exchange', { body: { code } }))
+}
+
 export async function logout(): Promise<void> {
   await api.POST('/api/v1/auth/logout')
 }

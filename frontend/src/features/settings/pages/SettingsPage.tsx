@@ -56,38 +56,44 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-3xl bg-card p-5">
-        <h2 className="font-semibold">Mestre</h2>
-        <dl className="grid gap-3 sm:grid-cols-2">
-          <Field label="Nome">{master.name}</Field>
-          <Field label="E-mail">{master.email ?? 'Não informado'}</Field>
-          <Field label="Telefone">
-            {master.phone ? formatPhone(master.phone) : 'Não informado'}
-          </Field>
-          <Field label="Telegram">
-            {master.telegram_linked ? 'Conectado' : 'Não conectado'}
-          </Field>
-        </dl>
-      </section>
+      {/* Modo suporte: "Mestre" e "Conta" seriam os dados e a conta do
+          administrador, não do mestre da academia */}
+      {!master.support_mode && (
+        <section className="space-y-4 rounded-3xl bg-card p-5">
+          <h2 className="font-semibold">Mestre</h2>
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <Field label="Nome">{master.name}</Field>
+            <Field label="E-mail">{master.email ?? 'Não informado'}</Field>
+            <Field label="Telefone">
+              {master.phone ? formatPhone(master.phone) : 'Não informado'}
+            </Field>
+            <Field label="Telegram">
+              {master.telegram_linked ? 'Conectado' : 'Não conectado'}
+            </Field>
+          </dl>
+        </section>
+      )}
 
       <ModalitiesSection />
 
       <BillingSettingsSection />
 
-      <section className="space-y-4 rounded-3xl bg-card p-5">
-        <h2 className="font-semibold">Conta</h2>
+      {!master.support_mode && (
+        <section className="space-y-4 rounded-3xl bg-card p-5">
+          <h2 className="font-semibold">Conta</h2>
 
-        <AppearanceSetting />
+          <AppearanceSetting />
 
-        <ChangePasswordForm />
+          <ChangePasswordForm />
 
-        {/* Some sozinho quando o bot confirma a conexão */}
-        {!master.telegram_linked && <TelegramConnect />}
+          {/* Some sozinho quando o bot confirma a conexão */}
+          {!master.telegram_linked && <TelegramConnect />}
 
-        <Button variant="ghost" className="rounded-full" onClick={handleSignOut}>
-          Sair
-        </Button>
-      </section>
+          <Button variant="ghost" className="rounded-full" onClick={handleSignOut}>
+            Sair
+          </Button>
+        </section>
+      )}
     </div>
   )
 }

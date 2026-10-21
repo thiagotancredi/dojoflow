@@ -4,6 +4,7 @@ import { AppLayout } from '@/app/layouts/AppLayout'
 import { NotFoundPage } from '@/app/NotFoundPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { SetAccessPage } from '@/features/auth/pages/SetAccessPage'
+import { SupportEntryPage } from '@/features/auth/pages/SupportEntryPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { BulkBeltsPage } from '@/features/belts/pages/BulkBeltsPage'
 import { BillingPage } from '@/features/billing/pages/BillingPage'
@@ -25,6 +26,8 @@ export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   // Link do /web no bot: definir e-mail e senha (público, o token prova quem é)
   { path: '/definir-acesso', element: <SetAccessPage /> },
+  // Botão "Entrar" do painel admin.*: abre a academia em modo suporte
+  { path: '/suporte', element: <SupportEntryPage /> },
   {
     path: '/app',
     // RequireAuth manda para /login quem não tem sessão
