@@ -7,6 +7,7 @@ import pytest
 from dojoflow.services.telegram_bot.handlers.students import (
     StudentsMenuHandler,
 )
+from dojoflow.shared.exceptions import ConflictError
 from dojoflow.shared.telegram_enums import TelegramFlow, TelegramStep
 
 CHAT_ID = 123
@@ -4081,3 +4082,58 @@ async def test_student_edit_sex_flow_confirms_before_saving() -> None:
         student_id=1,
         data={'sex': 'female'},
     )
+
+
+@pytest.mark.asyncio
+async def test_edit_enrollment_without_fee_warns_instead_of_saving() -> None:
+    telegram_service = AsyncMock()
+    state_service = AsyncMock()
+    student_service = AsyncMock()
+    student_service.get_details.return_value = make_student_details(
+        enrollment_status='inactive'
+    )
+    student_service.update_enrollment.side_effect = ConflictError(
+        'incomplete', code='ENROLLMENT_BILLING_INCOMPLETE'
+    )
+    handler = StudentsMenuHandler(
+        telegram_service=telegram_service,
+        telegram_conversation_state_service=state_service,
+        modality_service=AsyncMock(),
+        student_service=student_service,
+        cep_service=AsyncMock(),
+    )
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_ENROLLMENT_STATUS
+        )
+    )
+    await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:status:enrollment:active',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+    pending_edit = state_service.update_student_edit_context.await_args.kwargs[
+        'context_data'
+    ]['pending_student_edit']
+    state_service.get_by_telegram_user_id.return_value = (
+        make_student_edit_state(
+            step=TelegramStep.WAITING_STUDENT_EDIT_CONFIRMATION,
+            context_data={'pending_student_edit': pending_edit},
+        )
+    )
+
+    result = await handler.process_callback(
+        chat_id=CHAT_ID,
+        telegram_user_id=TELEGRAM_USER_ID,
+        callback_data='students:edit:confirm',
+        context=SimpleNamespace(academy_id=ACADEMY_ID),
+    )
+
+    assert result == {'status': 'student_edit_billing_incomplete'}
+    texts = [
+        call.kwargs['text']
+        for call in telegram_service.send_message.await_args_list
+    ]
+    assert any('Não foi possível salvar' in text for text in texts)
+    state_service.complete_current_flow.assert_awaited()

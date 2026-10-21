@@ -840,6 +840,23 @@ class TelegramWebhookService:
             state is not None
             and state['current_flow'] == TelegramFlow.STUDENT_CREATION
             and state['current_step']
+            == TelegramStep.WAITING_STUDENT_ENROLLMENT_FEE
+        ):
+            students_handler = self.students_menu_handler
+
+            return (
+                await students_handler.process_student_enrollment_fee_message(
+                    chat_id=chat_id,
+                    enrollment_fee_text=text,
+                    state_id=state['id'],
+                    context_data=state['context_data'],
+                )
+            )
+
+        if (
+            state is not None
+            and state['current_flow'] == TelegramFlow.STUDENT_CREATION
+            and state['current_step']
             == TelegramStep.WAITING_STUDENT_FIELD_CONFIRMATION
         ):
             students_handler = self.students_menu_handler

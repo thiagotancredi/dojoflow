@@ -51,6 +51,7 @@ from dojoflow.services.telegram_conversation_state import (
     TelegramConversationStateService,
 )
 from dojoflow.shared.enums import EnrollmentStatus
+from dojoflow.shared.exceptions import ConflictError
 from dojoflow.shared.telegram_enums import TelegramFlow, TelegramStep
 
 MIN_STUDENT_NAME_LENGTH = 2
@@ -62,6 +63,14 @@ MIN_INSTAGRAM_LENGTH = 2
 BIRTH_DATE_FORMAT = '%d/%m/%Y'
 MONEY_DECIMAL_PLACES = Decimal('0.01')
 MIN_MONTHLY_FEE = Decimal('0')
+ENROLLMENT_FEE_PROMPT = (
+    'Qual o valor da taxa de matrícula?\n\n'
+    'Envie 0 para isentar.\n\n'
+    'Exemplo:\n'
+    '80\n'
+    'ou\n'
+    '80,00'
+)
 MIN_DUE_DAY = 1
 MAX_DUE_DAY = 28
 RESPONSIBLE_REFERENCE_CALLBACK_PARTS = 3
@@ -4110,7 +4119,7 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         return {'status': 'waiting_student_edit_confirmation'}
 
-    async def _confirm_student_edit(  # noqa: PLR0912
+    async def _confirm_student_edit(  # noqa: PLR0911, PLR0912
         self,
         chat_id: int,
         state_id: int,
@@ -4203,13 +4212,16 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 ),
             )
         elif action == 'update_enrollment':
-            await self.student_service.update_enrollment(
-                academy_id=context.academy_id,
+            refused = await self._update_enrollment_or_warn(
+                chat_id=chat_id,
+                state_id=state_id,
+                context=context,
                 student_id=student_id,
-                data={
-                    field: pending_edit.get('value'),
-                },
+                data={field: pending_edit.get('value')},
             )
+
+            if refused is not None:
+                return refused
         elif field == 'modality':
             await self.student_service.update_modality(
                 academy_id=context.academy_id,
@@ -4217,13 +4229,16 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 modality_id=int(pending_edit['value']),
             )
         elif field in {'monthly_fee', 'due_day'}:
-            await self.student_service.update_enrollment(
-                academy_id=context.academy_id,
+            refused = await self._update_enrollment_or_warn(
+                chat_id=chat_id,
+                state_id=state_id,
+                context=context,
                 student_id=student_id,
-                data={
-                    field: pending_edit.get('value'),
-                },
+                data={field: pending_edit.get('value')},
             )
+
+            if refused is not None:
+                return refused
         else:
             await self.student_service.update_basic_data(
                 academy_id=context.academy_id,
@@ -4248,6 +4263,49 @@ class StudentsMenuHandler:  # noqa: PLR0904
             student_id=student_id,
             status='student_edit_saved',
         )
+
+    async def _update_enrollment_or_warn(  # noqa: PLR0913
+        self,
+        *,
+        chat_id: int,
+        state_id: int,
+        context: MasterContextRead,
+        student_id: int,
+        data: dict[str, Any],
+    ) -> dict[str, str] | None:
+        """Salva a edição da matrícula; se ficar sem valor, avisa e para."""
+        try:
+            await self.student_service.update_enrollment(
+                academy_id=context.academy_id,
+                student_id=student_id,
+                data=data,
+            )
+        except ConflictError as exc:
+            if exc.code != 'ENROLLMENT_BILLING_INCOMPLETE':
+                raise
+
+            await (
+                self.telegram_conversation_state_service.complete_current_flow(
+                    state_id
+                )
+            )
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=(
+                    'Não foi possível salvar. ❌\n\n'
+                    'Uma matrícula ativa precisa ter o valor da mensalidade '
+                    'e o dia de vencimento, ou ser isenta.'
+                ),
+            )
+
+            return await self._send_student_details(
+                chat_id=chat_id,
+                context=context,
+                student_id=student_id,
+                status='student_edit_billing_incomplete',
+            )
+
+        return None
 
     async def _rewrite_student_edit(
         self,
@@ -5262,6 +5320,14 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 due_day=int(value),
             )
 
+        if source_step == TelegramStep.WAITING_STUDENT_ENROLLMENT_FEE:
+            return await self._apply_confirmed_student_enrollment_fee(
+                chat_id=chat_id,
+                state_id=state_id,
+                context_data=updated_context_data,
+                enrollment_fee=str(value),
+            )
+
         await self.send_menu(chat_id)
 
         return {'status': 'student_field_confirmation_invalid_source'}
@@ -5331,6 +5397,9 @@ class StudentsMenuHandler:  # noqa: PLR0904
                 'waiting_student_monthly_fee'
             ),
             TelegramStep.WAITING_STUDENT_DUE_DAY: 'waiting_student_due_day',
+            TelegramStep.WAITING_STUDENT_ENROLLMENT_FEE: (
+                'waiting_student_enrollment_fee'
+            ),
         }
 
         return waiting_statuses.get(step, 'waiting_student_field')
@@ -7727,6 +7796,59 @@ class StudentsMenuHandler:  # noqa: PLR0904
 
         await state_service.update_student_creation_context(
             state_id=state_id,
+            next_step=TelegramStep.WAITING_STUDENT_ENROLLMENT_FEE,
+            context_data=updated_context_data,
+        )
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=ENROLLMENT_FEE_PROMPT,
+        )
+
+        return {'status': 'waiting_student_enrollment_fee'}
+
+    async def process_student_enrollment_fee_message(
+        self,
+        chat_id: int,
+        enrollment_fee_text: str,
+        state_id: int,
+        context_data: dict[str, Any],
+    ) -> dict[str, str]:
+        enrollment_fee = self._parse_enrollment_fee(enrollment_fee_text)
+
+        if enrollment_fee is None:
+            await self.telegram_service.send_message(
+                chat_id=chat_id,
+                text=f'Valor de taxa inválido.\n\n{ENROLLMENT_FEE_PROMPT}',
+            )
+
+            return {'status': 'invalid_student_enrollment_fee'}
+
+        return await self._request_field_confirmation(
+            chat_id=chat_id,
+            state_id=state_id,
+            context_data=context_data,
+            source_step=TelegramStep.WAITING_STUDENT_ENROLLMENT_FEE,
+            field_label='a taxa de matrícula',
+            value=str(enrollment_fee),
+            display_value=self._format_enrollment_fee(str(enrollment_fee)),
+            prompt_text=ENROLLMENT_FEE_PROMPT,
+        )
+
+    async def _apply_confirmed_student_enrollment_fee(
+        self,
+        chat_id: int,
+        state_id: int,
+        context_data: dict[str, Any],
+        enrollment_fee: str,
+    ) -> dict[str, str]:
+        updated_context_data = dict(context_data)
+        updated_context_data['enrollment_fee'] = enrollment_fee
+
+        state_service = self.telegram_conversation_state_service
+
+        await state_service.update_student_creation_context(
+            state_id=state_id,
             next_step=TelegramStep.WAITING_STUDENT_CONFIRMATION,
             context_data=updated_context_data,
         )
@@ -7738,6 +7860,28 @@ class StudentsMenuHandler:  # noqa: PLR0904
         )
 
         return {'status': 'waiting_student_confirmation'}
+
+    @staticmethod
+    def _parse_enrollment_fee(
+        enrollment_fee_text: str,
+    ) -> Decimal | None:
+        normalized = enrollment_fee_text.strip().replace(',', '.')
+
+        try:
+            enrollment_fee = Decimal(normalized)
+        except InvalidOperation:
+            return None
+
+        if not enrollment_fee.is_finite() or enrollment_fee < 0:
+            return None
+
+        return enrollment_fee.quantize(MONEY_DECIMAL_PLACES)
+
+    @staticmethod
+    def _format_enrollment_fee(enrollment_fee: str | None) -> str:
+        if enrollment_fee is None or Decimal(enrollment_fee) == 0:
+            return 'Isenta'
+        return f'R$ {enrollment_fee}'
 
     async def _resend_student_confirmation_message(
         self,
@@ -8437,6 +8581,9 @@ class StudentsMenuHandler:  # noqa: PLR0904
         address_summary = StudentsMenuHandler._build_address_summary(
             context_data,
         )
+        enrollment_fee = StudentsMenuHandler._format_enrollment_fee(
+            context_data.get('enrollment_fee')
+        )
 
         return (
             '📋 Resumo do cadastro\n\n'
@@ -8453,7 +8600,8 @@ class StudentsMenuHandler:  # noqa: PLR0904
             f'{responsibles_summary}'
             '💰 Mensalidade\n'
             f'Valor: R$ {context_data["monthly_fee"]}\n'
-            f'Vencimento: dia {context_data["due_day"]}\n\n'
+            f'Vencimento: dia {context_data["due_day"]}\n'
+            f'Taxa de matrícula: {enrollment_fee}\n\n'
             'Está tudo certo?'
         )
 

@@ -9,6 +9,7 @@ from tests.helpers.auth import (
     create_modality,
     other_academy_headers,
 )
+from tests.helpers.scenario import add_student
 
 ACTIVE_STUDENTS = 3
 TOTAL_ENROLLMENTS = 4
@@ -43,7 +44,8 @@ async def test_dashboard_summary(
         assert response.status_code == HTTPStatus.CREATED
 
     await student('Ana', jiu.public_id, monthly_fee='150', due_day=10)
-    await student('Bruno', jiu.public_id)
+    # Matrícula antiga, sem valor (pendência de cadastro)
+    await add_student(db_session, str(jiu.public_id), name='Bruno')
     await student('Carla', judo.public_id, is_exempt=True)
     await student('Davi', judo.public_id, status='inactive')
 
@@ -74,15 +76,8 @@ async def test_dashboard_isolated_per_academy(
         f'/api/v1/academy/modalities/{jiu.public_id}/toggle',
         headers=headers_a,
     )
-    created = await client.post(
-        '/api/v1/students',
-        headers=headers_a,
-        json={
-            'name': 'Ana',
-            'enrollments': [{'modality_id': str(jiu.public_id)}],
-        },
-    )
-    assert created.status_code == HTTPStatus.CREATED
+    # Matrícula antiga, sem valor (pendência de cadastro)
+    await add_student(db_session, str(jiu.public_id), name='Ana')
 
     headers_b = await other_academy_headers(db_session)
 

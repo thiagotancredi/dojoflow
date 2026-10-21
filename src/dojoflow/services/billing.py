@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import delete, exists, func, select
+from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
@@ -40,6 +40,7 @@ from dojoflow.shared.enums import (
 from dojoflow.shared.exceptions import ConflictError
 
 CENTS = Decimal('0.01')
+ZERO = Decimal('0.00')
 ENROLLMENT_FEE_LABEL = 'taxa de matrícula'
 CLOSED_STATUSES = {'paid', 'waived'}
 
@@ -74,7 +75,7 @@ def _refresh_paid_status(charge: Payment, paid_on: date | None) -> None:
     """Situação gravada a partir do valor já alocado na cobrança."""
     if charge.status is PaymentStatus.WAIVED:
         return
-    if charge.amount_paid >= (charge.amount_due or Decimal(0)):
+    if charge.amount_paid >= (charge.amount_due or ZERO):
         if charge.status is not PaymentStatus.PAID:
             charge.paid_at = paid_on
         charge.status = PaymentStatus.PAID
@@ -184,6 +185,60 @@ class BillingService:
 
         return len(created.all())
 
+    async def create_enrollment_fee(
+        self,
+        academy_id: int,
+        enrollment_id: int,
+        amount: Decimal | None,
+        enrolled_on: date,
+    ) -> None:
+        """Taxa da matrícula, vencendo no dia dela; sem valor = isenta."""
+        charged = amount is not None and amount > 0
+        self.db_session.add(
+            Payment(
+                academy_id=academy_id,
+                enrollment_id=enrollment_id,
+                kind=PaymentKind.ENROLLMENT_FEE,
+                reference_month=enrolled_on.replace(day=1),
+                due_date=enrolled_on,
+                status=(
+                    PaymentStatus.PENDING if charged else PaymentStatus.WAIVED
+                ),
+                amount_due=amount.quantize(CENTS) if charged else ZERO,
+                amount_paid=ZERO,
+            )
+        )
+        await self.db_session.flush()
+
+    async def start_enrollment_billing(
+        self,
+        academy_id: int,
+        enrollment_id: int,
+        enrollment_fee: Decimal | None,
+        *,
+        bills_monthly: bool,
+    ) -> None:
+        """Matrícula nova: taxa hoje e 1ª mensalidade no mês seguinte."""
+        today = local_today()
+
+        if bills_monthly:
+            await self.restart_monthly_billing(enrollment_id, today)
+
+        await self.create_enrollment_fee(
+            academy_id, enrollment_id, enrollment_fee, today
+        )
+
+    async def restart_monthly_billing(
+        self, enrollment_id: int, today: date | None = None
+    ) -> None:
+        """Mensalidades automáticas a partir do mês seguinte a hoje."""
+        start = first_monthly_month(today or local_today())
+        await self.db_session.execute(
+            update(Enrollment)
+            .where(Enrollment.id == enrollment_id)
+            .values(billing_start_month=start)
+        )
+
     async def student_billing(
         self,
         academy_id: int,
@@ -230,7 +285,9 @@ class BillingService:
         charges = []
 
         for payment, enrollment_public_id, modality_name in rows:
-            amount = payment.amount_due or Decimal(0)
+            amount = (
+                payment.amount_due if payment.amount_due is not None else ZERO
+            )
             due_date = payment.due_date or payment.reference_month
             charges.append(
                 ChargeRead(

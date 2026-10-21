@@ -417,6 +417,15 @@ async def test_e2e_create_student_self_responsible(
         confirm_update_id=161,
         telegram_user_id=telegram_user_id,
         text='7',
+        expected_status_after_confirm='waiting_student_enrollment_fee',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=5016,
+        confirm_update_id=50161,
+        telegram_user_id=telegram_user_id,
+        text='80,00',
         expected_status_after_confirm='waiting_student_confirmation',
     )
 
@@ -428,6 +437,7 @@ async def test_e2e_create_student_self_responsible(
     assert 'Telefone: 62999999999' in summary_text
     assert 'Próprio aluno' in summary_text
     assert '💰 Mensalidade' in summary_text
+    assert 'Taxa de matrícula: R$ 80.00' in summary_text
 
     assert await post_callback(
         client,
@@ -665,6 +675,15 @@ async def test_e2e_create_student_external_responsible(
         confirm_update_id=1201,
         telegram_user_id=telegram_user_id,
         text='7',
+        expected_status_after_confirm='waiting_student_enrollment_fee',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=5120,
+        confirm_update_id=51201,
+        telegram_user_id=telegram_user_id,
+        text='80,00',
         expected_status_after_confirm='waiting_student_confirmation',
     )
 
@@ -827,6 +846,15 @@ async def test_e2e_create_student_skipping_optional_fields_and_address(
         confirm_update_id=5131,
         telegram_user_id=telegram_user_id,
         text='12',
+        expected_status_after_confirm='waiting_student_enrollment_fee',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=5513,
+        confirm_update_id=55131,
+        telegram_user_id=telegram_user_id,
+        text='80,00',
         expected_status_after_confirm='waiting_student_confirmation',
     )
 
@@ -1121,6 +1149,15 @@ async def test_e2e_reuse_one_responsible_and_address(  # noqa: PLR0915
         confirm_update_id=10281,
         telegram_user_id=telegram_user_id,
         text='10',
+        expected_status_after_confirm='waiting_student_enrollment_fee',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=6028,
+        confirm_update_id=60281,
+        telegram_user_id=telegram_user_id,
+        text='80,00',
         expected_status_after_confirm='waiting_student_confirmation',
     )
     assert await post_callback(
@@ -1294,6 +1331,15 @@ async def test_e2e_reuse_one_responsible_and_address(  # noqa: PLR0915
         confirm_update_id=20191,
         telegram_user_id=telegram_user_id,
         text='10',
+        expected_status_after_confirm='waiting_student_enrollment_fee',
+    )
+    await enter_and_confirm_field(
+        client=client,
+        secret=secret,
+        text_update_id=7019,
+        confirm_update_id=70191,
+        telegram_user_id=telegram_user_id,
+        text='80,00',
         expected_status_after_confirm='waiting_student_confirmation',
     )
 

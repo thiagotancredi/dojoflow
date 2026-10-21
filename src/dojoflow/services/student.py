@@ -34,12 +34,40 @@ from dojoflow.schemas.student import (
     StudentResponsibleReferencePayload,
 )
 from dojoflow.schemas.student_responsible import StudentResponsibleCreate
+from dojoflow.services.billing import BillingService
 from dojoflow.shared.enums import (
     EnrollmentStatus,
     StudentResponsibleRelationship,
     StudentSex,
 )
 from dojoflow.shared.exceptions import ConflictError, NotFoundError
+
+
+def bills_monthly(
+    monthly_fee: Decimal | None,
+    due_day: int | None,
+    is_exempt: bool,
+) -> bool:
+    """Matrícula que gera mensalidade: não isenta, com valor e dia."""
+    return (
+        not is_exempt
+        and monthly_fee is not None
+        and monthly_fee > 0
+        and due_day is not None
+    )
+
+
+def ensure_billing_complete(
+    monthly_fee: Decimal | None,
+    due_day: int | None,
+    is_exempt: bool,
+) -> None:
+    if not is_exempt and not bills_monthly(monthly_fee, due_day, is_exempt):
+        raise ConflictError(
+            'An enrollment needs a monthly fee and a due day, '
+            'or must be exempt.',
+            code='ENROLLMENT_BILLING_INCOMPLETE',
+        )
 
 
 class StudentService:
@@ -71,6 +99,7 @@ class StudentService:
             academy_id=academy_id,
             modality_id=data.enrollment.modality_id,
         )
+        self._ensure_new_enrollment_billing(data.enrollment)
 
         context_data = self._build_context_from_create_request(data)
         address_id = await self._get_address_id_from_context(
@@ -93,16 +122,10 @@ class StudentService:
             )
         )
 
-        await self.enrollment_repository.create(
-            EnrollmentCreate(
-                academy_id=academy_id,
-                student_id=student_id,
-                modality_id=data.enrollment.modality_id,
-                monthly_fee=data.enrollment.monthly_fee,
-                due_day=data.enrollment.due_day,
-                is_exempt=data.enrollment.is_exempt,
-                status=data.enrollment.status,
-            )
+        await self._create_enrollment(
+            academy_id=academy_id,
+            student_id=student_id,
+            data=data.enrollment,
         )
 
         await self._create_responsibles(
@@ -411,8 +434,8 @@ class StudentService:
         if status is not None:
             update_data['status'] = EnrollmentStatus(str(status))
 
-        await self.enrollment_repository.update_by_id(
-            record_id=enrollments[0]['id'],
+        await self._apply_enrollment_update(
+            enrollment_id=enrollments[0]['id'],
             data=update_data,
         )
 
@@ -442,7 +465,28 @@ class StudentService:
                 code='ENROLLMENT_ALREADY_EXISTS',
             )
 
-        await self.enrollment_repository.create(
+        self._ensure_new_enrollment_billing(data)
+        await self._create_enrollment(
+            academy_id=academy_id,
+            student_id=student_id,
+            data=data,
+        )
+
+    @staticmethod
+    def _ensure_new_enrollment_billing(data: StudentEnrollmentPayload) -> None:
+        # Matrícula já criada inativa não cobra; ativa exige valor e dia
+        if data.status is EnrollmentStatus.ACTIVE:
+            ensure_billing_complete(
+                data.monthly_fee, data.due_day, data.is_exempt
+            )
+
+    async def _create_enrollment(
+        self,
+        academy_id: int,
+        student_id: int,
+        data: StudentEnrollmentPayload,
+    ) -> None:
+        enrollment_id = await self.enrollment_repository.create(
             EnrollmentCreate(
                 academy_id=academy_id,
                 student_id=student_id,
@@ -453,6 +497,64 @@ class StudentService:
                 status=data.status,
             )
         )
+        await BillingService(self.db_session).start_enrollment_billing(
+            academy_id,
+            enrollment_id,
+            data.enrollment_fee,
+            bills_monthly=(
+                data.status is EnrollmentStatus.ACTIVE
+                and bills_monthly(
+                    data.monthly_fee, data.due_day, data.is_exempt
+                )
+            ),
+        )
+
+    async def _apply_enrollment_update(
+        self,
+        enrollment_id: int,
+        data: dict[str, Any],
+    ) -> None:
+        """Grava a edição; exige valor e dia (ou isenta) se ficar ativa.
+
+        Se a matrícula passa a gerar mensalidade (reativada ou completada),
+        a cobrança automática recomeça no mês seguinte.
+        """
+        current = await self.enrollment_repository.get_one_or_fail(
+            fields=[
+                Enrollment.monthly_fee,
+                Enrollment.due_day,
+                Enrollment.is_exempt,
+                Enrollment.status,
+            ],
+            filters=[Enrollment.id == enrollment_id],
+        )
+        merged = {**current, **data}
+        was_active = current['status'] == EnrollmentStatus.ACTIVE
+        is_active = (
+            EnrollmentStatus(merged['status']) is EnrollmentStatus.ACTIVE
+        )
+
+        if is_active:
+            ensure_billing_complete(
+                merged['monthly_fee'], merged['due_day'], merged['is_exempt']
+            )
+
+        await self.enrollment_repository.update_by_id(
+            record_id=enrollment_id,
+            data=data,
+        )
+
+        was_billing = was_active and bills_monthly(
+            current['monthly_fee'], current['due_day'], current['is_exempt']
+        )
+        is_billing = is_active and bills_monthly(
+            merged['monthly_fee'], merged['due_day'], merged['is_exempt']
+        )
+
+        if is_billing and not was_billing:
+            await BillingService(self.db_session).restart_monthly_billing(
+                enrollment_id
+            )
 
     @transactional
     async def update_enrollment_by_id(
@@ -470,8 +572,8 @@ class StudentService:
             ],
         )
 
-        await self.enrollment_repository.update_by_id(
-            record_id=enrollment_id,
+        await self._apply_enrollment_update(
+            enrollment_id=enrollment_id,
             data=data,
         )
 
@@ -1006,6 +1108,11 @@ class StudentService:
             monthly_fee=Decimal(str(context_data['monthly_fee'])),
             due_day=int(context_data['due_day']),
             is_exempt=bool(context_data['is_exempt']),
+            enrollment_fee=(
+                Decimal(str(context_data['enrollment_fee']))
+                if context_data.get('enrollment_fee') is not None
+                else None
+            ),
         )
 
     @staticmethod

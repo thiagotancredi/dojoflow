@@ -56,6 +56,7 @@ class TelegramStep(StrEnum):
     WAITING_STUDENT_MONTHLY_FEE = 'waiting_student_monthly_fee'
     WAITING_STUDENT_DUE_DAY = 'waiting_student_due_day'
     WAITING_STUDENT_IS_EXEMPT = 'waiting_student_is_exempt'
+    WAITING_STUDENT_ENROLLMENT_FEE = 'waiting_student_enrollment_fee'
     WAITING_STUDENT_FIELD_CONFIRMATION = 'waiting_student_field_confirmation'
     WAITING_STUDENT_CONFIRMATION = 'waiting_student_confirmation'
 

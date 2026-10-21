@@ -682,3 +682,44 @@ async def test_payment_of_other_student_is_not_found(
 
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.json()['code'] == 'PAYMENT_NOT_FOUND'
+
+
+@pytest.mark.asyncio
+async def test_new_student_gets_fee_now_and_first_monthly_next_month(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # Cadastro pela API em 20/10/2026 com vencimento dia 10
+    headers = await auth_headers(client)
+    taekwondo = await add_modality(db_session, 'Taekwondo')
+    _freeze_today(monkeypatch, date(2026, 10, 20))
+    created = await client.post(
+        '/api/v1/students',
+        headers=headers,
+        json={
+            'name': 'Ana Lima',
+            'enrollments': [
+                {
+                    'modality_id': taekwondo,
+                    'monthly_fee': '120',
+                    'due_day': 10,
+                    'enrollment_fee': '80',
+                }
+            ],
+        },
+    )
+    assert created.status_code == HTTPStatus.CREATED, created.text
+    student_id = created.json()['id']
+
+    body = await _read(client, student_id, headers)
+    assert [(c['kind'], c['due_date']) for c in body['charges']] == [
+        ('enrollment_fee', '2026-10-20')
+    ]
+
+    _freeze_today(monkeypatch, date(2026, 11, 1))
+    body = await _read(client, student_id, headers)
+    assert [(c['kind'], c['due_date']) for c in body['charges']] == [
+        ('monthly', '2026-11-10'),
+        ('enrollment_fee', '2026-10-20'),
+    ]

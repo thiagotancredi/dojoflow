@@ -28,7 +28,7 @@ async def _setup(client: AsyncClient, db_session: AsyncSession) -> dict:
 async def _create(
     client: AsyncClient, ctx: dict, current_belt: dict | None
 ) -> object:
-    enrollment: dict = {'modality_id': ctx['taekwondo']}
+    enrollment: dict = {'modality_id': ctx['taekwondo'], 'is_exempt': True}
 
     if current_belt is not None:
         enrollment['current_belt'] = current_belt
@@ -147,6 +147,7 @@ async def test_new_enrollment_with_current_belt(
         headers=ctx['headers'],
         json={
             'modality_id': ctx['taekwondo'],
+            'is_exempt': True,
             'current_belt': {
                 'belt_id': ctx['white']['id'],
                 'graduated_on': '2026-10-20',
@@ -172,6 +173,7 @@ async def test_new_enrollment_with_invalid_belt_creates_nothing(
         headers=ctx['headers'],
         json={
             'modality_id': ctx['taekwondo'],
+            'is_exempt': True,
             'current_belt': {
                 'belt_id': ctx['blue_jj']['id'],
                 'graduated_on': '2026-10-20',

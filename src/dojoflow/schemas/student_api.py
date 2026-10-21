@@ -119,6 +119,8 @@ class EnrollmentApiPayload(BaseModel):
     due_day: int | None = Field(default=None, ge=MIN_DUE_DAY, le=MAX_DUE_DAY)
     is_exempt: bool = False
     status: EnrollmentStatus = EnrollmentStatus.ACTIVE
+    # Taxa de matrícula: None ou 0 = isenta
+    enrollment_fee: Decimal | None = Field(default=None, ge=0)
     # Faixa atual opcional: grava o 1º registro do histórico junto
     current_belt: EnrollmentBeltApiPayload | None = None
 
