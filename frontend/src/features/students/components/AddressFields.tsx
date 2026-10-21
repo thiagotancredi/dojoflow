@@ -72,12 +72,17 @@ export function AddressFields({ form }: AddressFieldsProps) {
         <Input
           id="zip_code"
           inputMode="numeric"
-          maxLength={8}
-          placeholder="74000000"
+          maxLength={9}
+          placeholder="74000-000"
           className="rounded-xl"
           {...register('zip_code')}
           // Evento do campo (não do register): roda só quando o mestre digita
-          onInput={(event) => void searchCep(event.currentTarget.value)}
+          onInput={(event) => {
+            // "74000-000" colado ou digitado vira "74000000"
+            const digits = event.currentTarget.value.replace(/\D/g, '').slice(0, 8)
+            setValue('zip_code', digits)
+            void searchCep(digits)
+          }}
         />
       </FormField>
       <div className="hidden sm:block" />

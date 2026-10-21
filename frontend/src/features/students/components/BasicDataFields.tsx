@@ -23,6 +23,7 @@ export function BasicDataFields({ form }: { form: UseFormReturn<BasicDataValues>
   const {
     register,
     control,
+    setValue,
     formState: { errors },
   } = form
 
@@ -117,9 +118,16 @@ export function BasicDataFields({ form }: { form: UseFormReturn<BasicDataValues>
         <Input
           id="cpf"
           inputMode="numeric"
-          maxLength={11}
+          maxLength={14}
           className="rounded-xl"
           {...register('cpf')}
+          // "123.456.789-00" vira "12345678900"
+          onInput={(event) =>
+            setValue(
+              'cpf',
+              event.currentTarget.value.replace(/\D/g, '').slice(0, 11),
+            )
+          }
         />
       </FormField>
       <FormField

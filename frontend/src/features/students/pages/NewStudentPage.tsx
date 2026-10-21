@@ -296,10 +296,20 @@ function ResponsiblesStep({
     defaultValues: emptyResponsible,
   })
 
+  const [notAdded, setNotAdded] = useState(false)
+
   function next() {
-    if (who === 'other' && responsibles.length === 0) {
-      setMissing(true)
-      return
+    if (who === 'other') {
+      // Digitou alguém e não clicou em "Adicionar": não deixa sumir calado
+      const typed = form.getValues()
+      if (typed.name.trim() || typed.phone.trim()) {
+        setNotAdded(true)
+        return
+      }
+      if (responsibles.length === 0) {
+        setMissing(true)
+        return
+      }
     }
     onNext()
   }
@@ -330,7 +340,7 @@ function ResponsiblesStep({
             <ul className="space-y-2">
               {responsibles.map((item, index) => (
                 <li
-                  key={`${item.name}-${item.phone}`}
+                  key={`${index}-${item.name}`}
                   className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm"
                 >
                   <span>
@@ -359,6 +369,7 @@ function ResponsiblesStep({
             onSubmit={form.handleSubmit((values) => {
               onAdd(values)
               setMissing(false)
+              setNotAdded(false)
               form.reset(emptyResponsible)
             })}
             className="space-y-3 rounded-2xl bg-muted p-4"
@@ -369,6 +380,12 @@ function ResponsiblesStep({
             </Button>
           </form>
 
+          {notAdded && (
+            <p role="alert" className="text-xs text-destructive">
+              Você preencheu um responsável e não adicionou. Clique em
+              "Adicionar este responsável" ou apague os campos.
+            </p>
+          )}
           {missing && (
             <p role="alert" className="text-xs text-destructive">
               Adicione pelo menos um responsável, ou escolha "O próprio aluno".
@@ -453,6 +470,8 @@ function EnrollmentsStep({
       : [{ key: 0, draft: newDraft(offered[0].id) }]
   // Modalidade escolhida em cada bloco (para não repetir nos outros)
   const [chosen, setChosen] = useState<Record<number, string>>({})
+  // Contador de chaves: nunca reaproveita a de um bloco removido
+  const nextKey = useRef(Math.max(0, ...blocks.map((block) => block.key)) + 1)
   const modalityOf = (block: Block) =>
     chosen[block.key] ?? block.draft.values.modality_id
   const used = current.map(modalityOf)
@@ -467,11 +486,17 @@ function EnrollmentsStep({
   function addBlock() {
     const free = offered.find((item) => !used.includes(item.id))
     if (!free) return
-    const nextKey = Math.max(-1, ...current.map((block) => block.key)) + 1
-    onBlocksChange([...snapshots(), { key: nextKey, draft: newDraft(free.id) }])
+    const key = nextKey.current
+    nextKey.current += 1
+    onBlocksChange([...snapshots(), { key, draft: newDraft(free.id) }])
   }
 
   function removeBlock(key: number) {
+    setChosen((state) => {
+      const next = { ...state }
+      delete next[key]
+      return next
+    })
     onBlocksChange(snapshots().filter((block) => block.key !== key))
   }
 
@@ -484,6 +509,17 @@ function EnrollmentsStep({
         return
       }
       drafts.push(draft)
+    }
+
+    const modalityIds = drafts.map((draft) => draft.values.modality_id)
+    const repeated = modalityIds.findIndex(
+      (id, index) => modalityIds.indexOf(id) !== index,
+    )
+    if (repeated >= 0) {
+      toast.error(
+        `A matrícula ${repeated + 1} repete uma modalidade. Troque ou remova.`,
+      )
+      return
     }
 
     try {

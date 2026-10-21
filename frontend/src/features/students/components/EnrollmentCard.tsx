@@ -45,13 +45,7 @@ export function EnrollmentCard({
         <p className="font-semibold">{enrollment.modality_name}</p>
         {actions}
       </div>
-      <p>
-        {enrollment.is_exempt
-          ? 'Isenta'
-          : isPending
-            ? 'Sem mensalidade definida'
-            : `${formatMoney(enrollment.monthly_fee)} · vence dia ${enrollment.due_day}`}
-      </p>
+      <p>{feeText(enrollment)}</p>
       <p className="flex items-center gap-1 text-xs text-muted-foreground">
         {isPending && <TriangleAlert className="size-3.5" />}
         {enrollment.status === 'inactive'
@@ -63,4 +57,16 @@ export function EnrollmentCard({
       {children}
     </div>
   )
+}
+
+// "R$ 150,00 · vence dia 10", só com as partes preenchidas
+function feeText(enrollment: Enrollment) {
+  if (enrollment.is_exempt) return 'Isenta'
+
+  const parts = [
+    enrollment.monthly_fee !== null && formatMoney(enrollment.monthly_fee),
+    enrollment.due_day !== null && `vence dia ${enrollment.due_day}`,
+  ].filter(Boolean)
+
+  return parts.length ? parts.join(' · ') : 'Sem mensalidade definida'
 }

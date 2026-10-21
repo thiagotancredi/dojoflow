@@ -164,6 +164,7 @@ export function StudentsPage() {
             hasFilter={hasFilter}
             state={students}
             onClearFilters={clearFilters}
+            onLastPage={() => updateParams({ pagina: String(totalPages) })}
           />
 
           {page && page.total > 0 && (
@@ -173,7 +174,11 @@ export function StudentsPage() {
                 size="sm"
                 className="rounded-full"
                 disabled={filters.page <= 1}
-                onClick={() => updateParams({ pagina: String(filters.page - 1) })}
+                onClick={() =>
+                  updateParams({
+                    pagina: String(Math.min(filters.page - 1, totalPages)),
+                  })
+                }
               >
                 Anterior
               </Button>
@@ -197,7 +202,8 @@ export function StudentsPage() {
         <section
           className={cn('min-w-0 flex-1', !hasSelection && 'hidden md:block')}
         >
-          <Outlet />
+          {/* A ficha avisa a lista quando salva algo (nome, matrículas…) */}
+          <Outlet context={{ refreshList: students.refetch }} />
         </section>
       </div>
     </div>
@@ -209,6 +215,7 @@ type StudentsListProps = {
   hasFilter: boolean
   state: ReturnType<typeof useStudents>
   onClearFilters: () => void
+  onLastPage: () => void
 }
 
 // Conteúdo da lista: carregando, erro, vazio ou os alunos
@@ -217,6 +224,7 @@ function StudentsList({
   hasFilter,
   state,
   onClearFilters,
+  onLastPage,
 }: StudentsListProps) {
   const { data, isLoading, error, refetch } = state
 
@@ -247,6 +255,23 @@ function StudentsList({
     )
   }
 
+  // Página além do fim (ex.: ?pagina=999) com alunos nas anteriores
+  if (data.items.length === 0 && data.total > 0) {
+    return (
+      <div className="space-y-2 p-4 text-center text-sm">
+        <p className="text-muted-foreground">Esta página não tem alunos.</p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-full"
+          onClick={onLastPage}
+        >
+          Ir para a última página
+        </Button>
+      </div>
+    )
+  }
+
   if (data.items.length === 0) {
     return (
       <div className="space-y-2 p-4 text-center text-sm">
@@ -265,8 +290,6 @@ function StudentsList({
               Limpar filtros
             </Button>
           </>
-        ) : filters.page > 1 ? (
-          <p className="text-muted-foreground">Esta página não tem alunos.</p>
         ) : filters.status === 'inactive' ? (
           <p className="text-muted-foreground">Nenhum aluno inativo.</p>
         ) : (

@@ -1,5 +1,5 @@
 import { ArrowLeft, Phone } from 'lucide-react'
-import { Link, useLocation, useParams } from 'react-router'
+import { Link, useLocation, useOutletContext, useParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -15,8 +15,15 @@ import { formatPhone } from '@/lib/format'
 export function StudentDetailPage() {
   const { studentId } = useParams()
   const { search } = useLocation()
-  const { data, isLoading, refetch } = useStudent(studentId)
+  const { data, isLoading, error, refetch } = useStudent(studentId)
+  const list = useOutletContext<{ refreshList: () => void } | undefined>()
   const backToList = `/app/alunos${search}`
+
+  // Depois de salvar: atualiza a ficha e a lista ao lado
+  function onChanged() {
+    refetch()
+    list?.refreshList()
+  }
 
   // Só a primeira carga mostra "carregando"; recarregar depois de salvar
   // mantém a ficha (e a aba aberta) na tela
@@ -24,6 +31,20 @@ export function StudentDetailPage() {
     return (
       <div className="rounded-3xl bg-card p-8 text-center text-sm text-muted-foreground">
         Carregando aluno…
+      </div>
+    )
+  }
+
+  if (!data && error && !isNotFound(error)) {
+    // Rede fora, 500…: o aluno existe, só não deu para carregar
+    return (
+      <div className="space-y-3 rounded-3xl bg-card p-8 text-center text-sm">
+        <p role="alert" className="text-destructive">
+          Não foi possível carregar o aluno.
+        </p>
+        <Button variant="outline" className="rounded-full" onClick={refetch}>
+          Tentar de novo
+        </Button>
       </div>
     )
   }
@@ -76,18 +97,25 @@ export function StudentDetailPage() {
         </TabsList>
 
         <TabsContent value="enrollments" className="pt-2">
-          <EnrollmentsTab student={data} onChanged={refetch} />
+          <EnrollmentsTab student={data} onChanged={onChanged} />
         </TabsContent>
         <TabsContent value="data" className="pt-2">
-          <BasicDataTab student={data} onChanged={refetch} />
+          <BasicDataTab student={data} onChanged={onChanged} />
         </TabsContent>
         <TabsContent value="address" className="pt-2">
-          <AddressTab student={data} onChanged={refetch} />
+          <AddressTab student={data} onChanged={onChanged} />
         </TabsContent>
         <TabsContent value="responsibles" className="pt-2">
-          <ResponsiblesTab student={data} onChanged={refetch} />
+          <ResponsiblesTab student={data} onChanged={onChanged} />
         </TabsContent>
       </Tabs>
     </article>
   )
+}
+
+// 404 do aluno ou id que nem é UUID (422): "não encontrado"
+function isNotFound(error: unknown) {
+  if (typeof error !== 'object' || error === null) return false
+  if ('code' in error && error.code === 'STUDENT_NOT_FOUND') return true
+  return 'detail' in error && Array.isArray(error.detail)
 }
