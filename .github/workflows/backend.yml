@@ -40,4 +40,4 @@ jobs:
         run: |
           poetry run alembic upgrade head
           poetry run alembic check
-      - run: poetry run pytest -q
+      - run: poetry run pytest -q -n auto

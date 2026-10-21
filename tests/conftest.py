@@ -27,16 +27,33 @@ from dojoflow.models.master import Master
 from dojoflow.services import security
 from tests.helpers.auth import SEED
 
-TEST_DATABASE_URL = os.environ.get(
+BASE_TEST_DATABASE_URL = os.environ.get(
     'TEST_DATABASE_URL',
     'postgresql+psycopg://postgres:postgres@localhost:5434/dojoflow_test',
 )
 
+
+def _database_url_for_this_process() -> str:
+    # Com pytest-xdist (-n), cada processo usa o próprio banco:
+    # dojoflow_test_gw0, dojoflow_test_gw1...
+    worker = os.environ.get('PYTEST_XDIST_WORKER')
+    url = make_url(BASE_TEST_DATABASE_URL)
+
+    if worker:
+        url = url.set(database=f'{url.database}_{worker}')
+
+    return url.render_as_string(hide_password=False)
+
+
+TEST_DATABASE_URL = _database_url_for_this_process()
+
 # Academia e mestre fixos: criados uma vez e preservados entre os testes
 PRESERVED_TABLES = {Academy.__tablename__, Master.__tablename__}
-TABLES_TO_EMPTY = ', '.join(
-    f'"{table.name}"'
-    for table in Base.metadata.sorted_tables
+# DELETE (e não TRUNCATE): com poucas linhas por teste é bem mais barato.
+# Ordem invertida: filhas antes das mães, por causa das chaves estrangeiras.
+EMPTY_TABLES_SQL = '; '.join(
+    f'DELETE FROM "{table.name}"'
+    for table in reversed(Base.metadata.sorted_tables)
     if table.name not in PRESERVED_TABLES
 )
 
@@ -139,15 +156,15 @@ def _configure_test_settings() -> None:
 
 async def _reset_data(session: AsyncSession) -> None:
     # Esvazia tudo, menos a academia e o mestre fixos (e volta os dois ao
-    # estado original, caso um teste tenha alterado algum dado deles)
+    # estado original, caso um teste tenha alterado algum dado deles).
+    # Os ids não voltam a 1: nenhum teste depende disso.
+    # Um único envio ao banco (sem parâmetros, então vários comandos juntos)
     await session.execute(
-        text(f'TRUNCATE {TABLES_TO_EMPTY} RESTART IDENTITY CASCADE')
-    )
-    await session.execute(
-        text('DELETE FROM master WHERE id <> :id'), {'id': SEED.master_id}
-    )
-    await session.execute(
-        text('DELETE FROM academy WHERE id <> :id'), {'id': SEED.academy_id}
+        text(
+            f'{EMPTY_TABLES_SQL}; '
+            f'DELETE FROM master WHERE id <> {int(SEED.master_id)}; '
+            f'DELETE FROM academy WHERE id <> {int(SEED.academy_id)}'
+        )
     )
     await session.execute(
         text(
