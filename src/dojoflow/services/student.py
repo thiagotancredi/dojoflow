@@ -778,6 +778,7 @@ class StudentService:
                 Enrollment.monthly_fee,
                 Enrollment.due_day,
                 Enrollment.is_exempt,
+                Enrollment.billing_start_month,
                 Modality.name.label('modality_name'),
                 Enrollment.public_id.label('enrollment_public_id'),
                 Modality.public_id.label('modality_public_id'),

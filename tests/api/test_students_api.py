@@ -635,3 +635,22 @@ async def test_old_incomplete_enrollment_can_be_inactivated_not_edited(
     assert edited.status_code == HTTPStatus.CONFLICT
     assert edited.json()['code'] == 'ENROLLMENT_BILLING_INCOMPLETE'
     assert inactivated.status_code == HTTPStatus.NO_CONTENT
+
+
+@pytest.mark.asyncio
+async def test_detail_shows_billing_start_month(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # O site usa para limitar o "Lançar mês anterior"
+    _freeze_today(monkeypatch, date(2026, 10, 20))
+    headers, _, response = await _create(client, db_session)
+    student_id = response.json()['id']
+
+    detail = await client.get(
+        f'/api/v1/students/{student_id}', headers=headers
+    )
+
+    (enrollment,) = detail.json()['enrollments']
+    assert enrollment['billing_start_month'] == '2026-11-01'

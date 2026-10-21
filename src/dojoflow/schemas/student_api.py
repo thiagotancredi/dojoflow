@@ -61,6 +61,9 @@ class EnrollmentApiRead(BaseModel):
     monthly_fee: Decimal | None
     due_day: int | None
     is_exempt: bool
+    # 1º mês com mensalidade automática (nulo = não cobra); meses antes
+    # dele entram pelo "Lançar mês anterior"
+    billing_start_month: date | None
 
 
 class ResponsibleLinkApiRead(BaseModel):
@@ -107,6 +110,7 @@ class StudentDetailRead(BaseModel):
                     monthly_fee=item['monthly_fee'],
                     due_day=item['due_day'],
                     is_exempt=item['is_exempt'],
+                    billing_start_month=item['billing_start_month'],
                 )
                 for item in details['enrollments']
             ],

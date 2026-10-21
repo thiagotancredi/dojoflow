@@ -871,6 +871,14 @@ class BillingService:
             by_student.setdefault(charge.student_id, []).append(charge)
 
         contacts = await self._contacts(academy_id, set(by_student))
+        # "Em aberto" é sempre o que o aluno deve (todos os meses); o filtro
+        # só decide quais alunos aparecem
+        owed: dict[int, Decimal] = {}
+        for charge in charges:
+            if charge.status not in CLOSED_STATUSES:
+                owed[charge.student_id] = (
+                    owed.get(charge.student_id, ZERO) + charge.open_amount
+                )
         normalized = ' '.join(search.split()).casefold() if search else ''
         settings = await self.get_settings(academy_id)
         academy_name = await self._academy_name(academy_id)
@@ -897,14 +905,7 @@ class BillingService:
                     modalities=sorted({
                         c.modality_name for c in student_charges
                     }),
-                    open_amount=sum(
-                        (
-                            c.open_amount
-                            for c in student_charges
-                            if c.status not in CLOSED_STATUSES
-                        ),
-                        ZERO,
-                    ),
+                    open_amount=owed.get(student_id, ZERO),
                     days_late=(
                         (today - min(c.due_date for c in student_overdue)).days
                         if student_overdue

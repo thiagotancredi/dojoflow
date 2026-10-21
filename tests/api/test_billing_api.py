@@ -954,3 +954,24 @@ async def test_overview_is_scoped_to_academy(
 
     assert response.json()['items'] == []
     assert response.json()['overdue_total'] == '0.00'
+
+
+@pytest.mark.asyncio
+async def test_overview_open_amount_is_what_the_student_owes(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # Ana deve janeiro e fevereiro; no filtro do mês (fevereiro), "Em
+    # aberto" mostra tudo o que ela deve, não só fevereiro
+    ana = await _overdue_student(client, db_session, monkeypatch)
+
+    response = await client.get(
+        '/api/v1/billing/overview',
+        headers=ana['headers'],
+        params={'filter': 'all', 'month': '2027-02'},
+    )
+
+    (item,) = response.json()['items']
+    assert item['open_amount'] == '200.00'
+    assert item['days_late'] == 36  # noqa: PLR2004

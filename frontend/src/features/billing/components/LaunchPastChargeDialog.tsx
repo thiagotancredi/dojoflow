@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useLaunchPastCharge } from '@/features/billing/hooks'
-import { currentMonth } from '@/features/billing/labels'
+import { currentMonth, formatMonth } from '@/features/billing/labels'
 import type { Enrollment } from '@/features/students/api'
 import { applyFieldErrors, showApiError } from '@/lib/api/errors'
 import { moneyToInput, parseMoney } from '@/lib/money'
@@ -51,6 +51,16 @@ function previousMonth(month: string) {
   const [year, value] = month.split('-').map(Number)
   const date = new Date(year, value - 2, 1)
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+// Último mês que dá para lançar nesta matrícula: o anterior ao início da
+// cobrança automática; sem cobrança automática, até o mês atual.
+// Ex.: ligado em 21/10 com vencimento dia 10 → começa em novembro →
+// outubro entra por aqui.
+function lastLaunchableMonth(enrollment: Enrollment) {
+  return enrollment.billing_start_month
+    ? previousMonth(enrollment.billing_start_month.slice(0, 7))
+    : currentMonth()
 }
 
 // Vencimento padrão: o dia de vencimento da matrícula naquele mês
@@ -112,7 +122,7 @@ function LaunchForm({
 }) {
   const { mutate, isPending } = useLaunchPastCharge(studentId)
   const first = enrollments[0]
-  const month = previousMonth(currentMonth())
+  const month = lastLaunchableMonth(first)
   const form = useForm<LaunchValues>({
     resolver: zodResolver(launchSchema),
     defaultValues: {
@@ -132,15 +142,29 @@ function LaunchForm({
 
   const enrollmentById = (id: string) =>
     enrollments.find((item) => item.id === id) ?? first
+  const selected = enrollmentById(
+    useWatch({ control, name: 'enrollment_id' }) ?? first.id,
+  )
+  const lastMonth = lastLaunchableMonth(selected)
 
   // Trocar a matrícula ou o mês sugere valor e vencimento de novo
   function suggest(enrollmentId: string, chosenMonth: string) {
     const enrollment = enrollmentById(enrollmentId)
+    // Mês depois do limite desta matrícula volta para o limite
+    const limit = lastLaunchableMonth(enrollment)
+    const fixedMonth = chosenMonth > limit ? limit : chosenMonth
+    if (fixedMonth !== getValues('month')) setValue('month', fixedMonth)
     setValue('amount', moneyToInput(enrollment.monthly_fee))
-    setValue('due_date', dueDateFor(chosenMonth, enrollment.due_day))
+    setValue('due_date', dueDateFor(fixedMonth, enrollment.due_day))
   }
 
   async function save(values: LaunchValues) {
+    if (values.month > lastMonth) {
+      form.setError('month', {
+        message: `Até ${formatMonth(`${lastMonth}-01`)} (depois disso o sistema cobra sozinho).`,
+      })
+      return
+    }
     try {
       await mutate({
         enrollment_id: values.enrollment_id,
@@ -158,8 +182,9 @@ function LaunchForm({
   return (
     <form noValidate onSubmit={form.handleSubmit(save)} className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Para dívidas de antes de o sistema cobrar sozinho. Um mês que já tem
-        cobrança nesta matrícula não pode ser lançado de novo.
+        Para dívidas de antes de o sistema cobrar sozinho (nesta matrícula,
+        até {formatMonth(`${lastMonth}-01`)}). Um mês que já tem cobrança não
+        pode ser lançado de novo.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         {enrollments.length > 1 && (
@@ -200,7 +225,7 @@ function LaunchForm({
           <Input
             id="launch-month"
             type="month"
-            max={previousMonth(currentMonth())}
+            max={lastMonth}
             className="rounded-xl"
             {...register('month', {
               onChange: (event: { target: { value: string } }) =>

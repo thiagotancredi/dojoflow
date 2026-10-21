@@ -1198,6 +1198,8 @@ export interface components {
             due_day: number | null;
             /** Is Exempt */
             is_exempt: boolean;
+            /** Billing Start Month */
+            billing_start_month: string | null;
         };
         /** EnrollmentApiUpdateRequest */
         EnrollmentApiUpdateRequest: {
