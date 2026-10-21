@@ -5,6 +5,7 @@ from dojoflow.services.telegram_bot.menus.main import main_menu_reply_markup
 from dojoflow.services.telegram_bot.menus.modalities import (
     academy_modalities_reply_markup,
 )
+from dojoflow.shared.exceptions import ConflictError
 
 
 class AcademyModalitiesHandler:
@@ -87,10 +88,17 @@ class AcademyModalitiesHandler:
 
             return {'status': 'invalid_modality_id'}
 
-        was_selected = await self.modality_service.toggle_academy_modality(
-            academy_id=context.academy_id,
-            modality_id=modality_id,
-        )
+        try:
+            was_selected = await self.modality_service.toggle_academy_modality(
+                academy_id=context.academy_id,
+                modality_id=modality_id,
+            )
+        except ConflictError:
+            return await self._explain_modality_has_students(
+                chat_id=chat_id,
+                context=context,
+                modality_id=modality_id,
+            )
 
         message = (
             'Modalidade marcada com sucesso. ✅'
@@ -111,6 +119,31 @@ class AcademyModalitiesHandler:
         )
 
         return {'status': 'academy_modality_toggled'}
+
+    async def _explain_modality_has_students(
+        self,
+        chat_id: int,
+        context: MasterContextRead,
+        modality_id: int,
+    ) -> dict[str, str]:
+        options = await self.modality_service.list_academy_options(
+            context.academy_id
+        )
+        option = next(item for item in options if item.id == modality_id)
+        count = option.active_enrollment_count
+        students = '1 aluno tem' if count == 1 else f'{count} alunos têm'
+
+        await self.telegram_service.send_message(
+            chat_id=chat_id,
+            text=(
+                f'Não dá para desmarcar {option.name}: {students} matrícula '
+                'ativa nessa modalidade.\n\nInative as matrículas desses '
+                'alunos primeiro (pelo site ou pela ficha do aluno).'
+            ),
+            reply_markup=academy_modalities_reply_markup(options),
+        )
+
+        return {'status': 'academy_modality_has_students'}
 
     async def _finish_setup(
         self,

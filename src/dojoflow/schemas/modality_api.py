@@ -27,6 +27,7 @@ class ModalityOptionApiRead(BaseModel):
     has_belts: bool
     belt_count: int
     pending_belt_count: int
+    active_enrollment_count: int
 
     @classmethod
     def from_internal(
@@ -41,6 +42,7 @@ class ModalityOptionApiRead(BaseModel):
             has_belts=option.has_belts,
             belt_count=option.belt_count,
             pending_belt_count=option.pending_belt_count,
+            active_enrollment_count=option.active_enrollment_count,
         )
 
 

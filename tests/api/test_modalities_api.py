@@ -6,6 +6,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.helpers.auth import auth_headers, create_modality
+from tests.helpers.scenario import add_modality, add_student
 
 
 @pytest.mark.asyncio
@@ -43,6 +44,7 @@ async def test_catalog_and_toggle_use_public_ids(
             'has_belts': False,
             'belt_count': 0,
             'pending_belt_count': 0,
+            'active_enrollment_count': 0,
         }
     ]
 
@@ -74,3 +76,42 @@ async def test_toggle_with_integer_id_is_rejected(
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.asyncio
+async def test_remove_modality_with_active_enrollment_is_blocked(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers = await auth_headers(client)
+    taekwondo = await add_modality(db_session, 'Taekwondo')
+    await add_student(db_session, taekwondo, 'Ana Lima')
+    await add_student(db_session, taekwondo, 'Bruno Souza', status='inactive')
+
+    response = await client.put(
+        f'/api/v1/academy/modalities/{taekwondo}/toggle', headers=headers
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['code'] == 'MODALITY_HAS_ACTIVE_ENROLLMENTS'
+    options = await client.get('/api/v1/academy/modalities', headers=headers)
+    [option] = options.json()
+    assert option['is_selected'] is True
+    assert option['active_enrollment_count'] == 1
+
+
+@pytest.mark.asyncio
+async def test_remove_modality_with_only_inactive_enrollments_is_allowed(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers = await auth_headers(client)
+    taekwondo = await add_modality(db_session, 'Taekwondo')
+    await add_student(db_session, taekwondo, status='inactive')
+
+    response = await client.put(
+        f'/api/v1/academy/modalities/{taekwondo}/toggle', headers=headers
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {'is_selected': False}

@@ -130,6 +130,12 @@ bordas `#2f3034`, botões claros (`#e4e4e2` com texto grafite).
   - clicar no cartão abre `/app/configuracoes/modalidades/:id/faixas`;
   - menu ⋯ no canto: "Ver faixas" e "Remover da academia" (abre a confirmação
     que já existe).
+  - **Regra (decidida em 21/10):** modalidade com aluno de **matrícula ativa**
+    não pode ser removida (backend recusa com `MODALITY_HAS_ACTIVE_ENROLLMENTS`,
+    vale para site e bot). No site, a janela diz "Não dá para remover X: N
+    alunos têm matrícula ativa…" com "Ver alunos de X" (lista filtrada) e
+    "Entendi"; no bot, mensagem explicando. Matrículas inativas não bloqueiam.
+    A API informa `active_enrollment_count` por modalidade.
 - **Catálogo:** etiquetas "+ 🥋 Judô"; um clique adiciona (como o "+ Adicionar"
   de hoje) e a modalidade vira cartão. *Minha escolha:* com todas adicionadas, a
   parte do catálogo some; sem nenhuma oferecida, a grade dá lugar a "Nenhuma

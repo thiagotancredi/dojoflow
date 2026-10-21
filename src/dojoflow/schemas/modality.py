@@ -28,6 +28,7 @@ class ModalityOptionRead(BaseModel):
     has_belts: bool = False
     belt_count: int = 0
     pending_belt_count: int = 0
+    active_enrollment_count: int = 0
 
 
 class AcademyModalityRead(BaseModel):

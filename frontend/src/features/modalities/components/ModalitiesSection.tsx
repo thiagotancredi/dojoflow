@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 
 import {
   AlertDialog,
@@ -14,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { listAcademyModalities, toggleModality } from '@/features/modalities/api'
 import type { ModalityOption } from '@/features/modalities/api'
 import { ModalityCard } from '@/features/modalities/components/ModalityCard'
+import { messageFor } from '@/lib/api/errors'
 
 type LoadStatus = 'loading' | 'ready' | 'error'
 
@@ -67,8 +69,11 @@ export function ModalitiesSection() {
             : option,
         ),
       )
-    } catch {
-      setToggleError('Não foi possível alterar a modalidade. Tente novamente.')
+    } catch (error) {
+      // Ex.: alguém matriculou um aluno enquanto a tela estava aberta
+      setToggleError(
+        messageFor(error, 'Não foi possível alterar a modalidade. Tente novamente.'),
+      )
     } finally {
       setPendingId(null)
     }
@@ -171,23 +176,54 @@ export function ModalitiesSection() {
         }}
       >
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remover {toRemove?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Alunos já matriculados continuam matriculados; só não será
-              possível fazer novas matrículas nesta modalidade.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={confirmRemove}>
-              Remover
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          {toRemove && toRemove.active_enrollment_count > 0 ? (
+            // Com alunos ativos não dá para remover (o backend também recusa)
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Não dá para remover {toRemove.name}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {activeStudentsText(toRemove.active_enrollment_count)}{' '}
+                  matrícula ativa nesta modalidade. Inative essas matrículas
+                  primeiro.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <Button asChild variant="outline" className="rounded-full">
+                  <Link to={`/app/alunos?modalidade=${toRemove.id}`}>
+                    Ver alunos de {toRemove.name}
+                  </Link>
+                </Button>
+                <AlertDialogCancel>Entendi</AlertDialogCancel>
+              </AlertDialogFooter>
+            </>
+          ) : (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remover {toRemove?.name}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  A modalidade deixa de aparecer na hora de matricular
+                  alunos, no site e no bot do Telegram.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={confirmRemove}>
+                  Remover
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
         </AlertDialogContent>
       </AlertDialog>
     </section>
   )
+}
+
+// 1 → "1 aluno tem" · 12 → "12 alunos têm"
+function activeStudentsText(count: number) {
+  return count === 1 ? '1 aluno tem' : `${count} alunos têm`
 }
 
 function SectionLabel({ children }: { children: string | (string | number)[] }) {
