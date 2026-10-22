@@ -1031,6 +1031,23 @@ export interface components {
         AdminStatusUpdate: {
             status: components["schemas"]["AcademyStatus"];
         };
+        /** AgeGroupCountRead */
+        AgeGroupCountRead: {
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "kids" | "juvenile" | "adult" | "master" | "unknown";
+            /** Count */
+            count: number;
+        };
+        /** AgeGroupsRead */
+        AgeGroupsRead: {
+            /** All */
+            all: components["schemas"]["AgeGroupCountRead"][];
+            /** By Modality */
+            by_modality: components["schemas"]["ModalityAgeGroupsRead"][];
+        };
         /** AllocationApiRead */
         AllocationApiRead: {
             /**
@@ -1212,6 +1229,22 @@ export interface components {
             /** Message Template */
             message_template?: string | null;
         };
+        /** BirthdayRead */
+        BirthdayRead: {
+            /**
+             * Student Id
+             * Format: uuid
+             */
+            student_id: string;
+            /** Name */
+            name: string;
+            /** Day */
+            day: number;
+            /** Turning Age */
+            turning_age: number;
+            /** Is Today */
+            is_today: boolean;
+        };
         /** BulkBeltItemApi */
         BulkBeltItemApi: {
             /**
@@ -1321,6 +1354,13 @@ export interface components {
             overdue_students: number;
             /** Due Soon Students */
             due_soon_students: number;
+            /** Overdue Total */
+            overdue_total: string;
+            age_groups: components["schemas"]["AgeGroupsRead"];
+            /** Birthdays */
+            birthdays: components["schemas"]["BirthdayRead"][];
+            /** New Students By Month */
+            new_students_by_month: components["schemas"]["MonthCountRead"][];
         };
         /** DueSoonChargeRead */
         DueSoonChargeRead: {
@@ -1584,6 +1624,18 @@ export interface components {
             /** Support Mode */
             support_mode: boolean;
         };
+        /** ModalityAgeGroupsRead */
+        ModalityAgeGroupsRead: {
+            /**
+             * Modality Id
+             * Format: uuid
+             */
+            modality_id: string;
+            /** Modality Name */
+            modality_name: string;
+            /** Groups */
+            groups: components["schemas"]["AgeGroupCountRead"][];
+        };
         /** ModalityApiRead */
         ModalityApiRead: {
             /**
@@ -1646,6 +1698,16 @@ export interface components {
         ModalityToggleRead: {
             /** Is Selected */
             is_selected: boolean;
+        };
+        /** MonthCountRead */
+        MonthCountRead: {
+            /**
+             * Month
+             * Format: date
+             */
+            month: string;
+            /** Count */
+            count: number;
         };
         /** OnboardingRead */
         OnboardingRead: {

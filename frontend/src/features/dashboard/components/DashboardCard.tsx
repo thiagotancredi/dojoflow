@@ -3,7 +3,8 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 type DashboardCardProps = {
-  title: string
+  // Texto ou texto + número (ex.: "Inadimplentes · 5")
+  title: ReactNode
   subtitle?: string
   action?: ReactNode
   className?: string
