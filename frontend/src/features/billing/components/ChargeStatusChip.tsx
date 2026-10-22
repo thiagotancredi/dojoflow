@@ -1,5 +1,4 @@
 import type { ChargeStatus } from '@/features/billing/api'
-import { formatMoney } from '@/lib/money'
 import { cn } from '@/lib/utils'
 
 // Cor de cada situação (tokens do tema; atraso usa a cor reservada de alerta)
@@ -34,16 +33,14 @@ const STYLES: Record<ChargeStatus, { label: string; dot: string; chip: string }>
 
 type ChargeStatusChipProps = {
   status: ChargeStatus
-  // Quanto falta pagar (aparece no "Parcial · falta R$ X")
-  open: number
+  // Quanto já foi pago: vencida com parte paga vira "Atrasada · parcial"
+  paid: number
 }
 
-export function ChargeStatusChip({ status, open }: ChargeStatusChipProps) {
+export function ChargeStatusChip({ status, paid }: ChargeStatusChipProps) {
   const style = STYLES[status]
   const label =
-    status === 'partial'
-      ? `Parcial · falta ${formatMoney(open.toFixed(2))}`
-      : style.label
+    status === 'overdue' && paid > 0 ? 'Atrasada · parcial' : style.label
 
   return (
     <span
