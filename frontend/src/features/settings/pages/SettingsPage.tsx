@@ -10,11 +10,10 @@ import { ModalitiesSection } from '@/features/modalities/components/ModalitiesSe
 import { AppearanceSetting } from '@/features/settings/components/AppearanceSetting'
 import { BillingSettingsSection } from '@/features/settings/components/BillingSettingsSection'
 import { ChangePasswordForm } from '@/features/settings/components/ChangePasswordForm'
-import { TelegramConnect } from '@/features/settings/components/TelegramConnect'
 import { formatPhone } from '@/lib/format'
 
 // Configurações da academia: dados (só leitura por enquanto), modalidades,
-// cobrança e conta (trocar senha, conectar Telegram, sair).
+// cobrança e conta (trocar senha, sair).
 export function SettingsPage() {
   const navigate = useNavigate()
   const { master, signOut } = useAuth()
@@ -67,9 +66,6 @@ export function SettingsPage() {
             <Field label="Telefone">
               {master.phone ? formatPhone(master.phone) : 'Não informado'}
             </Field>
-            <Field label="Telegram">
-              {master.telegram_linked ? 'Conectado' : 'Não conectado'}
-            </Field>
           </dl>
         </section>
       )}
@@ -85,9 +81,6 @@ export function SettingsPage() {
           <AppearanceSetting />
 
           <ChangePasswordForm />
-
-          {/* Some sozinho quando o bot confirma a conexão */}
-          {!master.telegram_linked && <TelegramConnect />}
 
           <Button variant="ghost" className="rounded-full" onClick={handleSignOut}>
             Sair

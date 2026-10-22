@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from typing import Any
 
 import pytest
@@ -5,6 +6,7 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dojoflow.models.academy import Academy
 from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.address import Address
 from dojoflow.models.modality import Modality
@@ -19,9 +21,10 @@ from dojoflow.repositories.student import StudentRepository
 from dojoflow.repositories.student_responsible import (
     StudentResponsibleRepository,
 )
+from dojoflow.schemas.student import StudentCreateRequest, StudentRead
 from dojoflow.services.student import StudentService
 from dojoflow.shared.exceptions import NotFoundError
-from tests.helpers.onboarding import register_onboarding
+from tests.helpers.onboarding import register_web
 
 EXPECTED_SHARED_RESPONSIBLE_LINKS_COUNT = 2
 
@@ -70,6 +73,32 @@ def _make_student_context(
     return context_data
 
 
+async def _create(
+    service: StudentService,
+    academy_id: int,
+    context: dict[str, Any],
+) -> StudentRead:
+    """Cadastro normal (create_student) a partir dos dados de teste."""
+    request = StudentCreateRequest(
+        name=context['student_name'],
+        sex=context['sex'],
+        enrollment={
+            'modality_id': context['modality_id'],
+            'monthly_fee': context['monthly_fee'],
+            'due_day': context['due_day'],
+            'is_exempt': context['is_exempt'],
+        },
+        address=context.get('address'),
+        address_reference_student_id=context.get(
+            'address_reference_student_id'
+        ),
+        responsibles=context.get('responsibles', []),
+        responsible_references=context.get('responsible_references', []),
+    )
+
+    return await service.create_student(academy_id=academy_id, data=request)
+
+
 def _make_student_service(db_session: AsyncSession) -> StudentService:
     return StudentService(
         student_repository=StudentRepository(db_session=db_session),
@@ -90,14 +119,18 @@ async def _setup_academy_with_modality(
     client: AsyncClient,
     db_session: AsyncSession,
     academy_name: str,
-    telegram_user_id: int,
+    seq: int,
 ) -> tuple[int, int]:
-    onboarding_response, _ = await register_onboarding(
+    response, _ = await register_web(
         client,
         academy_name=academy_name,
-        telegram_user_id=telegram_user_id,
+        email=f'mestre{seq}@dojoflow.test',
     )
-    onboarding_body = onboarding_response.json()
+    assert response.status_code == HTTPStatus.CREATED
+    academy_id = await db_session.scalar(
+        select(Academy.id).where(Academy.name == academy_name)
+    )
+    assert academy_id is not None
 
     modality = Modality(
         name=f'Taekwondo {academy_name}',
@@ -108,13 +141,13 @@ async def _setup_academy_with_modality(
     await db_session.flush()
 
     academy_modality = AcademyModality(
-        academy_id=onboarding_body['academy_id'],
+        academy_id=academy_id,
         modality_id=modality.id,
     )
     db_session.add(academy_modality)
     await db_session.commit()
 
-    return onboarding_body['academy_id'], modality.id
+    return academy_id, modality.id
 
 
 @pytest.mark.asyncio
@@ -126,22 +159,24 @@ async def test_create_student_reusing_address_from_another_student(
         client=client,
         db_session=db_session,
         academy_name='Academia Luna',
-        telegram_user_id=100000001,
+        seq=1,
     )
 
     student_service = _make_student_service(db_session)
 
-    first_student = await student_service.create_from_telegram_context(
-        academy_id=academy_id,
-        context_data=_make_student_context(
+    first_student = await _create(
+        student_service,
+        academy_id,
+        _make_student_context(
             student_name='Luna',
             modality_id=modality_id,
         ),
     )
 
-    second_student = await student_service.create_from_telegram_context(
-        academy_id=academy_id,
-        context_data=_make_student_context(
+    second_student = await _create(
+        student_service,
+        academy_id,
+        _make_student_context(
             student_name='Castiel',
             modality_id=modality_id,
             address_reference_student_id=first_student.id,
@@ -176,29 +211,31 @@ async def test_create_student_cannot_reuse_address_from_another_academy(
         client=client,
         db_session=db_session,
         academy_name='Academia Luna',
-        telegram_user_id=100000001,
+        seq=1,
     )
     second_academy_id, second_modality_id = await _setup_academy_with_modality(
         client=client,
         db_session=db_session,
         academy_name='Academia Castiel',
-        telegram_user_id=100000002,
+        seq=2,
     )
 
     student_service = _make_student_service(db_session)
 
-    first_student = await student_service.create_from_telegram_context(
-        academy_id=first_academy_id,
-        context_data=_make_student_context(
+    first_student = await _create(
+        student_service,
+        first_academy_id,
+        _make_student_context(
             student_name='Luna',
             modality_id=first_modality_id,
         ),
     )
 
     with pytest.raises(NotFoundError):
-        await student_service.create_from_telegram_context(
-            academy_id=second_academy_id,
-            context_data=_make_student_context(
+        await _create(
+            student_service,
+            second_academy_id,
+            _make_student_context(
                 student_name='Castiel',
                 modality_id=second_modality_id,
                 address_reference_student_id=first_student.id,
@@ -215,16 +252,18 @@ async def test_reuse_address_without_reference_address_has_specific_code(
         client=client,
         db_session=db_session,
         academy_name='Academia Luna',
-        telegram_user_id=100000001,
+        seq=1,
     )
     student_service = _make_student_service(db_session)
-    reference = await student_service.create_from_telegram_context(
-        academy_id=academy_id,
-        context_data=_make_student_context('Luna', modality_id),
+    reference = await _create(
+        student_service,
+        academy_id,
+        _make_student_context('Luna', modality_id),
     )
-    other = await student_service.create_from_telegram_context(
-        academy_id=academy_id,
-        context_data=_make_student_context('Castiel', modality_id),
+    other = await _create(
+        student_service,
+        academy_id,
+        _make_student_context('Castiel', modality_id),
     )
     reference_model = await db_session.get(Student, reference.id)
     assert reference_model is not None
@@ -250,14 +289,15 @@ async def test_create_student_reusing_responsible_from_another_student(
         client=client,
         db_session=db_session,
         academy_name='Academia Luna',
-        telegram_user_id=100000001,
+        seq=1,
     )
 
     student_service = _make_student_service(db_session)
 
-    first_student = await student_service.create_from_telegram_context(
-        academy_id=academy_id,
-        context_data=_make_student_context(
+    first_student = await _create(
+        student_service,
+        academy_id,
+        _make_student_context(
             student_name='Luna',
             modality_id=modality_id,
         ),
@@ -282,9 +322,10 @@ async def test_create_student_reusing_responsible_from_another_student(
         }
     ]
 
-    second_student = await student_service.create_from_telegram_context(
-        academy_id=academy_id,
-        context_data=second_student_context,
+    second_student = await _create(
+        student_service,
+        academy_id,
+        second_student_context,
     )
 
     second_student_responsible_result = await db_session.execute(
@@ -322,20 +363,21 @@ async def test_create_student_cannot_reuse_responsible_from_another_academy(
         client=client,
         db_session=db_session,
         academy_name='Academia Luna',
-        telegram_user_id=100000001,
+        seq=1,
     )
     second_academy_id, second_modality_id = await _setup_academy_with_modality(
         client=client,
         db_session=db_session,
         academy_name='Academia Castiel',
-        telegram_user_id=100000002,
+        seq=2,
     )
 
     student_service = _make_student_service(db_session)
 
-    first_student = await student_service.create_from_telegram_context(
-        academy_id=first_academy_id,
-        context_data=_make_student_context(
+    first_student = await _create(
+        student_service,
+        first_academy_id,
+        _make_student_context(
             student_name='Luna',
             modality_id=first_modality_id,
         ),
@@ -361,7 +403,8 @@ async def test_create_student_cannot_reuse_responsible_from_another_academy(
     ]
 
     with pytest.raises(NotFoundError):
-        await student_service.create_from_telegram_context(
-            academy_id=second_academy_id,
-            context_data=second_student_context,
+        await _create(
+            student_service,
+            second_academy_id,
+            second_student_context,
         )

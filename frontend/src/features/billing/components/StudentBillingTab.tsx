@@ -1,17 +1,11 @@
-import { Ellipsis, Plus, Trash2 } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import type { Charge, Payment } from '@/features/billing/api'
-import { ChargeStatusChip } from '@/features/billing/components/ChargeStatusChip'
+import { ChargeStatement } from '@/features/billing/components/ChargeStatement'
 import { EditChargeDialog } from '@/features/billing/components/EditChargeDialog'
 import { LaunchPastChargeDialog } from '@/features/billing/components/LaunchPastChargeDialog'
 import { PaymentDialog } from '@/features/billing/components/PaymentDialog'
@@ -21,19 +15,14 @@ import {
   useSetChargeWaived,
   useStudentBilling,
 } from '@/features/billing/hooks'
-import {
-  PAYMENT_METHOD_LABELS,
-  capitalize,
-  formatDayMonth,
-  formatMonth,
-} from '@/features/billing/labels'
+import { chargeTitle } from '@/features/billing/statement'
 import { parseWhatsAppUrl } from '@/features/billing/whatsapp'
 import type { StudentDetail } from '@/features/students/api'
 import { showApiError } from '@/lib/api/errors'
 import { formatDate } from '@/lib/format'
 import { formatMoney } from '@/lib/money'
 
-// Aba "Mensalidades" da ficha: o que está em aberto, mês a mês, e as baixas
+// Aba "Mensalidades" da ficha: o que está em aberto e o extrato mês a mês
 export function StudentBillingTab({ student: detail }: { student: StudentDetail }) {
   const studentId = detail.student.id
   const { data, isLoading, error, refetch } = useStudentBilling(studentId)
@@ -66,6 +55,10 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
   }
 
   const hasOpen = Number(data.open_total) > 0
+  // O que forma o "em aberto": tudo que não está pago nem isento
+  const openCharges = data.charges.filter(
+    (charge) => charge.status !== 'paid' && charge.status !== 'waived',
+  )
 
   async function setWaived(charge: Charge, waived: boolean) {
     try {
@@ -81,7 +74,7 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
     if (!removing) return
     try {
       await removePayment.mutate(removing.id)
-      toast.success('Baixa excluída')
+      toast.success('Pagamento excluído')
       refetch()
     } catch (caught) {
       showApiError(caught)
@@ -102,7 +95,7 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
             {formatMoney(data.open_total)}
           </p>
           <p className="text-xs text-muted-foreground">
-            {hasOpen ? capitalize(data.open_months) : 'Nada em aberto 🎉'}
+            {hasOpen ? openCountLabel(openCharges) : 'Nada em aberto 🎉'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -121,7 +114,7 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
         </div>
       </div>
 
-      {/* Mês a mês (mais novo em cima) */}
+      {/* Extrato: uma linha por mensalidade (mais nova em cima) */}
       <section className="space-y-2">
         {data.charges.length === 0 ? (
           <p className="text-sm text-muted-foreground">
@@ -129,32 +122,14 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
             seguinte à matrícula.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="py-2 pr-3 font-medium">Mês</th>
-                  <th className="py-2 pr-3 font-medium">Modalidade</th>
-                  <th className="py-2 pr-3 font-medium">Vence</th>
-                  <th className="py-2 pr-3 font-medium">Valor</th>
-                  <th className="py-2 pr-3 font-medium">Pago</th>
-                  <th className="py-2 pr-3 font-medium">Situação</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {data.charges.map((charge) => (
-                  <ChargeRow
-                    key={charge.id}
-                    charge={charge}
-                    busy={waive.isPending}
-                    onWaive={(waived) => void setWaived(charge, waived)}
-                    onEdit={() => setEditing(charge)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ChargeStatement
+            charges={data.charges}
+            payments={data.payments}
+            busy={waive.isPending}
+            onWaive={(charge, waived) => void setWaived(charge, waived)}
+            onEdit={setEditing}
+            onRemovePayment={setRemoving}
+          />
         )}
         {detail.enrollments.length > 0 && (
           <Button
@@ -165,26 +140,6 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
           >
             <Plus /> Lançar mês anterior
           </Button>
-        )}
-      </section>
-
-      {/* Histórico de baixas */}
-      <section className="space-y-2">
-        <h3 className="font-semibold">Histórico de pagamentos</h3>
-        {data.payments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Nenhuma baixa registrada.
-          </p>
-        ) : (
-          <ul className="divide-y rounded-2xl border">
-            {data.payments.map((payment) => (
-              <PaymentItem
-                key={payment.id}
-                payment={payment}
-                onRemove={() => setRemoving(payment)}
-              />
-            ))}
-          </ul>
         )}
       </section>
 
@@ -212,13 +167,37 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => !open && setRemoving(null)}
-        title="Excluir esta baixa?"
-        description="As cobranças voltam ao saldo que tinham antes dela."
-        confirmLabel="Excluir baixa"
+        title={
+          removing
+            ? `Excluir o pagamento de ${formatMoney(removing.amount)} de ${formatDate(removing.paid_on)}?`
+            : 'Excluir este pagamento?'
+        }
+        description={removing ? removeDescription(removing, data.charges) : ''}
+        confirmLabel="Excluir pagamento"
         onConfirm={() => void confirmRemove()}
       />
     </div>
   )
+}
+
+// "2 mensalidades em aberto" (ou "cobranças", se tiver taxa de matrícula)
+function openCountLabel(open: Charge[]) {
+  const onlyMonthly = open.every((charge) => charge.kind !== 'enrollment_fee')
+  const noun = onlyMonthly ? 'mensalidade' : 'cobrança'
+  return `${open.length} ${noun}${open.length === 1 ? '' : 's'} em aberto`
+}
+
+// Quando um pagamento quitou mais de uma mensalidade, avisa todas
+function removeDescription(payment: Payment, charges: Charge[]) {
+  const back = 'As mensalidades voltam ao saldo que tinham antes dele.'
+  if (payment.allocations.length < 2) return back
+
+  const parts = payment.allocations.map((allocation) => {
+    const charge = charges.find((item) => item.id === allocation.charge_id)
+    const title = charge ? chargeTitle(charge) : allocation.label
+    return `${title} (${formatMoney(allocation.amount)})`
+  })
+  return `Este pagamento foi dividido entre: ${parts.join(', ')}. ${back}`
 }
 
 // A mensagem vai para um responsável? (o número do link é o dele)
@@ -230,134 +209,5 @@ function responsibleReceiving(detail: StudentDetail, url: string | null) {
   return (
     detail.responsibles.find((item) => digits(item.phone) === phone)?.name ??
     null
-  )
-}
-
-function chargeTitle(charge: Charge) {
-  const what =
-    charge.kind === 'enrollment_fee' ? 'Taxa de matrícula' : charge.modality_name
-  return `${formatMonth(charge.reference_month)} · ${what}`
-}
-
-function ChargeRow({
-  charge,
-  busy,
-  onWaive,
-  onEdit,
-}: {
-  charge: Charge
-  busy: boolean
-  onWaive: (waived: boolean) => void
-  onEdit: () => void
-}) {
-  const paid = Number(charge.paid)
-  const open = Number(charge.amount) - paid
-  const isFee = charge.kind === 'enrollment_fee'
-  // Com pagamento, a cobrança não muda (exclua a baixa antes)
-  const canChange = paid === 0
-
-  return (
-    <tr className="border-b last:border-0">
-      <td className="py-2 pr-3 whitespace-nowrap">
-        {formatMonth(charge.reference_month)}
-      </td>
-      <td className="py-2 pr-3">
-        {isFee ? (
-          <>
-            Taxa de matrícula
-            <span className="block text-xs text-muted-foreground">
-              {charge.modality_name}
-            </span>
-          </>
-        ) : (
-          charge.modality_name
-        )}
-      </td>
-      <td className="py-2 pr-3" title={formatDate(charge.due_date)}>
-        {formatDayMonth(charge.due_date)}
-      </td>
-      <td className="py-2 pr-3 whitespace-nowrap">
-        {formatMoney(charge.amount)}
-      </td>
-      <td className="py-2 pr-3 whitespace-nowrap">
-        {paid > 0 ? formatMoney(charge.paid) : '—'}
-      </td>
-      <td className="py-2 pr-3">
-        <ChargeStatusChip status={charge.status} open={open} />
-      </td>
-      <td className="py-2 text-right">
-        {canChange && (
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={busy}
-                aria-label={`Opções de ${chargeTitle(charge)}`}
-                className="size-8 rounded-full"
-              >
-                <Ellipsis />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {charge.status === 'waived' ? (
-                <DropdownMenuItem onSelect={() => onWaive(false)}>
-                  Desfazer isenção
-                </DropdownMenuItem>
-              ) : (
-                <>
-                  <DropdownMenuItem onSelect={() => onWaive(true)}>
-                    Isentar
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={onEdit}>Editar</DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </td>
-    </tr>
-  )
-}
-
-function PaymentItem({
-  payment,
-  onRemove,
-}: {
-  payment: Payment
-  onRemove: () => void
-}) {
-  const details = [
-    `em ${formatDate(payment.paid_on)}`,
-    payment.method ? PAYMENT_METHOD_LABELS[payment.method] : null,
-  ].filter(Boolean)
-
-  return (
-    <li className="flex items-start justify-between gap-3 p-3">
-      <div className="min-w-0 space-y-0.5 text-sm">
-        <p>
-          <span className="font-semibold">{formatMoney(payment.amount)}</span>{' '}
-          <span className="text-muted-foreground">{details.join(' · ')}</span>
-        </p>
-        <p className="text-xs text-muted-foreground">
-          →{' '}
-          {payment.allocations
-            .map((item) => `${item.label} ${formatMoney(item.amount)}`)
-            .join(' · ')}
-        </p>
-        {payment.notes && (
-          <p className="text-xs text-muted-foreground">{payment.notes}</p>
-        )}
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="Excluir baixa"
-        className="size-8 shrink-0 rounded-full text-destructive"
-        onClick={onRemove}
-      >
-        <Trash2 />
-      </Button>
-    </li>
   )
 }

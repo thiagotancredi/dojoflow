@@ -3,11 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dojoflow.database.transaction import transactional
 from dojoflow.schemas.academy import AcademyCreate
 from dojoflow.schemas.master import MasterCreate
-from dojoflow.schemas.onboarding import (
-    OnboardingRead,
-    OnboardingTelegramCreate,
-    OnboardingWebCreate,
-)
+from dojoflow.schemas.onboarding import OnboardingRead, OnboardingWebCreate
 from dojoflow.services.academy import AcademyService
 from dojoflow.services.master import MasterService
 from dojoflow.services.security import hash_password
@@ -24,38 +20,6 @@ class OnboardingService:
         self.academy_service = academy_service
         self.master_service = master_service
         self.db_session = db_session
-
-    async def register_onboarding(
-        self,
-        data: OnboardingTelegramCreate,
-    ) -> OnboardingRead:
-        return await self.register_telegram(data)
-
-    @transactional
-    async def register_telegram(
-        self,
-        data: OnboardingTelegramCreate,
-    ) -> OnboardingRead:
-        existing_master = await self.master_service.get_by_telegram_user_id(
-            data.telegram_user_id
-        )
-
-        if existing_master is not None:
-            raise ConflictError(
-                'This Telegram user is already registered as a master.'
-            )
-
-        master_data = MasterCreate(
-            academy_id=0,
-            telegram_user_id=data.telegram_user_id,
-            name=data.master_name,
-            phone=data.phone,
-        )
-
-        return await self._create_academy_and_master(
-            academy_name=data.academy_name,
-            master_data=master_data,
-        )
 
     @transactional
     async def register_web(

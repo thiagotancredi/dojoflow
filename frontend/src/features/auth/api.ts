@@ -5,19 +5,11 @@ import type { ApiError, Schemas } from '@/lib/api/client'
 export type AuthTokens = Schemas['AuthTokenResponse']
 export type Master = Schemas['MasterContextApiRead']
 export type SetCredentialsInput = Schemas['SetCredentialsRequest']
-export type TelegramLink = Schemas['TelegramLinkTokenResponse']
 
-// Define e-mail e senha. Dois jeitos de provar quem é:
-// - logado: manda current_password (troca de senha em Configurações)
-// - pelo bot: manda setup_token (link do /web, página /definir-acesso)
-// Devolve uma sessão nova; o backend derruba as sessões antigas.
+// Troca e-mail e senha de quem está logado (Configurações → Conta; manda a
+// senha atual). Devolve uma sessão nova; o backend derruba as antigas.
 export function setCredentials(body: SetCredentialsInput): Promise<AuthTokens> {
   return unwrap(api.POST('/api/v1/auth/set-credentials', { body }))
-}
-
-// Link de uso único (15 min) que abre o bot e vincula o Telegram à conta
-export function createTelegramLink(): Promise<TelegramLink> {
-  return unwrap(api.POST('/api/v1/auth/telegram/link-token'))
 }
 
 export async function login(

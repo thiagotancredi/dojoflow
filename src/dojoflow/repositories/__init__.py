@@ -19,12 +19,6 @@ from dojoflow.repositories.payment_transaction import (
 from dojoflow.repositories.refresh_session import RefreshSessionRepository
 from dojoflow.repositories.responsible import ResponsibleRepository
 from dojoflow.repositories.student import StudentRepository
-from dojoflow.repositories.telegram_conversation_state import (
-    TelegramConversationStateRepository,
-)
-from dojoflow.repositories.telegram_message_log import (
-    TelegramMessageLogRepository,
-)
 
 __all__ = [
     'AcademyModalityRepository',
@@ -44,6 +38,4 @@ __all__ = [
     'RefreshSessionRepository',
     'ResponsibleRepository',
     'StudentRepository',
-    'TelegramConversationStateRepository',
-    'TelegramMessageLogRepository',
 ]

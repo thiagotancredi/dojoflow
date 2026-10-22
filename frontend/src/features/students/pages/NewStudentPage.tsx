@@ -274,7 +274,7 @@ function AddressStep({
   )
 }
 
-// ---------- 3 · Responsáveis (como no bot do Telegram) ----------
+// ---------- 3 · Responsáveis ----------
 function ResponsiblesStep({
   who,
   responsibles,

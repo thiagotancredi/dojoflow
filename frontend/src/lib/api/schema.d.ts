@@ -109,46 +109,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/auth/telegram/link-token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Telegram Link Token */
-        post: operations["create_telegram_link_token_api_v1_auth_telegram_link_token_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/telegram/setup-token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Telegram Setup Token
-         * @description Issue a short-lived token for Telegram-linked masters.
-         *
-         *     Prefer calling this after Telegram ownership is proven (e.g. bot command).
-         *     Authenticated masters can also mint it for themselves.
-         */
-        post: operations["create_telegram_setup_token_api_v1_auth_telegram_setup_token_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/auth/set-credentials": {
         parameters: {
             query?: never;
@@ -158,7 +118,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Set Credentials */
+        /**
+         * Set Credentials
+         * @description Troca e-mail e senha de quem está logado (fora do modo suporte).
+         */
         post: operations["set_credentials_api_v1_auth_set_credentials_post"];
         delete?: never;
         options?: never;
@@ -180,30 +143,6 @@ export interface paths {
          * @description Troca o código de uso único do painel por uma sessão de suporte.
          */
         post: operations["exchange_support_code_api_v1_auth_support_exchange_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/onboarding": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Register Onboarding
-         * @deprecated
-         * @description Deprecated Telegram-style HTTP onboarding.
-         *
-         *     Prefer the Telegram bot or POST /api/v1/auth/register.
-         *     Requires X-Internal-Api-Key when INTERNAL_API_KEY is configured.
-         */
-        post: operations["register_onboarding_api_v1_onboarding_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -678,6 +617,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/billing/bulk-payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Bulk Payments
+         * @description Dá baixa de uma vez em vários alunos que pagaram o que deviam.
+         */
+        post: operations["create_bulk_payments_api_v1_billing_bulk_payments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard/summary": {
         parameters: {
             query?: never;
@@ -778,40 +737,6 @@ export interface paths {
         get: operations["get_address_by_zip_code_api_v1_cep__zip_code__get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/telegram/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Telegram Bot Info */
-        get: operations["get_telegram_bot_info_api_v1_telegram_me_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/telegram/webhook": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Receive Telegram Webhook */
-        post: operations["receive_telegram_webhook_api_v1_telegram_webhook_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1031,6 +956,23 @@ export interface components {
         AdminStatusUpdate: {
             status: components["schemas"]["AcademyStatus"];
         };
+        /** AgeGroupCountRead */
+        AgeGroupCountRead: {
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "kids" | "juvenile" | "adult" | "master" | "unknown";
+            /** Count */
+            count: number;
+        };
+        /** AgeGroupsRead */
+        AgeGroupsRead: {
+            /** All */
+            all: components["schemas"]["AgeGroupCountRead"][];
+            /** By Modality */
+            by_modality: components["schemas"]["ModalityAgeGroupsRead"][];
+        };
         /** AllocationApiRead */
         AllocationApiRead: {
             /**
@@ -1212,6 +1154,22 @@ export interface components {
             /** Message Template */
             message_template?: string | null;
         };
+        /** BirthdayRead */
+        BirthdayRead: {
+            /**
+             * Student Id
+             * Format: uuid
+             */
+            student_id: string;
+            /** Name */
+            name: string;
+            /** Day */
+            day: number;
+            /** Turning Age */
+            turning_age: number;
+            /** Is Today */
+            is_today: boolean;
+        };
         /** BulkBeltItemApi */
         BulkBeltItemApi: {
             /**
@@ -1239,6 +1197,34 @@ export interface components {
         BulkBeltResultApiRead: {
             /** Saved */
             saved: number;
+        };
+        /** BulkPaymentApiPayload */
+        BulkPaymentApiPayload: {
+            /**
+             * Paid On
+             * Format: date
+             */
+            paid_on: string;
+            method?: components["schemas"]["PaymentMethod"] | null;
+            /** Items */
+            items: components["schemas"]["BulkPaymentItemApi"][];
+        };
+        /** BulkPaymentApiRead */
+        BulkPaymentApiRead: {
+            /** Count */
+            count: number;
+            /** Total */
+            total: string;
+        };
+        /** BulkPaymentItemApi */
+        BulkPaymentItemApi: {
+            /**
+             * Student Id
+             * Format: uuid
+             */
+            student_id: string;
+            /** Amount */
+            amount: number | string;
         };
         /** CepAddress */
         CepAddress: {
@@ -1321,6 +1307,13 @@ export interface components {
             overdue_students: number;
             /** Due Soon Students */
             due_soon_students: number;
+            /** Overdue Total */
+            overdue_total: string;
+            age_groups: components["schemas"]["AgeGroupsRead"];
+            /** Birthdays */
+            birthdays: components["schemas"]["BirthdayRead"][];
+            /** New Students By Month */
+            new_students_by_month: components["schemas"]["MonthCountRead"][];
         };
         /** DueSoonChargeRead */
         DueSoonChargeRead: {
@@ -1578,11 +1571,21 @@ export interface components {
             email: string | null;
             /** Phone */
             phone: string | null;
-            /** Telegram Linked */
-            telegram_linked: boolean;
             academy: components["schemas"]["AcademyApiRead"];
             /** Support Mode */
             support_mode: boolean;
+        };
+        /** ModalityAgeGroupsRead */
+        ModalityAgeGroupsRead: {
+            /**
+             * Modality Id
+             * Format: uuid
+             */
+            modality_id: string;
+            /** Modality Name */
+            modality_name: string;
+            /** Groups */
+            groups: components["schemas"]["AgeGroupCountRead"][];
         };
         /** ModalityApiRead */
         ModalityApiRead: {
@@ -1647,23 +1650,15 @@ export interface components {
             /** Is Selected */
             is_selected: boolean;
         };
-        /** OnboardingRead */
-        OnboardingRead: {
-            /** Academy Id */
-            academy_id: number;
-            /** Master Id */
-            master_id: number;
-        };
-        /** OnboardingTelegramCreate */
-        OnboardingTelegramCreate: {
-            /** Academy Name */
-            academy_name: string;
-            /** Master Name */
-            master_name: string;
-            /** Telegram User Id */
-            telegram_user_id: number;
-            /** Phone */
-            phone?: string | null;
+        /** MonthCountRead */
+        MonthCountRead: {
+            /**
+             * Month
+             * Format: date
+             */
+            month: string;
+            /** Count */
+            count: number;
         };
         /** OverdueStudentRead */
         OverdueStudentRead: {
@@ -1798,8 +1793,6 @@ export interface components {
             email: string;
             /** Password */
             password: string;
-            /** Setup Token */
-            setup_token?: string | null;
             /** Current Password */
             current_password?: string | null;
         };
@@ -1991,69 +1984,6 @@ export interface components {
         SupportExchangeRequest: {
             /** Code */
             code: string;
-        };
-        /** TelegramCallbackMessage */
-        TelegramCallbackMessage: {
-            chat: components["schemas"]["TelegramChat"];
-        };
-        /** TelegramCallbackQuery */
-        TelegramCallbackQuery: {
-            /** Id */
-            id: string;
-            from: components["schemas"]["TelegramUser"];
-            message?: components["schemas"]["TelegramCallbackMessage"] | null;
-            /** Data */
-            data?: string | null;
-        };
-        /** TelegramChat */
-        TelegramChat: {
-            /** Id */
-            id: number;
-        };
-        /** TelegramLinkTokenResponse */
-        TelegramLinkTokenResponse: {
-            /** Token */
-            token: string;
-            /** Deep Link */
-            deep_link?: string | null;
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-        };
-        /** TelegramMessage */
-        TelegramMessage: {
-            from: components["schemas"]["TelegramUser"];
-            chat: components["schemas"]["TelegramChat"];
-            /** Text */
-            text?: string | null;
-        };
-        /** TelegramSetupTokenResponse */
-        TelegramSetupTokenResponse: {
-            /** Token */
-            token: string;
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-        };
-        /** TelegramUpdate */
-        TelegramUpdate: {
-            /** Update Id */
-            update_id?: number | null;
-            message?: components["schemas"]["TelegramMessage"] | null;
-            callback_query?: components["schemas"]["TelegramCallbackQuery"] | null;
-        };
-        /** TelegramUser */
-        TelegramUser: {
-            /** Id */
-            id: number;
-            /** First Name */
-            first_name?: string | null;
-            /** Username */
-            username?: string | null;
         };
         /** UpdateChargeApiPayload */
         UpdateChargeApiPayload: {
@@ -2250,46 +2180,6 @@ export interface operations {
             };
         };
     };
-    create_telegram_link_token_api_v1_auth_telegram_link_token_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TelegramLinkTokenResponse"];
-                };
-            };
-        };
-    };
-    create_telegram_setup_token_api_v1_auth_telegram_setup_token_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TelegramSetupTokenResponse"];
-                };
-            };
-        };
-    };
     set_credentials_api_v1_auth_set_credentials_post: {
         parameters: {
             query?: never;
@@ -2343,41 +2233,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthTokenResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    register_onboarding_api_v1_onboarding_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Internal-Api-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OnboardingTelegramCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OnboardingRead"];
                 };
             };
             /** @description Validation Error */
@@ -3532,6 +3387,39 @@ export interface operations {
             };
         };
     };
+    create_bulk_payments_api_v1_billing_bulk_payments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkPaymentApiPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkPaymentApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_dashboard_summary_api_v1_dashboard_summary_get: {
         parameters: {
             query?: never;
@@ -3813,65 +3701,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CepAddress"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_telegram_bot_info_api_v1_telegram_me_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    receive_telegram_webhook_api_v1_telegram_webhook_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Telegram-Bot-Api-Secret-Token"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TelegramUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
                 };
             };
             /** @description Validation Error */

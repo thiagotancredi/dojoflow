@@ -11,11 +11,7 @@ from dojoflow.shared.exceptions import UnauthorizedError
 
 password_hash = PasswordHash.recommended()
 
-TokenPurpose = Literal[
-    'access',
-    'telegram_link',
-    'telegram_setup',
-]
+TokenPurpose = Literal['access']
 
 MASTER_ROLE = 'master'
 
@@ -92,26 +88,6 @@ def generate_refresh_token() -> str:
 
 def hash_refresh_token(refresh_token: str) -> str:
     return hashlib.sha256(refresh_token.encode()).hexdigest()
-
-
-def create_telegram_link_token(master_id: int) -> tuple[str, datetime]:
-    return _create_token(
-        subject=str(master_id),
-        purpose='telegram_link',
-        expires_delta=timedelta(
-            minutes=settings.JWT_TELEGRAM_LINK_TTL_MINUTES
-        ),
-    )
-
-
-def create_telegram_setup_token(master_id: int) -> tuple[str, datetime]:
-    return _create_token(
-        subject=str(master_id),
-        purpose='telegram_setup',
-        expires_delta=timedelta(
-            minutes=settings.JWT_TELEGRAM_SETUP_TTL_MINUTES
-        ),
-    )
 
 
 def decode_token(

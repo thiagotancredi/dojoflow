@@ -1,4 +1,4 @@
-import type { LabelCount } from '@/features/dashboard/mock-data'
+export type LabelCount = { label: string; count: number }
 
 type HorizontalBarsProps = {
   data: LabelCount[]

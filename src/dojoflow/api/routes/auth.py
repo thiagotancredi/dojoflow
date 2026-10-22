@@ -5,11 +5,8 @@ from fastapi import APIRouter, Cookie, Response, status
 from dojoflow.api.dependencies.auth import (
     AccountMasterDep,
     AuthServiceDep,
-    BearerCredentialsDep,
     CurrentMasterDep,
-    resolve_optional_master,
 )
-from dojoflow.api.dependencies.master import MasterServiceDep
 from dojoflow.core.settings import settings
 from dojoflow.schemas.auth import (
     AuthLoginRequest,
@@ -17,12 +14,10 @@ from dojoflow.schemas.auth import (
     AuthTokenResponse,
     SetCredentialsRequest,
     SupportExchangeRequest,
-    TelegramLinkTokenResponse,
-    TelegramSetupTokenResponse,
 )
 from dojoflow.schemas.master_context import MasterContextApiRead
 from dojoflow.services.auth import SUPPORT_SESSION_TTL
-from dojoflow.shared.exceptions import ForbiddenError, UnauthorizedError
+from dojoflow.shared.exceptions import UnauthorizedError
 
 router = APIRouter(prefix='/auth', tags=['Auth'])
 
@@ -136,66 +131,19 @@ async def me(
 
 
 @router.post(
-    path='/telegram/link-token',
-    status_code=status.HTTP_200_OK,
-)
-async def create_telegram_link_token(
-    current_master: AccountMasterDep,
-    auth_service_dep: AuthServiceDep,
-) -> TelegramLinkTokenResponse:
-    return await auth_service_dep.create_telegram_link_token_for_master(
-        current_master.master_id
-    )
-
-
-@router.post(
-    path='/telegram/setup-token',
-    status_code=status.HTTP_200_OK,
-)
-async def create_telegram_setup_token(
-    current_master: AccountMasterDep,
-    auth_service_dep: AuthServiceDep,
-) -> TelegramSetupTokenResponse:
-    """Issue a short-lived token for Telegram-linked masters.
-
-    Prefer calling this after Telegram ownership is proven (e.g. bot command).
-    Authenticated masters can also mint it for themselves.
-    """
-    return await auth_service_dep.create_telegram_setup_token_for_master(
-        current_master.master_id
-    )
-
-
-@router.post(
     path='/set-credentials',
     status_code=status.HTTP_200_OK,
 )
 async def set_credentials(
     data: SetCredentialsRequest,
     response: Response,
+    current_master: AccountMasterDep,
     auth_service_dep: AuthServiceDep,
-    master_service_dep: MasterServiceDep,
-    credentials: BearerCredentialsDep,
 ) -> AuthTokenResponse:
-    # A supplied setup token takes precedence: the bearer is not even parsed.
-    authenticated_master_id = None
-
-    if not data.setup_token:
-        optional_master = await resolve_optional_master(
-            master_service_dep, credentials
-        )
-
-        if optional_master is not None and optional_master.support_mode:
-            raise ForbiddenError(
-                'Not available in support mode.', code='SUPPORT_MODE'
-            )
-        authenticated_master_id = (
-            optional_master.master_id if optional_master is not None else None
-        )
-
+    """Troca e-mail e senha de quem está logado (fora do modo suporte)."""
     result = await auth_service_dep.set_credentials(
         data,
-        authenticated_master_id=authenticated_master_id,
+        authenticated_master_id=current_master.master_id,
     )
     _set_refresh_cookie(response, result.refresh_token)
 

@@ -4,8 +4,8 @@ import { useResource } from '@/lib/hooks/useResource'
 
 export type DashboardSummary = Schemas['DashboardSummaryRead']
 
-// Resumo do dashboard (por enquanto a tela usa só inadimplentes e
-// vencimentos; o resto ainda vem de mock-data.ts — Fase 10)
+// Resumo do dashboard: financeiro, alunos (modalidades, faixa etária,
+// aniversariantes) e novos alunos por mês
 export function getDashboardSummary(signal?: AbortSignal) {
   return unwrap(api.GET('/api/v1/dashboard/summary', { signal }))
 }

@@ -53,6 +53,7 @@ from dojoflow.shared.enums import (
     PaymentStatus,
 )
 from dojoflow.shared.exceptions import ConflictError
+from dojoflow.shared.text import name_sort_key
 
 CENTS = Decimal('0.01')
 ZERO = Decimal('0.00')
@@ -106,6 +107,7 @@ class DashboardBilling:
     due_soon: list[DueSoonChargeRead]
     overdue_students: int
     due_soon_students: int
+    overdue_total: Decimal
 
 
 @dataclass(frozen=True)
@@ -651,6 +653,29 @@ class BillingService:
         ]
 
     @transactional
+    async def create_bulk_payments(
+        self,
+        academy_id: int,
+        items: list[tuple[int, Decimal]],
+        paid_on: date,
+        method: PaymentMethod | None,
+    ) -> Decimal:
+        """Baixa em lote: um pagamento por aluno, numa transação só (se um
+        falhar, nenhum entra). Cada um segue a regra da baixa individual."""
+        # As mensalidades do mês nascem quando alguém abre as telas; garante
+        # que existam antes de abater
+        await self.ensure_monthly_charges(academy_id, local_today())
+        total = ZERO
+
+        for student_id, amount in items:
+            await self.create_payment(
+                academy_id, student_id, amount, paid_on, method, None
+            )
+            total += amount
+
+        return total
+
+    @transactional
     async def create_payment(  # noqa: PLR0913, PLR0917
         self,
         academy_id: int,
@@ -917,10 +942,8 @@ class BillingService:
                 )
             )
 
-        if status_filter == 'overdue':
-            items.sort(key=lambda item: (-(item.days_late or 0), item.name))
-        else:
-            items.sort(key=lambda item: item.name.casefold())
+        # Sempre de A a Z, em todos os filtros
+        items.sort(key=lambda item: name_sort_key(item.name))
 
         start = (page - 1) * page_size
         return BillingOverviewRead(
@@ -1004,6 +1027,7 @@ class BillingService:
             ],
             overdue_students=len(by_student),
             due_soon_students=len({c.student_id for c in due_soon}),
+            overdue_total=sum((c.open_amount for c in overdue), ZERO),
         )
 
     async def _payments(

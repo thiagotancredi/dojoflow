@@ -37,34 +37,6 @@ class ModalityService:
 
         return [ModalityRead(**modality) for modality in modalities]
 
-    async def list_selected_by_academy(
-        self,
-        academy_id: int,
-    ) -> list[ModalityRead]:
-        stmt = (
-            select(
-                Modality.id,
-                Modality.public_id,
-                Modality.name,
-                Modality.emoji,
-                Modality.is_active,
-            )
-            .join(
-                AcademyModality,
-                AcademyModality.modality_id == Modality.id,
-            )
-            .where(
-                AcademyModality.academy_id == academy_id,
-                Modality.is_active.is_(True),
-            )
-            .order_by(Modality.name)
-        )
-
-        stmt_result = await self.db_session.execute(stmt)
-        modalities = stmt_result.mappings().all()
-
-        return [ModalityRead(**dict(modality)) for modality in modalities]
-
     async def list_academy_options(
         self,
         academy_id: int,
@@ -153,18 +125,6 @@ class ModalityService:
             for academy_modality in academy_modalities
         }
 
-    async def has_selected_modalities(
-        self,
-        academy_id: int,
-    ) -> bool:
-        total = await self.academy_modality_repository.count(
-            filters=[
-                AcademyModality.academy_id == academy_id,
-            ],
-        )
-
-        return total > 0
-
     @transactional
     async def toggle_academy_modality(
         self,
@@ -217,21 +177,3 @@ class ModalityService:
 
         if modality is None:
             raise NotFoundError('Could not find this active modality.')
-
-    async def get_modality_by_name(
-        self,
-        name: str,
-    ) -> ModalityRead | None:
-        normalized_name = ' '.join(name.strip().split())
-
-        modality = await self.modality_repository.get_one(
-            filters=[
-                func.lower(Modality.name) == normalized_name.lower(),
-                Modality.is_active.is_(True),
-            ],
-        )
-
-        if modality is None:
-            return None
-
-        return ModalityRead(**modality)

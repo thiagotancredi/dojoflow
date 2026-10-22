@@ -16,6 +16,7 @@ export type BillingSettings = Schemas['BillingSettingsApi']
 export type LaunchChargePayload = Schemas['LaunchChargeApiPayload']
 export type UpdateChargePayload = Schemas['UpdateChargeApiPayload']
 export type CreatePaymentPayload = Schemas['CreatePaymentApiPayload']
+export type BulkPaymentPayload = Schemas['BulkPaymentApiPayload']
 
 export type OverviewFilter = 'overdue' | 'upcoming' | 'paid' | 'all'
 
@@ -146,4 +147,9 @@ export function saveBillingSettings(payload: BillingSettings) {
   return unwrap(
     api.PUT('/api/v1/academy/billing-settings', { body: payload }),
   )
+}
+
+// Baixa em lote: um pagamento por aluno, com o valor da linha (tudo ou nada)
+export function createBulkPayments(body: BulkPaymentPayload) {
+  return unwrap(api.POST('/api/v1/billing/bulk-payments', { body }))
 }

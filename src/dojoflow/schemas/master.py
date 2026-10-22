@@ -5,7 +5,6 @@ from dojoflow.schemas.base import ReadBase
 
 class MasterCreate(BaseModel):
     academy_id: int = Field(ge=0)
-    telegram_user_id: int | None = Field(default=None, gt=0)
     email: str | None = Field(default=None, max_length=255)
     password_hash: str | None = Field(default=None, max_length=255)
     name: str = Field(min_length=2, max_length=120)
@@ -14,7 +13,6 @@ class MasterCreate(BaseModel):
 
 class MasterRead(ReadBase):
     academy_id: int
-    telegram_user_id: int | None
     email: str | None
     name: str
     phone: str | None

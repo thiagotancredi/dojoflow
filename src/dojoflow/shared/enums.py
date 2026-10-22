@@ -66,17 +66,6 @@ class ImportRowStatus(str, enum.Enum):
     SKIPPED = 'skipped'
 
 
-class TelegramMessageDirection(str, enum.Enum):
-    INBOUND = 'inbound'
-    OUTBOUND = 'outbound'
-
-
-class TelegramMessageStatus(str, enum.Enum):
-    RECEIVED = 'received'
-    SENT = 'sent'
-    FAILED = 'failed'
-
-
 class NotificationType(str, enum.Enum):
     PAYMENT_DUE_SOON = 'payment_due_soon'
     PAYMENT_OVERDUE = 'payment_overdue'

@@ -1,7 +1,6 @@
 from sqlalchemy.orm import Mapped
 
 from dojoflow.database.helper_mapped_columns import (
-    big_int_column,
     int_fk,
     str_column,
 )
@@ -13,11 +12,6 @@ class Master(BaseModel):
 
     academy_id: Mapped[int] = int_fk('academy.id')
 
-    telegram_user_id: Mapped[int | None] = big_int_column(
-        unique=True,
-        index=True,
-        nullable=True,
-    )
     email: Mapped[str | None] = str_column(
         length=255,
         nullable=True,

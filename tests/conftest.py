@@ -20,7 +20,6 @@ import dojoflow.models  # noqa: F401
 from dojoflow.core.settings import settings
 from dojoflow.database.base import Base
 from dojoflow.database.session import get_session
-from dojoflow.integrations.telegram.service import TelegramService
 from dojoflow.main import app
 from dojoflow.models.academy import Academy
 from dojoflow.models.master import Master
@@ -127,30 +126,12 @@ def _seed_master_values() -> dict[str, object]:
         'email': SEED.email,
         'phone': SEED.phone,
         'password_hash': SEED.password_hash,
-        'telegram_user_id': None,
     }
-
-
-async def _no_telegram_call(*args: object, **kwargs: object) -> None:
-    return None
-
-
-@pytest.fixture(autouse=True)
-def _block_telegram_api(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Nenhum teste fala com api.telegram.org de verdade (antes: cada clique
-    # de botão no bot ia até a internet). Testes que conferem as mensagens
-    # continuam trocando send_message pela versão deles.
-    monkeypatch.setattr(TelegramService, 'send_message', _no_telegram_call)
-    monkeypatch.setattr(
-        TelegramService, 'answer_callback_query', _no_telegram_call
-    )
 
 
 @pytest_asyncio.fixture(autouse=True)
 def _configure_test_settings() -> None:
-    settings.INTERNAL_API_KEY = 'test-internal-key'
     settings.JWT_SECRET = 'test-jwt-secret-with-enough-length-32b'
-    settings.TELEGRAM_BOT_USERNAME = 'dojoflow_test_bot'
     settings.CORS_ORIGINS = 'http://localhost:5173'
 
 
@@ -175,7 +156,7 @@ async def _reset_data(session: AsyncSession) -> None:
     await session.execute(
         text(
             'UPDATE master SET name = :name, email = :email, phone = :phone, '
-            'password_hash = :password_hash, telegram_user_id = NULL '
+            'password_hash = :password_hash '
             'WHERE id = :id'
         ),
         {

@@ -16,8 +16,6 @@ from dojoflow.schemas.auth import (
     AuthTokenResponse,
     SetCredentialsRequest,
     SupportEntryRead,
-    TelegramLinkTokenResponse,
-    TelegramSetupTokenResponse,
 )
 from dojoflow.schemas.master_context import MasterContextRead
 from dojoflow.schemas.onboarding import OnboardingWebCreate
@@ -38,8 +36,6 @@ from dojoflow.shared.exceptions import (
     UnauthorizedError,
 )
 
-PURPOSE_TELEGRAM_LINK = 'telegram_link'
-PURPOSE_TELEGRAM_SETUP = 'telegram_setup'
 PURPOSE_SUPPORT_ENTRY = 'support_entry'
 SUPPORT_CODE_TTL = timedelta(seconds=60)
 SUPPORT_SESSION_TTL = timedelta(hours=8)
@@ -305,55 +301,6 @@ class AuthService:
 
         return AuthResult(response, refresh_token), session_id
 
-    async def get_me(
-        self,
-        master_id: int,
-    ) -> MasterContextRead:
-        context = await self.master_service.get_context_by_id(master_id)
-
-        if context is None:
-            raise UnauthorizedError('Master not found.')
-
-        return context
-
-    async def create_telegram_link_token_for_master(
-        self,
-        master_id: int,
-    ) -> TelegramLinkTokenResponse:
-        token, expires_at = await self._issue_one_time_token(
-            master_id=master_id,
-            purpose=PURPOSE_TELEGRAM_LINK,
-            ttl=timedelta(minutes=settings.JWT_TELEGRAM_LINK_TTL_MINUTES),
-        )
-        deep_link = None
-
-        if settings.TELEGRAM_BOT_USERNAME:
-            deep_link = (
-                f'https://t.me/{settings.TELEGRAM_BOT_USERNAME}'
-                f'?start=link_{token}'
-            )
-
-        return TelegramLinkTokenResponse(
-            token=token,
-            deep_link=deep_link,
-            expires_at=expires_at,
-        )
-
-    async def create_telegram_setup_token_for_master(
-        self,
-        master_id: int,
-    ) -> TelegramSetupTokenResponse:
-        token, expires_at = await self._issue_one_time_token(
-            master_id=master_id,
-            purpose=PURPOSE_TELEGRAM_SETUP,
-            ttl=timedelta(minutes=settings.JWT_TELEGRAM_SETUP_TTL_MINUTES),
-        )
-
-        return TelegramSetupTokenResponse(
-            token=token,
-            expires_at=expires_at,
-        )
-
     @transactional
     async def set_credentials(
         self,
@@ -361,12 +308,7 @@ class AuthService:
         *,
         authenticated_master_id: int | None = None,
     ) -> AuthResult:
-        if data.setup_token:
-            master_id = await self._consume_one_time_token(
-                token=data.setup_token,
-                purpose=PURPOSE_TELEGRAM_SETUP,
-            )
-        elif authenticated_master_id is not None:
+        if authenticated_master_id is not None:
             master = await self.master_service.get_by_id(
                 authenticated_master_id
             )
@@ -386,9 +328,7 @@ class AuthService:
 
             master_id = authenticated_master_id
         else:
-            raise UnauthorizedError(
-                'Authentication or setup token is required.'
-            )
+            raise UnauthorizedError('Authentication required.')
 
         context = await self.master_service.set_credentials(
             master_id=master_id,
@@ -399,22 +339,6 @@ class AuthService:
         await self.revoke_all_sessions(master_id)
 
         return await self._start_session(context)
-
-    @transactional
-    async def link_telegram_from_token(
-        self,
-        token: str,
-        telegram_user_id: int,
-    ) -> MasterContextRead:
-        master_id = await self._consume_one_time_token(
-            token=token,
-            purpose=PURPOSE_TELEGRAM_LINK,
-        )
-
-        return await self.master_service.link_telegram_user(
-            master_id=master_id,
-            telegram_user_id=telegram_user_id,
-        )
 
     @transactional
     async def _issue_one_time_token(
@@ -437,18 +361,6 @@ class AuthService:
         })
 
         return token, expires_at
-
-    @transactional
-    async def _consume_one_time_token(
-        self,
-        token: str,
-        purpose: str,
-    ) -> int:
-        record = await self._consume_one_time_token_record(
-            token, purpose, error_code='SETUP_TOKEN_INVALID'
-        )
-
-        return int(record['master_id'])
 
     @transactional
     async def _consume_one_time_token_record(

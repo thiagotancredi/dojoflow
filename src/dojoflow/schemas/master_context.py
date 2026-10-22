@@ -9,7 +9,6 @@ class MasterContextRead(BaseModel):
     master_id: int
     master_public_id: UUID
     master_name: str
-    telegram_user_id: int | None
     email: str | None = None
     phone: str | None = None
     academy_id: int
@@ -31,7 +30,6 @@ class MasterContextApiRead(BaseModel):
     name: str
     email: str | None
     phone: str | None
-    telegram_linked: bool
     academy: AcademyApiRead
     support_mode: bool
 
@@ -44,7 +42,6 @@ class MasterContextApiRead(BaseModel):
             name=context.master_name,
             email=context.email,
             phone=context.phone,
-            telegram_linked=context.telegram_user_id is not None,
             support_mode=context.support_mode,
             academy=AcademyApiRead(
                 id=context.academy_public_id,

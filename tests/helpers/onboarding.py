@@ -2,29 +2,6 @@ from typing import Any
 
 from httpx import AsyncClient, Response
 
-from devtools.factories.onboarding import OnboardingPayloadFactory
-from dojoflow.core.settings import settings
-
-
-async def register_onboarding(
-    client: AsyncClient,
-    **overrides: Any,
-) -> tuple[Response, dict[str, Any]]:
-    payload = OnboardingPayloadFactory(**overrides)
-
-    headers: dict[str, str] = {}
-
-    if settings.INTERNAL_API_KEY:
-        headers['X-Internal-Api-Key'] = settings.INTERNAL_API_KEY
-
-    response = await client.post(
-        '/api/v1/onboarding',
-        json=payload,
-        headers=headers,
-    )
-
-    return response, payload
-
 
 async def register_web(
     client: AsyncClient,

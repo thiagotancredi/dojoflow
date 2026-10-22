@@ -43,16 +43,9 @@ class AuthResult(NamedTuple):
     refresh_token: str
 
 
-class TelegramLinkTokenResponse(BaseModel):
-    token: str
-    deep_link: str | None = None
-    expires_at: datetime
-
-
 class SetCredentialsRequest(BaseModel):
     email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=8, max_length=128)
-    setup_token: str | None = Field(default=None, min_length=10)
     current_password: str | None = Field(default=None, max_length=128)
 
     @field_validator('email')
@@ -64,11 +57,6 @@ class SetCredentialsRequest(BaseModel):
             raise ValueError('Invalid email format.')
 
         return normalized
-
-
-class TelegramSetupTokenResponse(BaseModel):
-    token: str
-    expires_at: datetime
 
 
 class SupportEntryRead(BaseModel):

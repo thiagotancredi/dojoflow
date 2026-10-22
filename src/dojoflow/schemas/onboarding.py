@@ -1,23 +1,12 @@
 from pydantic import BaseModel, Field
 
 
-class OnboardingTelegramCreate(BaseModel):
-    academy_name: str = Field(min_length=2, max_length=120)
-    master_name: str = Field(min_length=2, max_length=120)
-    telegram_user_id: int = Field(gt=0)
-    phone: str | None = Field(default=None, max_length=20)
-
-
 class OnboardingWebCreate(BaseModel):
     academy_name: str = Field(min_length=2, max_length=120)
     master_name: str = Field(min_length=2, max_length=120)
     email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=8, max_length=128)
     phone: str | None = Field(default=None, max_length=20)
-
-
-# Backward-compatible alias used by Telegram handler and old HTTP route.
-OnboardingCreate = OnboardingTelegramCreate
 
 
 class OnboardingRead(BaseModel):
