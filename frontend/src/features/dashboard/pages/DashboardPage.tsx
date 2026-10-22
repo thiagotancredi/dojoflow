@@ -196,7 +196,7 @@ export function DashboardPage() {
       <SectionTitle>Crescimento</SectionTitle>
       <DashboardCard
         title="Novos alunos por mês"
-        subtitle="Últimos 6 meses · o mês atual em destaque"
+        subtitle="Últimos 6 meses"
       >
         {pending ??
           (data!.new_students_by_month.every((item) => item.count === 0) ? (

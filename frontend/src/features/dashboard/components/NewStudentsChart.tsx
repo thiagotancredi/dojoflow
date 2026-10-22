@@ -9,8 +9,8 @@ function monthLabel(isoMonth: string) {
     .replace('.', '')
 }
 
-// Barras verticais de uma cor, com o número em cima de cada uma. O último
-// mês (o atual) fica destacado.
+// Barras verticais de uma cor, com o número em cima de cada uma e o mês
+// embaixo (o mês atual com o nome em negrito).
 export function NewStudentsChart({ data }: { data: MonthCount[] }) {
   const max = Math.max(...data.map((item) => item.count), 1)
   const lastIndex = data.length - 1
@@ -35,12 +35,7 @@ export function NewStudentsChart({ data }: { data: MonthCount[] }) {
             {/* Área da barra: a altura em % é relativa a ela */}
             <div className="flex w-full flex-1 items-end justify-center">
               <div
-                className={cn(
-                  'w-full max-w-10 rounded-t-lg rounded-b-sm',
-                  current
-                    ? 'bg-sidebar-primary ring-2 ring-chip-active-border ring-offset-2 ring-offset-card'
-                    : 'bg-chart-1',
-                )}
+                className="w-full max-w-10 bg-chart-1"
                 // Mesmo sem alunos, uma lasquinha mostra que o mês existe
                 style={{ height: `${Math.max((item.count / max) * 100, 3)}%` }}
               />
