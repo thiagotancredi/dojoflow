@@ -9,11 +9,15 @@ from dojoflow.api.dependencies.public_ids import (
     ChargeIdDep,
     PaymentIdDep,
     StudentIdDep,
+    resolve_public_id,
     resolve_student_enrollment_id,
 )
+from dojoflow.models.student import Student
 from dojoflow.schemas.billing import BillingOverviewRead, OverviewFilter
 from dojoflow.schemas.billing_api import (
     AllocationPreviewApiRead,
+    BulkPaymentApiPayload,
+    BulkPaymentApiRead,
     ChargeApiRead,
     CreatePaymentApiPayload,
     LaunchChargeApiPayload,
@@ -199,3 +203,35 @@ async def delete_payment(
     await billing_service_dep.delete_payment(
         current_master.academy_id, student_id, payment_id
     )
+
+
+@overview_router.post(
+    path='/bulk-payments', status_code=status.HTTP_201_CREATED
+)
+async def create_bulk_payments(
+    data: BulkPaymentApiPayload,
+    current_master: CurrentMasterDep,
+    billing_service_dep: BillingServiceDep,
+    db_session_dep: DbSessionDep,
+) -> BulkPaymentApiRead:
+    """Dá baixa de uma vez em vários alunos que pagaram o que deviam."""
+    items = [
+        (
+            await resolve_public_id(
+                db_session_dep,
+                Student,
+                item.student_id,
+                code='STUDENT_NOT_FOUND',
+                extra_filters=[
+                    Student.academy_id == current_master.academy_id
+                ],
+            ),
+            item.amount,
+        )
+        for item in data.items
+    ]
+    total = await billing_service_dep.create_bulk_payments(
+        current_master.academy_id, items, data.paid_on, data.method
+    )
+
+    return BulkPaymentApiRead(count=len(items), total=total)

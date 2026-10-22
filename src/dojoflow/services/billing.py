@@ -652,6 +652,29 @@ class BillingService:
         ]
 
     @transactional
+    async def create_bulk_payments(
+        self,
+        academy_id: int,
+        items: list[tuple[int, Decimal]],
+        paid_on: date,
+        method: PaymentMethod | None,
+    ) -> Decimal:
+        """Baixa em lote: um pagamento por aluno, numa transação só (se um
+        falhar, nenhum entra). Cada um segue a regra da baixa individual."""
+        # As mensalidades do mês nascem quando alguém abre as telas; garante
+        # que existam antes de abater
+        await self.ensure_monthly_charges(academy_id, local_today())
+        total = ZERO
+
+        for student_id, amount in items:
+            await self.create_payment(
+                academy_id, student_id, amount, paid_on, method, None
+            )
+            total += amount
+
+        return total
+
+    @transactional
     async def create_payment(  # noqa: PLR0913, PLR0917
         self,
         academy_id: int,

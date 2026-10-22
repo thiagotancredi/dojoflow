@@ -161,3 +161,35 @@ class CreatePaymentApiPayload(BaseModel):
     paid_on: ChargeDate
     method: PaymentMethod | None = None
     notes: str | None = Field(default=None, max_length=255)
+
+
+# Baixa em lote: cada aluno pagou exatamente o valor da linha
+MAX_BULK_PAYMENTS = 200
+
+
+class BulkPaymentItemApi(BaseModel):
+    student_id: UUID
+    amount: Money
+
+
+class BulkPaymentApiPayload(BaseModel):
+    paid_on: ChargeDate
+    method: PaymentMethod | None = None
+    items: list[BulkPaymentItemApi] = Field(
+        min_length=1, max_length=MAX_BULK_PAYMENTS
+    )
+
+    @field_validator('items')
+    @classmethod
+    def no_repeated_students(
+        cls, items: list[BulkPaymentItemApi]
+    ) -> list[BulkPaymentItemApi]:
+        ids = [item.student_id for item in items]
+        if len(set(ids)) != len(ids):
+            raise ValueError('Each student can appear only once.')
+        return items
+
+
+class BulkPaymentApiRead(BaseModel):
+    count: int
+    total: Decimal
