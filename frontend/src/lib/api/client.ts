@@ -46,7 +46,7 @@ export function setRefreshHandler(
 const retryCopies = new Map<string, Request>()
 
 // Rotas da própria sessão nunca disparam refresh (ex.: senha errada no login
-// dá 401). As outras /auth/* (me, set-credentials, telegram) renovam normal.
+// dá 401). As outras /auth/* (me, set-credentials) renovam normal.
 const SESSION_ROUTES = new Set([
   '/api/v1/auth/login',
   '/api/v1/auth/register',

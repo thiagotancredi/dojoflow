@@ -14,8 +14,6 @@ export type AuthContextValue = {
   signOut: () => Promise<void>
   // Entra com um token que já veio da API (ex.: depois de definir a senha)
   startSession: (accessToken: string) => Promise<void>
-  // Busca de novo os dados do mestre (ex.: para ver se o Telegram conectou)
-  reloadMaster: () => Promise<Master>
 }
 
 // Começa vazia (null): quem preenche é o AuthProvider.

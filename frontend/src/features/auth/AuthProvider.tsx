@@ -112,15 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applySession, clearSession],
   )
 
-  // useCallback mantém a mesma função entre renderizações, para poder ser
-  // usada com segurança dentro de um useEffect (ex.: o polling do Telegram)
-  const reloadMaster = useCallback(async () => {
-    const me = await getMe()
-    masterRef.current = me
-    setMaster(me)
-    return me
-  }, [])
-
   async function signIn(email: string, password: string) {
     // Se o login falhar, o erro sobe para quem chamou (o LoginPage).
     const { access_token } = await login(email, password)
@@ -145,7 +136,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signOut,
         startSession,
-        reloadMaster,
       }}
     >
       {children}

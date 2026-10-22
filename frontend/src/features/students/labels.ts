@@ -3,8 +3,8 @@ import type { Schemas } from '@/lib/api/client'
 type Relationship = Schemas['StudentResponsibleRelationship']
 type Sex = Schemas['StudentSex']
 
-// "self" (o próprio aluno) não entra aqui: como no bot do Telegram, quando o
-// responsável é o próprio aluno nada é gravado.
+// "self" (o próprio aluno) não entra aqui: quando o responsável é o próprio
+// aluno, nada é gravado.
 export const RELATIONSHIP_LABELS: Record<Exclude<Relationship, 'self'>, string> =
   {
     father: 'Pai',

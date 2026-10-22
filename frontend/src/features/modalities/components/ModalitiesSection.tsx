@@ -20,7 +20,7 @@ import { messageFor } from '@/lib/api/errors'
 type LoadStatus = 'loading' | 'ready' | 'error'
 
 // Seção "Modalidades" das Configurações: o que a academia oferece × catálogo.
-// Só as oferecidas podem receber matrícula (site e bot do Telegram).
+// Só as oferecidas podem receber matrícula.
 export function ModalitiesSection() {
   const [options, setOptions] = useState<ModalityOption[]>([])
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading')
@@ -93,8 +93,7 @@ export function ModalitiesSection() {
         <h2 className="font-semibold">Modalidades</h2>
         <p className="text-sm text-muted-foreground">
           Escolha quais modalidades sua academia oferece. Só as oferecidas
-          aparecem na hora de matricular um aluno, no site e no bot do
-          Telegram.
+          aparecem na hora de matricular um aluno.
         </p>
       </div>
 
@@ -204,7 +203,7 @@ export function ModalitiesSection() {
                 <AlertDialogTitle>Remover {toRemove?.name}?</AlertDialogTitle>
                 <AlertDialogDescription>
                   A modalidade deixa de aparecer na hora de matricular
-                  alunos, no site e no bot do Telegram.
+                  alunos.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

@@ -35,8 +35,6 @@ export const ERROR_MESSAGES: Record<string, string> = {
   ENROLLMENT_NOT_PENDING:
     'Um dos alunos já tem faixa ou está inativo. Recarregue a página.',
   CURRENT_PASSWORD_INVALID: 'Senha atual incorreta.',
-  SETUP_TOKEN_INVALID:
-    'Este link é inválido ou expirou. Envie /web para o bot no Telegram e receba outro.',
   EMAIL_ALREADY_REGISTERED: 'Esse e-mail já é usado por outra conta.',
   ENROLLMENT_BILLING_INCOMPLETE:
     'Matrícula ativa precisa de mensalidade e dia de vencimento, ou ser marcada como isenta.',

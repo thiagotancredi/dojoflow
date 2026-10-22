@@ -1,7 +1,8 @@
-# DojoFlow
+# Katsuflow
 
-Gerenciador de mensalidades para academias de artes marciais. O mestre usa o
-site (canal principal) e o bot do Telegram (atalho para cadastros).
+Gestão de mensalidades e graduações para academias de artes marciais
+(https://katsuflow.com.br). O mestre usa o site; o administrador cuida das
+academias pelo painel em `admin.katsuflow.com.br`.
 
 - **Backend:** FastAPI + SQLAlchemy + PostgreSQL (`src/dojoflow`)
 - **Frontend:** React + Vite + TypeScript + Tailwind/shadcn (`frontend/`)
