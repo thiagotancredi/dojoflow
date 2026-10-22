@@ -1,12 +1,11 @@
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from dojoflow.api.dependencies.db_session import DbSessionDep
 from dojoflow.api.dependencies.master import MasterServiceDep
 from dojoflow.api.dependencies.onboarding import OnboardingServiceDep
-from dojoflow.core.settings import settings
 from dojoflow.repositories.one_time_token import OneTimeTokenRepository
 from dojoflow.repositories.refresh_session import RefreshSessionRepository
 from dojoflow.schemas.master_context import MasterContextRead
@@ -137,40 +136,6 @@ BearerCredentialsDep = Annotated[
     HTTPAuthorizationCredentials | None,
     Depends(bearer_scheme),
 ]
-
-
-async def resolve_optional_master(
-    master_service: MasterService,
-    credentials: HTTPAuthorizationCredentials | None,
-) -> MasterContextRead | None:
-    if credentials is None or credentials.scheme.lower() != 'bearer':
-        return None
-
-    return await resolve_master_context(
-        master_service, credentials.credentials
-    )
-
-
-def require_internal_api_key(
-    x_internal_api_key: Annotated[
-        str | None,
-        Header(alias='X-Internal-Api-Key'),
-    ] = None,
-) -> None:
-    if not settings.INTERNAL_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail=(
-                'Direct onboarding HTTP is disabled. '
-                'Use POST /api/v1/auth/register or the Telegram bot.'
-            ),
-        )
-
-    if x_internal_api_key != settings.INTERNAL_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Invalid internal API key.',
-        )
 
 
 def _get_current_master_not_in_support(

@@ -8,18 +8,17 @@ DEFAULT_JWT_SECRET = 'change-me-in-production'
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file='.env', env_file_encoding='utf-8'
+        env_file='.env',
+        env_file_encoding='utf-8',
+        # Variáveis que sobraram de versões antigas (ex.: TELEGRAM_*) no .env
+        # não impedem a API de subir
+        extra='ignore',
     )
 
     PROJECT_NAME: str = 'DojoFlow'
     API_V1_PREFIX: str = '/api/v1'
     ENVIRONMENT: Literal['dev', 'prod'] = 'dev'
     WEB_APP_URL: str = 'http://localhost:5173'
-
-    TELEGRAM_BOT_TOKEN: str = ''
-    TELEGRAM_WEBHOOK_BASE_URL: str = ''
-    TELEGRAM_WEBHOOK_SECRET: str = ''
-    TELEGRAM_BOT_USERNAME: str = ''
 
     DATABASE_URL: str = (
         'postgresql+psycopg://postgres:password@localhost:5432/dojoflow'
@@ -29,13 +28,8 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = 'HS256'
     JWT_ACCESS_TTL_MINUTES: int = 30
     JWT_REFRESH_TTL_DAYS: int = 14
-    JWT_TELEGRAM_LINK_TTL_MINUTES: int = 15
-    JWT_TELEGRAM_SETUP_TTL_MINUTES: int = 15
 
     CORS_ORIGINS: str = 'http://localhost:5173,http://127.0.0.1:5173'
-
-    # When set, POST /onboarding requires X-Internal-Api-Key header.
-    INTERNAL_API_KEY: str = ''
 
     # E-mail do único administrador da plataforma (painel admin.*).
     # Vazio = ninguém é administrador.

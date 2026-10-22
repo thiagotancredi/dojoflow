@@ -3,31 +3,18 @@ from http import HTTPStatus
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dojoflow.core.settings import settings
-from dojoflow.integrations.telegram.service import TelegramService
-from dojoflow.models.academy import Academy
 from dojoflow.models.master import Master
-from dojoflow.models.one_time_token import OneTimeToken
-from dojoflow.repositories.academy import AcademyRepository
-from dojoflow.repositories.master import MasterRepository
-from dojoflow.repositories.one_time_token import OneTimeTokenRepository
-from dojoflow.repositories.refresh_session import RefreshSessionRepository
-from dojoflow.services.academy import AcademyService
-from dojoflow.services.auth import AuthService
-from dojoflow.services.master import MasterService
-from dojoflow.services.onboarding import OnboardingService
-from tests.helpers.auth import SEED
-from tests.helpers.onboarding import register_onboarding, register_web
+from tests.helpers.onboarding import register_web
 
 EXPECTED_ACADEMY_COUNT = 2
 EXPECTED_MASTER_COUNT = 2
 
 
 @pytest.mark.asyncio
-async def test_register_web_should_create_academy_and_master_without_telegram(
+async def test_register_web_should_create_academy_and_master(
     client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
@@ -51,14 +38,12 @@ async def test_register_web_should_create_academy_and_master_without_telegram(
 
     assert me['email'] == payload['email']
     assert me['phone'] == payload['phone']
-    assert me['telegram_linked'] is False
     assert me['academy']['name'] == payload['academy_name']
     assert set(me) == {
         'id',
         'name',
         'email',
         'phone',
-        'telegram_linked',
         'academy',
         'support_mode',
     }
@@ -72,7 +57,6 @@ async def test_register_web_should_create_academy_and_master_without_telegram(
         )
     ).scalar_one()
 
-    assert master.telegram_user_id is None
     assert master.password_hash is not None
     assert master.password_hash != payload['password']
 
@@ -158,209 +142,3 @@ async def test_login_unknown_email_has_same_error_code(
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
     assert response.json()['code'] == 'INVALID_CREDENTIALS'
-
-
-@pytest.mark.asyncio
-async def test_telegram_link_token_and_webhook_link(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    settings.TELEGRAM_WEBHOOK_SECRET = 'webhook-secret'
-
-    async def fake_send_message(
-        self: object,
-        **kwargs: object,
-    ) -> dict[str, str]:
-        return {'ok': 'true'}
-
-    monkeypatch.setattr(TelegramService, 'send_message', fake_send_message)
-
-    register_response, _ = await register_web(client)
-    access_token = register_response.json()['access_token']
-    me_response = await client.get(
-        '/api/v1/auth/me',
-        headers={'Authorization': f'Bearer {access_token}'},
-    )
-    master_public_id = me_response.json()['id']
-
-    link_response = await client.post(
-        '/api/v1/auth/telegram/link-token',
-        headers={'Authorization': f'Bearer {access_token}'},
-    )
-
-    assert link_response.status_code == HTTPStatus.OK
-    link_body = link_response.json()
-    assert link_body['token']
-    assert link_body['deep_link'] is not None
-
-    telegram_user_id = 555666777
-
-    webhook_response = await client.post(
-        '/api/v1/telegram/webhook',
-        headers={'X-Telegram-Bot-Api-Secret-Token': 'webhook-secret'},
-        json={
-            'update_id': 1,
-            'message': {
-                'message_id': 1,
-                'date': 1,
-                'text': f'/start link_{link_body["token"]}',
-                'chat': {'id': telegram_user_id, 'type': 'private'},
-                'from': {
-                    'id': telegram_user_id,
-                    'is_bot': False,
-                    'first_name': 'Mestre',
-                },
-            },
-        },
-    )
-
-    assert webhook_response.status_code == HTTPStatus.OK
-    assert webhook_response.json() == {'status': 'telegram_linked'}
-
-    master = (
-        await db_session.execute(
-            select(Master).where(
-                Master.public_id == uuid.UUID(master_public_id)
-            )
-        )
-    ).scalar_one()
-
-    assert master.telegram_user_id == telegram_user_id
-
-    used_token = (
-        await db_session.execute(
-            select(OneTimeToken).where(
-                OneTimeToken.token == link_body['token']
-            )
-        )
-    ).scalar_one()
-
-    assert used_token.used_at is not None
-
-
-@pytest.mark.asyncio
-async def test_set_credentials_with_setup_token(
-    client: AsyncClient,
-    db_session: AsyncSession,
-) -> None:
-    onboarding_response, _ = await register_onboarding(client)
-    master_id = onboarding_response.json()['master_id']
-    master_public_id = (
-        await db_session.execute(
-            select(Master.public_id).where(Master.id == master_id)
-        )
-    ).scalar_one()
-
-    master_repository = MasterRepository(db_session=db_session)
-    academy_repository = AcademyRepository(db_session=db_session)
-    master_service = MasterService(
-        master_repository=master_repository,
-        db_session=db_session,
-    )
-    academy_service = AcademyService(
-        academy_repository=academy_repository,
-        db_session=db_session,
-    )
-    onboarding_service = OnboardingService(
-        academy_service=academy_service,
-        master_service=master_service,
-        db_session=db_session,
-    )
-    auth_service = AuthService(
-        onboarding_service=onboarding_service,
-        master_service=master_service,
-        one_time_token_repository=OneTimeTokenRepository(
-            db_session=db_session
-        ),
-        refresh_session_repository=RefreshSessionRepository(
-            db_session=db_session
-        ),
-        db_session=db_session,
-    )
-
-    setup = await auth_service.create_telegram_setup_token_for_master(
-        master_id
-    )
-
-    response = await client.post(
-        '/api/v1/auth/set-credentials',
-        json={
-            'email': 'telegram.mestre@dojoflow.test',
-            'password': 'senha-segura',
-            'setup_token': setup.token,
-        },
-    )
-
-    assert response.status_code == HTTPStatus.OK
-    body = response.json()
-    assert set(body) == {'access_token', 'token_type'}
-
-    me = (
-        await client.get(
-            '/api/v1/auth/me',
-            headers={'Authorization': f'Bearer {body["access_token"]}'},
-        )
-    ).json()
-    assert me['email'] == 'telegram.mestre@dojoflow.test'
-    assert me['telegram_linked'] is True
-    assert me['id'] == str(master_public_id)
-
-    login_response = await client.post(
-        '/api/v1/auth/login',
-        json={
-            'email': 'telegram.mestre@dojoflow.test',
-            'password': 'senha-segura',
-        },
-    )
-
-    assert login_response.status_code == HTTPStatus.OK
-
-
-@pytest.mark.asyncio
-async def test_register_onboarding_http_requires_internal_key_when_disabled(
-    client: AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(settings, 'INTERNAL_API_KEY', '')
-
-    response = await client.post(
-        '/api/v1/onboarding',
-        json={
-            'academy_name': 'Academia',
-            'master_name': 'Mestre',
-            'telegram_user_id': 12345,
-        },
-    )
-
-    assert response.status_code == HTTPStatus.GONE
-
-
-@pytest.mark.asyncio
-async def test_telegram_and_web_registration_both_work(
-    client: AsyncClient,
-    db_session: AsyncSession,
-) -> None:
-    telegram_response, _ = await register_onboarding(client)
-    web_response, _ = await register_web(
-        client,
-        email='outro@dojoflow.test',
-        academy_name='Academia Site',
-    )
-
-    assert telegram_response.status_code == HTTPStatus.CREATED
-    assert web_response.status_code == HTTPStatus.CREATED
-
-    academy_count = await db_session.scalar(
-        select(func.count())
-        .select_from(Academy)
-        .where(Academy.id != SEED.academy_id)
-    )
-    master_count = await db_session.scalar(
-        select(func.count())
-        .select_from(Master)
-        .where(Master.id != SEED.master_id)
-    )
-
-    assert academy_count == EXPECTED_ACADEMY_COUNT
-    assert master_count == EXPECTED_MASTER_COUNT

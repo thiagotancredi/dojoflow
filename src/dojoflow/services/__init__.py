@@ -4,9 +4,6 @@ from dojoflow.services.cep import CepService
 from dojoflow.services.master import MasterService
 from dojoflow.services.modality import ModalityService
 from dojoflow.services.onboarding import OnboardingService
-from dojoflow.services.telegram_conversation_state import (
-    TelegramConversationStateService,
-)
 
 __all__ = [
     'AcademyService',
@@ -15,5 +12,4 @@ __all__ = [
     'MasterService',
     'ModalityService',
     'OnboardingService',
-    'TelegramConversationStateService',
 ]

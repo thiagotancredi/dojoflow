@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Path, status
 
 from dojoflow.api.dependencies.auth import CurrentMasterDep
-from dojoflow.api.dependencies.telegram import CepServiceDep
+from dojoflow.api.dependencies.cep import CepServiceDep
 from dojoflow.integrations.cep.schemas import CepAddress
 from dojoflow.shared.exceptions import NotFoundError
 

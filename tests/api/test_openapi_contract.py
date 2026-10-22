@@ -1,7 +1,5 @@
 from dojoflow.main import app
 
-EXCLUDED_PREFIXES = ('/api/v1/telegram', '/api/v1/onboarding')
-
 
 def _is_untyped(schema: dict) -> bool:
     if not schema:
@@ -18,9 +16,7 @@ def test_web_routes_declare_typed_responses() -> None:
     untyped = []
 
     for path, operations in openapi['paths'].items():
-        if not path.startswith('/api/v1') or path.startswith(
-            EXCLUDED_PREFIXES
-        ):
+        if not path.startswith('/api/v1'):
             continue
 
         for method, operation in operations.items():

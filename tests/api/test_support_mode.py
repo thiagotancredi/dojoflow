@@ -163,22 +163,22 @@ async def test_support_code_lives_60_seconds(
 
 
 @pytest.mark.asyncio
-async def test_setup_token_is_not_a_support_code(
+async def test_other_kind_of_code_is_not_a_support_code(
     client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
     db_session.add(
         OneTimeToken(
             master_id=SEED.master_id,
-            token='setup-token-de-telegram',
-            purpose='telegram_setup',
+            token='codigo-de-outro-tipo',
+            purpose='other_purpose',
             expires_at=datetime.now(UTC) + timedelta(minutes=5),
         )
     )
     await db_session.commit()
 
     response = await client.post(
-        EXCHANGE_URL, json={'code': 'setup-token-de-telegram'}
+        EXCHANGE_URL, json={'code': 'codigo-de-outro-tipo'}
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
@@ -287,8 +287,6 @@ async def test_support_works_on_blocked_academy(
     ('url', 'code'),
     [
         ('/api/v1/auth/set-credentials', 'SUPPORT_MODE'),
-        ('/api/v1/auth/telegram/link-token', 'SUPPORT_MODE'),
-        ('/api/v1/auth/telegram/setup-token', 'SUPPORT_MODE'),
         (ACADEMIES_URL, 'ADMIN_ONLY'),
     ],
 )

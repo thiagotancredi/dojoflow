@@ -23,10 +23,6 @@ from dojoflow.models.refresh_session import RefreshSession
 from dojoflow.models.responsible import Responsible
 from dojoflow.models.student import Student
 from dojoflow.models.student_responsible import StudentResponsible
-from dojoflow.models.telegram_conversation_state import (
-    TelegramConversationState,
-)
-from dojoflow.models.telegram_message_log import TelegramMessageLog
 
 __all__ = [
     'Academy',
@@ -52,6 +48,4 @@ __all__ = [
     'Responsible',
     'Student',
     'StudentResponsible',
-    'TelegramConversationState',
-    'TelegramMessageLog',
 ]

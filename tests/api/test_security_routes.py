@@ -3,8 +3,6 @@ from http import HTTPStatus
 import pytest
 from httpx import AsyncClient
 
-from dojoflow.core.settings import settings
-
 
 @pytest.mark.asyncio
 async def test_master_context_route_was_removed(
@@ -16,16 +14,24 @@ async def test_master_context_route_was_removed(
 
 
 @pytest.mark.asyncio
-async def test_webhook_rejects_wrong_secret(
+@pytest.mark.parametrize(
+    ('method', 'url'),
+    [
+        ('POST', '/api/v1/telegram/webhook'),
+        ('GET', '/api/v1/telegram/me'),
+        ('POST', '/api/v1/onboarding'),
+        ('POST', '/api/v1/auth/telegram/link-token'),
+        ('POST', '/api/v1/auth/telegram/setup-token'),
+    ],
+)
+async def test_telegram_routes_were_removed(
     client: AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
+    method: str,
+    url: str,
 ) -> None:
-    monkeypatch.setattr(settings, 'TELEGRAM_WEBHOOK_SECRET', 'right')
+    response = await client.request(method, url, json={})
 
-    response = await client.post(
-        '/api/v1/telegram/webhook',
-        json={'update_id': 1},
-        headers={'X-Telegram-Bot-Api-Secret-Token': 'wrong'},
-    )
-
-    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.status_code in {
+        HTTPStatus.NOT_FOUND,
+        HTTPStatus.METHOD_NOT_ALLOWED,
+    }

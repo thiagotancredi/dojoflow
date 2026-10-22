@@ -25,13 +25,10 @@ from dojoflow.schemas.address import AddressCreate
 from dojoflow.schemas.enrollment import EnrollmentCreate
 from dojoflow.schemas.responsible import ResponsibleCreate
 from dojoflow.schemas.student import (
-    StudentAddressPayload,
     StudentCreate,
     StudentCreateRequest,
     StudentEnrollmentPayload,
     StudentRead,
-    StudentResponsiblePayload,
-    StudentResponsibleReferencePayload,
 )
 from dojoflow.schemas.student_responsible import StudentResponsibleCreate
 from dojoflow.services.billing import BillingService
@@ -138,54 +135,6 @@ class StudentService:
 
         return StudentRead(**student)
 
-    @transactional
-    async def create_from_telegram_context(
-        self,
-        academy_id: int,
-        context_data: dict[str, Any],
-    ) -> StudentRead:
-        request = StudentCreateRequest(
-            name=str(context_data['student_name']),
-            phone=context_data.get('phone'),
-            phone_is_whatsapp=context_data.get('is_whatsapp'),
-            cpf=context_data.get('cpf'),
-            instagram=context_data.get('instagram'),
-            email=context_data.get('email'),
-            birth_date=self._parse_birth_date(context_data),
-            sex=(
-                self._parse_student_sex(context_data)
-                if context_data.get('sex') is not None
-                else None
-            ),
-            enrollment=self._enrollment_from_context(context_data),
-            address=self._address_from_context(context_data),
-            address_reference_student_id=context_data.get(
-                'address_reference_student_id'
-            ),
-            responsibles=self._responsibles_from_context(context_data),
-            responsible_references=self._responsible_refs_from_context(
-                context_data
-            ),
-        )
-
-        return await self.create_student(
-            academy_id=academy_id,
-            data=request,
-        )
-
-    async def list_by_academy(
-        self,
-        academy_id: int,
-        limit: int = 20,
-    ) -> list[StudentRead]:
-        students = await self.student_repository.list(
-            filters=[Student.academy_id == academy_id],
-            order_by=[Student.name],
-            limit=limit,
-        )
-
-        return [StudentRead(**student) for student in students]
-
     async def list_page(  # noqa: PLR0913
         self,
         academy_id: int,
@@ -265,25 +214,6 @@ class StudentService:
 
         return names
 
-    async def search_by_name(
-        self,
-        academy_id: int,
-        search_text: str,
-        limit: int = 10,
-    ) -> list[StudentRead]:
-        normalized_search_text = ' '.join(search_text.strip().split())
-
-        students = await self.student_repository.list(
-            filters=[
-                Student.academy_id == academy_id,
-                Student.name.ilike(f'%{normalized_search_text}%'),
-            ],
-            order_by=[Student.name],
-            limit=limit,
-        )
-
-        return [StudentRead(**student) for student in students]
-
     async def get_details(
         self,
         academy_id: int,
@@ -357,85 +287,6 @@ class StudentService:
 
         await self.student_repository.update_by_id(
             record_id=student_id,
-            data=update_data,
-        )
-
-    @transactional
-    async def update_modality(
-        self,
-        academy_id: int,
-        student_id: int,
-        modality_id: int,
-    ) -> None:
-        await self._ensure_modality_belongs_to_academy(
-            academy_id=academy_id,
-            modality_id=modality_id,
-        )
-
-        enrollments = await self.enrollment_repository.list(
-            fields=[
-                Enrollment.id,
-                Enrollment.modality_id,
-            ],
-            filters=[
-                Enrollment.academy_id == academy_id,
-                Enrollment.student_id == student_id,
-            ],
-            order_by=[Enrollment.id],
-            limit=1,
-        )
-
-        if not enrollments:
-            raise NotFoundError(
-                f'Could not find Enrollment for student id {student_id}.'
-            )
-
-        enrollment = enrollments[0]
-
-        if enrollment['modality_id'] == modality_id:
-            return
-
-        await self.enrollment_repository.update_by_id(
-            record_id=enrollment['id'],
-            data={
-                'modality_id': modality_id,
-            },
-        )
-
-    @transactional
-    async def update_enrollment(
-        self,
-        academy_id: int,
-        student_id: int,
-        data: dict[str, Any],
-    ) -> None:
-        enrollments = await self.enrollment_repository.list(
-            fields=[Enrollment.id],
-            filters=[
-                Enrollment.academy_id == academy_id,
-                Enrollment.student_id == student_id,
-            ],
-            order_by=[Enrollment.id],
-            limit=1,
-        )
-
-        if not enrollments:
-            raise NotFoundError(
-                f'Could not find Enrollment for student id {student_id}.'
-            )
-
-        update_data = dict(data)
-        monthly_fee = update_data.get('monthly_fee')
-        status = update_data.get('status')
-
-        if monthly_fee is not None:
-            update_data['monthly_fee'] = Decimal(str(monthly_fee))
-
-        if status is not None:
-            update_data['status'] = EnrollmentStatus(str(status))
-
-        await self._apply_enrollment_update(
-            enrollment_id=enrollments[0]['id'],
             data=update_data,
         )
 
@@ -692,38 +543,6 @@ class StudentService:
             student_id=student_id,
             responsible_id=responsible_id,
             relationship=str(responsible_data['relationship']),
-        )
-
-    @transactional
-    async def reuse_responsible(
-        self,
-        academy_id: int,
-        student_id: int,
-        responsible_id: int,
-        relationship: str,
-    ) -> None:
-        await self._get_student_or_fail(
-            academy_id=academy_id,
-            student_id=student_id,
-        )
-
-        exists = await self.responsible_repository.exists(
-            filters=[
-                Responsible.id == responsible_id,
-                Responsible.academy_id == academy_id,
-            ],
-        )
-
-        if not exists:
-            raise NotFoundError(
-                f'Could not find Responsible with id {responsible_id}.'
-            )
-
-        await self._link_responsible_if_missing(
-            academy_id=academy_id,
-            student_id=student_id,
-            responsible_id=responsible_id,
-            relationship=relationship,
         )
 
     @transactional
@@ -1071,17 +890,6 @@ class StudentService:
         return sex_mapping[sex]
 
     @staticmethod
-    def _parse_birth_date(
-        context_data: dict[str, Any],
-    ) -> date | None:
-        birth_date = context_data.get('birth_date')
-
-        if birth_date is None:
-            return None
-
-        return date.fromisoformat(birth_date)
-
-    @staticmethod
     def _build_context_from_create_request(
         data: StudentCreateRequest,
     ) -> dict[str, Any]:
@@ -1099,81 +907,3 @@ class StudentService:
                 for reference in data.responsible_references
             ],
         }
-
-    @staticmethod
-    def _enrollment_from_context(
-        context_data: dict[str, Any],
-    ) -> StudentEnrollmentPayload:
-        return StudentEnrollmentPayload(
-            modality_id=int(context_data['modality_id']),
-            monthly_fee=Decimal(str(context_data['monthly_fee'])),
-            due_day=int(context_data['due_day']),
-            is_exempt=bool(context_data['is_exempt']),
-            enrollment_fee=(
-                Decimal(str(context_data['enrollment_fee']))
-                if context_data.get('enrollment_fee') is not None
-                else None
-            ),
-        )
-
-    @staticmethod
-    def _address_from_context(
-        context_data: dict[str, Any],
-    ) -> StudentAddressPayload | None:
-        address = context_data.get('address')
-
-        if not isinstance(address, dict):
-            return None
-
-        has_address_data = any(
-            address.get(field)
-            for field in (
-                'zip_code',
-                'street',
-                'neighborhood',
-                'city',
-                'state',
-                'number',
-                'complement',
-            )
-        )
-
-        if not has_address_data:
-            return None
-
-        return StudentAddressPayload(**address)
-
-    @staticmethod
-    def _responsibles_from_context(
-        context_data: dict[str, Any],
-    ) -> list[StudentResponsiblePayload]:
-        responsibles = context_data.get('responsibles', [])
-
-        return [
-            StudentResponsiblePayload(
-                name=str(responsible['name']),
-                phone=str(responsible['phone']),
-                phone_is_whatsapp=bool(responsible['phone_is_whatsapp']),
-                email=responsible.get('email'),
-                relationship=StudentResponsibleRelationship(
-                    responsible['relationship']
-                ),
-            )
-            for responsible in responsibles
-        ]
-
-    @staticmethod
-    def _responsible_refs_from_context(
-        context_data: dict[str, Any],
-    ) -> list[StudentResponsibleReferencePayload]:
-        references = context_data.get('responsible_references', [])
-
-        return [
-            StudentResponsibleReferencePayload(
-                responsible_id=int(reference['responsible_id']),
-                relationship=StudentResponsibleRelationship(
-                    reference['relationship']
-                ),
-            )
-            for reference in references
-        ]
