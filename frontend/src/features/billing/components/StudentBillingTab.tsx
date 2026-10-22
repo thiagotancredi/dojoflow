@@ -15,13 +15,15 @@ import {
   useSetChargeWaived,
   useStudentBilling,
 } from '@/features/billing/hooks'
-import { capitalize } from '@/features/billing/labels'
 import { chargeTitle } from '@/features/billing/statement'
 import { parseWhatsAppUrl } from '@/features/billing/whatsapp'
 import type { StudentDetail } from '@/features/students/api'
 import { showApiError } from '@/lib/api/errors'
 import { formatDate } from '@/lib/format'
 import { formatMoney } from '@/lib/money'
+
+// Quantas cobranças em aberto o topo lista antes do "e mais N"
+const OPEN_LIST_LIMIT = 4
 
 // Aba "Mensalidades" da ficha: o que está em aberto e o extrato mês a mês
 export function StudentBillingTab({ student: detail }: { student: StudentDetail }) {
@@ -56,12 +58,11 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
   }
 
   const hasOpen = Number(data.open_total) > 0
-  // Meses pagos em parte: o topo diz quanto falta em cada um
-  const partials = data.charges.filter(
-    (charge) =>
-      (charge.status === 'partial' || charge.status === 'overdue') &&
-      Number(charge.paid) > 0,
-  )
+  // O que forma o "em aberto" (mesma regra do sistema: tudo que não está
+  // pago nem isento), do mais antigo para o mais novo. A soma bate o total.
+  const openCharges = data.charges
+    .filter((charge) => charge.status !== 'paid' && charge.status !== 'waived')
+    .reverse()
 
   async function setWaived(charge: Charge, waived: boolean) {
     try {
@@ -97,20 +98,23 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
           <p className="text-2xl font-semibold">
             {formatMoney(data.open_total)}
           </p>
-          <p className="text-xs text-muted-foreground">
-            {hasOpen ? capitalize(data.open_months) : 'Nada em aberto 🎉'}
-          </p>
-          {hasOpen && partials.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {partials
-                .map(
-                  (charge) =>
-                    `${chargeTitle(charge)}: falta ${formatMoney(
-                      (Number(charge.amount) - Number(charge.paid)).toFixed(2),
-                    )}`,
-                )
-                .join(' · ')}
-            </p>
+          {hasOpen ? (
+            <ul className="text-xs text-muted-foreground">
+              {openCharges.slice(0, OPEN_LIST_LIMIT).map((charge) => (
+                <li key={charge.id}>
+                  {chargeTitle(charge)}:{' '}
+                  {Number(charge.paid) > 0 && 'falta '}
+                  {formatMoney(
+                    (Number(charge.amount) - Number(charge.paid)).toFixed(2),
+                  )}
+                </li>
+              ))}
+              {openCharges.length > OPEN_LIST_LIMIT && (
+                <li>e mais {openCharges.length - OPEN_LIST_LIMIT}</li>
+              )}
+            </ul>
+          ) : (
+            <p className="text-xs text-muted-foreground">Nada em aberto 🎉</p>
           )}
         </div>
         <div className="flex flex-wrap gap-2">
