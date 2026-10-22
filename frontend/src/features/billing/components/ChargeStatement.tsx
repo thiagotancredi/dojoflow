@@ -1,5 +1,4 @@
-import { ChevronDown, ChevronRight, Ellipsis } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { Ellipsis } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -12,11 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { Charge, Payment } from '@/features/billing/api'
 import { ChargeStatusChip } from '@/features/billing/components/ChargeStatusChip'
-import {
-  PAYMENT_METHOD_LABELS,
-  formatDayMonth,
-  formatMonth,
-} from '@/features/billing/labels'
+import { formatMonth } from '@/features/billing/labels'
 import { chargeTitle, paymentsByCharge } from '@/features/billing/statement'
 import type { ChargePayment } from '@/features/billing/statement'
 import { formatDate } from '@/lib/format'
@@ -32,200 +27,115 @@ type StatementProps = {
   onRemovePayment: (payment: Payment) => void
 }
 
-// Extrato da aba Mensalidades: uma linha por mensalidade (mais nova em
-// cima), com quanto foi pago, quando e quanto falta. Clicar na linha
-// mostra os pagamentos dela.
+// Extrato da aba Mensalidades, como uma planilha: uma linha por cobrança
+// (mais nova em cima) com Mensalidade, Pago, Falta e quando foi pago.
 export function ChargeStatement(props: StatementProps) {
   const byCharge = paymentsByCharge(props.payments)
-  const [expanded, setExpanded] = useState<string | null>(null)
-  const toggle = (id: string) =>
-    setExpanded((current) => (current === id ? null : id))
+
+  const menu = (charge: Charge) => (
+    <ChargeMenu
+      charge={charge}
+      chargePayments={byCharge.get(charge.id) ?? []}
+      busy={props.busy}
+      onWaive={props.onWaive}
+      onEdit={props.onEdit}
+      onRemovePayment={props.onRemovePayment}
+    />
+  )
 
   return (
     <>
       {/* Computador: tabela */}
-      <div className="hidden md:block">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs text-muted-foreground">
-              <th className="py-2 pr-3 font-medium">Mês</th>
-              <th className="py-2 pr-3 font-medium">Modalidade</th>
-              <th className="py-2 pr-3 font-medium">Vence</th>
-              <th className="py-2 pr-3 font-medium">Mensalidade</th>
-              <th className="py-2 pr-3 font-medium">Total pago</th>
-              <th className="py-2 pr-3 font-medium">Pagamento</th>
-              <th className="py-2 pr-3 font-medium">Situação</th>
-              <th className="w-8" />
+      <table className="hidden w-full text-sm md:table">
+        <thead>
+          <tr className="border-b text-left text-xs text-muted-foreground">
+            <th className="py-2 pr-3 font-medium">Mês</th>
+            <th className="py-2 pr-3 font-medium">Modalidade</th>
+            <th className="py-2 pr-3 font-medium">Mensalidade</th>
+            <th className="py-2 pr-3 font-medium">Pago</th>
+            <th className="py-2 pr-3 font-medium">Falta</th>
+            <th className="py-2 pr-3 font-medium">Pago em</th>
+            <th className="py-2 pr-3 font-medium">Situação</th>
+            <th className="w-8" />
+          </tr>
+        </thead>
+        <tbody>
+          {props.charges.map((charge) => (
+            <tr key={charge.id} className="border-b last:border-0">
+              <td
+                className="py-2.5 pr-3 font-medium whitespace-nowrap"
+                title={`Vence em ${formatDate(charge.due_date)}`}
+              >
+                {formatMonth(charge.reference_month)}
+              </td>
+              <td className="py-2.5 pr-3">
+                <What charge={charge} />
+              </td>
+              <td className="py-2.5 pr-3 whitespace-nowrap">
+                {formatMoney(charge.amount)}
+              </td>
+              <td className="py-2.5 pr-3 whitespace-nowrap">
+                <Paid charge={charge} />
+              </td>
+              <td className="py-2.5 pr-3 whitespace-nowrap">
+                <Missing charge={charge} />
+              </td>
+              <td className="py-2.5 pr-3 whitespace-nowrap">
+                <PaidOn payments={byCharge.get(charge.id) ?? []} />
+              </td>
+              <td className="py-2.5 pr-3">
+                <ChargeStatusChip status={charge.status} />
+              </td>
+              <td className="py-2.5 text-right">{menu(charge)}</td>
             </tr>
-          </thead>
-          <tbody>
-            {props.charges.map((charge) => {
-              const payments = byCharge.get(charge.id) ?? []
-              const expandable = hasMoreToShow(payments)
-              const open = expandable && expanded === charge.id
-              return (
-                <Fragment key={charge.id}>
-                  <tr
-                    className={cn(
-                      'border-b',
-                      expandable && 'cursor-pointer hover:bg-accent/50',
-                      open && 'border-b-0',
-                    )}
-                    onClick={() => expandable && toggle(charge.id)}
-                  >
-                    <td className="py-2.5 pr-3 whitespace-nowrap">
-                      <MonthCell charge={charge} hasPayments={expandable} open={open} />
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      <ModalityCell charge={charge} />
-                    </td>
-                    <td
-                      className="py-2.5 pr-3"
-                      title={formatDate(charge.due_date)}
-                    >
-                      {formatDayMonth(charge.due_date)}
-                    </td>
-                    <td className="py-2.5 pr-3 whitespace-nowrap">
-                      {formatMoney(charge.amount)}
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      <PaidCell charge={charge} />
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      <PaymentCell payments={payments} />
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      <ChargeStatusChip
-                        status={charge.status}
-                        paid={Number(charge.paid)}
-                      />
-                    </td>
-                    <td
-                      className="py-2.5 text-right"
-                      // O menu não abre/fecha a linha
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <ChargeMenu
-                        charge={charge}
-                        chargePayments={payments}
-                        busy={props.busy}
-                        onWaive={props.onWaive}
-                        onEdit={props.onEdit}
-                        onRemovePayment={props.onRemovePayment}
-                      />
-                    </td>
-                  </tr>
-                  {open && (
-                    <tr className="border-b">
-                      <td />
-                      <td colSpan={7} className="pb-3">
-                        <PaymentList payments={payments} charge={charge} charges={props.charges} />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
 
-      {/* Celular: um bloco por mensalidade */}
+      {/* Celular: um bloco por cobrança */}
       <ul className="divide-y md:hidden">
-        {props.charges.map((charge) => {
-          const payments = byCharge.get(charge.id) ?? []
-          const expandable = hasMoreToShow(payments)
-          const open = expandable && expanded === charge.id
-          return (
-            <li key={charge.id} className="space-y-2 py-3">
-              <div className="flex items-start justify-between gap-2">
-                <button
-                  type="button"
-                  className="min-w-0 text-left text-sm"
-                  disabled={!expandable}
-                  onClick={() => toggle(charge.id)}
-                >
-                  <MonthCell charge={charge} hasPayments={expandable} open={open} />
-                  <span className="block text-xs text-muted-foreground">
-                    <ModalityCell charge={charge} inline /> · vence{' '}
-                    {formatDayMonth(charge.due_date)}
-                  </span>
-                </button>
-                <div className="flex items-center gap-1">
-                  <ChargeStatusChip
-                    status={charge.status}
-                    paid={Number(charge.paid)}
-                  />
-                  <ChargeMenu
-                        charge={charge}
-                        chargePayments={payments}
-                        busy={props.busy}
-                        onWaive={props.onWaive}
-                        onEdit={props.onEdit}
-                        onRemovePayment={props.onRemovePayment}
-                      />
-                </div>
+        {props.charges.map((charge) => (
+          <li key={charge.id} className="space-y-1.5 py-3 text-sm">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-medium">
+                  {formatMonth(charge.reference_month)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <What charge={charge} inline />
+                </p>
               </div>
-              <div className="flex items-start justify-between gap-3 text-sm">
-                <div>
-                  <span className="text-xs text-muted-foreground">
-                    Mensalidade{' '}
-                  </span>
-                  {formatMoney(charge.amount)}
-                </div>
-                <PaidCell charge={charge} />
+              <div className="flex items-center gap-1">
+                <ChargeStatusChip status={charge.status} />
+                {menu(charge)}
               </div>
-              {payments.length > 0 && (
-                <div className="text-xs text-muted-foreground">
-                  <PaymentCell payments={payments} inline />
-                </div>
-              )}
-              {open && <PaymentList payments={payments} charge={charge} charges={props.charges} />}
-            </li>
-          )
-        })}
+            </div>
+            <dl className="grid grid-cols-3 gap-2 text-xs">
+              <Cell label="Mensalidade">{formatMoney(charge.amount)}</Cell>
+              <Cell label="Pago">
+                <Paid charge={charge} />
+              </Cell>
+              <Cell label="Falta">
+                <Missing charge={charge} />
+              </Cell>
+            </dl>
+          </li>
+        ))}
       </ul>
     </>
   )
 }
 
-// Abrir a linha só mostra algo novo com 2+ pagamentos, pagamento dividido
-// com outra mensalidade ou observação; senão repetiria a própria linha
-function hasMoreToShow(payments: ChargePayment[]) {
+function Cell({ label, children }: { label: string; children: ReactNode }) {
   return (
-    payments.length > 1 ||
-    payments.some(
-      ({ payment, amount }) =>
-        Number(payment.amount) > Number(amount) || Boolean(payment.notes),
-    )
+    <div>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-sm">{children}</dd>
+    </div>
   )
 }
 
-function MonthCell({
-  charge,
-  hasPayments,
-  open,
-}: {
-  charge: Charge
-  hasPayments: boolean
-  open: boolean
-}) {
-  const Icon = open ? ChevronDown : ChevronRight
-  return (
-    <span className="inline-flex items-center gap-1 font-medium">
-      {/* A setinha só aparece quando há pagamentos para mostrar */}
-      <Icon
-        className={cn(
-          'size-3.5 text-muted-foreground',
-          !hasPayments && 'invisible',
-        )}
-      />
-      {formatMonth(charge.reference_month)}
-    </span>
-  )
-}
-
-function ModalityCell({ charge, inline }: { charge: Charge; inline?: boolean }) {
+function What({ charge, inline }: { charge: Charge; inline?: boolean }) {
   if (charge.kind !== 'enrollment_fee') return <>{charge.modality_name}</>
   if (inline) return <>Taxa de matrícula · {charge.modality_name}</>
   return (
@@ -238,152 +148,43 @@ function ModalityCell({ charge, inline }: { charge: Charge; inline?: boolean }) 
   )
 }
 
-// Total pago: o valor, ou "R$ 100 de R$ 140" + barrinha + "Falta R$ 40"
-function PaidCell({ charge }: { charge: Charge }) {
-  const amount = Number(charge.amount)
-  const paid = Number(charge.paid)
-  const missing = (amount - paid).toFixed(2)
-  const late = charge.status === 'overdue'
+function Paid({ charge }: { charge: Charge }) {
+  return Number(charge.paid) > 0 ? (
+    <>{formatMoney(charge.paid)}</>
+  ) : (
+    <span className="text-muted-foreground">—</span>
+  )
+}
 
-  if (charge.status === 'waived') {
+// O que falta pagar: vermelho se já venceu, âmbar se ainda vai vencer
+function Missing({ charge }: { charge: Charge }) {
+  const missing = Number(charge.amount) - Number(charge.paid)
+
+  if (charge.status === 'waived' || missing <= 0) {
     return <span className="text-muted-foreground">—</span>
   }
-  if (paid >= amount) return <span>{formatMoney(charge.paid)}</span>
 
-  const falta = (
-    <p
+  return (
+    <span
       className={cn(
-        'text-xs font-semibold',
-        late ? 'text-status-critical' : 'text-status-warning',
+        'font-semibold',
+        charge.status === 'overdue'
+          ? 'text-status-critical'
+          : 'text-status-warning',
       )}
     >
-      Falta {formatMoney(missing)}
-    </p>
-  )
-
-  if (paid === 0) {
-    return late ? (
-      <div>
-        <span className="text-muted-foreground">—</span>
-        {falta}
-      </div>
-    ) : (
-      <span className="text-muted-foreground">—</span>
-    )
-  }
-
-  return (
-    <div className="space-y-1">
-      <p className="whitespace-nowrap">
-        {formatMoney(charge.paid)}{' '}
-        <span className="text-muted-foreground">
-          de {formatMoney(charge.amount)}
-        </span>
-      </p>
-      <div className="h-1.5 w-28 overflow-hidden rounded-full bg-muted">
-        <div
-          className={cn(
-            'h-full rounded-full',
-            late ? 'bg-status-critical' : 'bg-status-warning',
-          )}
-          style={{ width: `${(paid / amount) * 100}%` }}
-        />
-      </div>
-      {falta}
-    </div>
+      {formatMoney(missing.toFixed(2))}
+    </span>
   )
 }
 
-function methodLabel(payment: Payment) {
-  return payment.method ? PAYMENT_METHOD_LABELS[payment.method] : null
-}
-
-// Data do último pagamento + forma (ou "N pagamentos")
-function PaymentCell({
-  payments,
-  inline,
-}: {
-  payments: ChargePayment[]
-  inline?: boolean
-}) {
-  if (payments.length === 0) {
-    return inline ? null : <span className="text-muted-foreground">—</span>
-  }
-
+// Data do pagamento mais recente desta cobrança
+function PaidOn({ payments }: { payments: ChargePayment[] }) {
   const [last] = payments
-  const sub =
-    payments.length > 1 ? `${payments.length} pagamentos` : methodLabel(last.payment)
-
-  if (inline) {
-    return (
-      <>
-        Pago em {formatDate(last.payment.paid_on)}
-        {sub && ` · ${sub}`}
-      </>
-    )
-  }
-
-  return (
-    <div>
-      <p className="whitespace-nowrap">{formatDate(last.payment.paid_on)}</p>
-      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-    </div>
-  )
-}
-
-// Lista aberta ao clicar: cada pagamento que caiu nesta mensalidade. Se o
-// pagamento foi dividido com outras cobranças, mostra a divisão inteira.
-function PaymentList({
-  payments,
-  charge,
-  charges,
-}: {
-  payments: ChargePayment[]
-  charge: Charge
-  charges: Charge[]
-}) {
-  const titleOf = (chargeId: string, label: string) => {
-    if (chargeId === charge.id) return 'nesta cobrança'
-    const other = charges.find((item) => item.id === chargeId)
-    return `em ${other ? chargeTitle(other) : label}`
-  }
-
-  return (
-    <ul className="max-w-xl space-y-2 rounded-xl bg-muted px-3 py-2 text-xs">
-      {payments.map(({ payment, amount }) => (
-        <li key={payment.id} className="space-y-0.5">
-          {Number(payment.amount) > Number(amount) ? (
-            <>
-              <p className="font-medium">
-                Pagamento de {formatMoney(payment.amount)} em{' '}
-                {formatDate(payment.paid_on)}
-                {methodLabel(payment) && ` · ${methodLabel(payment)}`},
-                dividido em:
-              </p>
-              <p className="text-muted-foreground">
-                {payment.allocations
-                  .map(
-                    (item) =>
-                      `${formatMoney(item.amount)} ${titleOf(item.charge_id, item.label)}`,
-                  )
-                  .join(' · ')}
-              </p>
-            </>
-          ) : (
-            <div className="flex justify-between gap-3">
-              <span>
-                {formatDate(payment.paid_on)}
-                {methodLabel(payment) && ` · ${methodLabel(payment)}`}
-              </span>
-              <span className="font-semibold">{formatMoney(amount)}</span>
-            </div>
-          )}
-          {payment.notes && (
-            <p className="text-muted-foreground">{payment.notes}</p>
-          )}
-        </li>
-      ))}
-    </ul>
+  return last ? (
+    <>{formatDate(last.payment.paid_on)}</>
+  ) : (
+    <span className="text-muted-foreground">—</span>
   )
 }
 

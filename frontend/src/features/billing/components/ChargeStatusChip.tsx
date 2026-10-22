@@ -9,10 +9,11 @@ const STYLES: Record<ChargeStatus, { label: string; dot: string; chip: string }>
       dot: 'bg-status-exempt',
       chip: 'bg-status-exempt-soft',
     },
+    // Pago em parte e ainda no prazo: o "Falta" do extrato mostra o resto
     partial: {
-      label: 'Parcial',
-      dot: 'bg-status-pending',
-      chip: 'bg-status-pending-soft',
+      label: 'A vencer',
+      dot: 'bg-status-active',
+      chip: 'bg-status-active-soft',
     },
     overdue: {
       label: 'Atrasada',
@@ -31,16 +32,9 @@ const STYLES: Record<ChargeStatus, { label: string; dot: string; chip: string }>
     },
   }
 
-type ChargeStatusChipProps = {
-  status: ChargeStatus
-  // Quanto já foi pago: vencida com parte paga vira "Atrasada · parcial"
-  paid: number
-}
-
-export function ChargeStatusChip({ status, paid }: ChargeStatusChipProps) {
+// Só quatro situações: Paga, A vencer, Atrasada, Isenta
+export function ChargeStatusChip({ status }: { status: ChargeStatus }) {
   const style = STYLES[status]
-  const label =
-    status === 'overdue' && paid > 0 ? 'Atrasada · parcial' : style.label
 
   return (
     <span
@@ -50,7 +44,7 @@ export function ChargeStatusChip({ status, paid }: ChargeStatusChipProps) {
       )}
     >
       <span className={cn('size-2 rounded-full', style.dot)} />
-      {label}
+      {style.label}
     </span>
   )
 }

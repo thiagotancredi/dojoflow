@@ -22,9 +22,6 @@ import { showApiError } from '@/lib/api/errors'
 import { formatDate } from '@/lib/format'
 import { formatMoney } from '@/lib/money'
 
-// Quantas cobranças em aberto o topo lista antes do "e mais N"
-const OPEN_LIST_LIMIT = 4
-
 // Aba "Mensalidades" da ficha: o que está em aberto e o extrato mês a mês
 export function StudentBillingTab({ student: detail }: { student: StudentDetail }) {
   const studentId = detail.student.id
@@ -58,11 +55,10 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
   }
 
   const hasOpen = Number(data.open_total) > 0
-  // O que forma o "em aberto" (mesma regra do sistema: tudo que não está
-  // pago nem isento), do mais antigo para o mais novo. A soma bate o total.
-  const openCharges = data.charges
-    .filter((charge) => charge.status !== 'paid' && charge.status !== 'waived')
-    .reverse()
+  // O que forma o "em aberto": tudo que não está pago nem isento
+  const openCharges = data.charges.filter(
+    (charge) => charge.status !== 'paid' && charge.status !== 'waived',
+  )
 
   async function setWaived(charge: Charge, waived: boolean) {
     try {
@@ -98,24 +94,9 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
           <p className="text-2xl font-semibold">
             {formatMoney(data.open_total)}
           </p>
-          {hasOpen ? (
-            <ul className="text-xs text-muted-foreground">
-              {openCharges.slice(0, OPEN_LIST_LIMIT).map((charge) => (
-                <li key={charge.id}>
-                  {chargeTitle(charge)}:{' '}
-                  {Number(charge.paid) > 0 && 'falta '}
-                  {formatMoney(
-                    (Number(charge.amount) - Number(charge.paid)).toFixed(2),
-                  )}
-                </li>
-              ))}
-              {openCharges.length > OPEN_LIST_LIMIT && (
-                <li>e mais {openCharges.length - OPEN_LIST_LIMIT}</li>
-              )}
-            </ul>
-          ) : (
-            <p className="text-xs text-muted-foreground">Nada em aberto 🎉</p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            {hasOpen ? openCountLabel(openCharges) : 'Nada em aberto 🎉'}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <WhatsAppButton
@@ -197,6 +178,13 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
       />
     </div>
   )
+}
+
+// "2 mensalidades em aberto" (ou "cobranças", se tiver taxa de matrícula)
+function openCountLabel(open: Charge[]) {
+  const onlyMonthly = open.every((charge) => charge.kind !== 'enrollment_fee')
+  const noun = onlyMonthly ? 'mensalidade' : 'cobrança'
+  return `${open.length} ${noun}${open.length === 1 ? '' : 's'} em aberto`
 }
 
 // Quando um pagamento quitou mais de uma mensalidade, avisa todas
