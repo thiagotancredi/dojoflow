@@ -106,6 +106,7 @@ class DashboardBilling:
     due_soon: list[DueSoonChargeRead]
     overdue_students: int
     due_soon_students: int
+    overdue_total: Decimal
 
 
 @dataclass(frozen=True)
@@ -1004,6 +1005,7 @@ class BillingService:
             ],
             overdue_students=len(by_student),
             due_soon_students=len({c.student_id for c in due_soon}),
+            overdue_total=sum((c.open_amount for c in overdue), ZERO),
         )
 
     async def _payments(

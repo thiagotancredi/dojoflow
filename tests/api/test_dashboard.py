@@ -90,7 +90,10 @@ async def test_dashboard_isolated_per_academy(
         '/api/v1/dashboard/summary', headers=headers_a
     )
 
-    assert response_b.json() == {
+    body_b = response_b.json()
+    # Os 6 meses existem sempre (com zero); o resto vem vazio
+    assert [m['count'] for m in body_b.pop('new_students_by_month')] == [0] * 6
+    assert body_b == {
         'active_students': 0,
         'students_by_modality': [],
         'recent_enrollments': [],
@@ -99,6 +102,15 @@ async def test_dashboard_isolated_per_academy(
         'due_soon': [],
         'overdue_students': 0,
         'due_soon_students': 0,
+        'overdue_total': '0.00',
+        'age_groups': {
+            'all': [
+                {'group': group, 'count': 0}
+                for group in ('kids', 'juvenile', 'adult', 'master', 'unknown')
+            ],
+            'by_modality': [],
+        },
+        'birthdays': [],
     }
     body_a = response_a.json()
     assert body_a['active_students'] == 1
@@ -152,3 +164,5 @@ async def test_dashboard_overdue_and_due_soon(
     # Totais para os números do topo (as listas param em 5)
     assert body['overdue_students'] == 1
     assert body['due_soon_students'] == 1
+    # Total em aberto dos inadimplentes (todos, não só os 5 da lista)
+    assert body['overdue_total'] == '200.00'
