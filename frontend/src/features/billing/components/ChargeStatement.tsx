@@ -119,7 +119,7 @@ export function ChargeStatement(props: StatementProps) {
                     <tr className="border-b">
                       <td />
                       <td colSpan={7} className="pb-3">
-                        <PaymentList payments={payments} />
+                        <PaymentList payments={payments} charge={charge} charges={props.charges} />
                       </td>
                     </tr>
                   )}
@@ -180,7 +180,7 @@ export function ChargeStatement(props: StatementProps) {
                   <PaymentCell payments={payments} inline />
                 </div>
               )}
-              {open && <PaymentList payments={payments} />}
+              {open && <PaymentList payments={payments} charge={charge} charges={props.charges} />}
             </li>
           )
         })}
@@ -331,23 +331,52 @@ function PaymentCell({
   )
 }
 
-// Lista aberta ao clicar: cada pagamento que caiu nesta mensalidade
-function PaymentList({ payments }: { payments: ChargePayment[] }) {
+// Lista aberta ao clicar: cada pagamento que caiu nesta mensalidade. Se o
+// pagamento foi dividido com outras cobranças, mostra a divisão inteira.
+function PaymentList({
+  payments,
+  charge,
+  charges,
+}: {
+  payments: ChargePayment[]
+  charge: Charge
+  charges: Charge[]
+}) {
+  const titleOf = (chargeId: string, label: string) => {
+    if (chargeId === charge.id) return 'nesta cobrança'
+    const other = charges.find((item) => item.id === chargeId)
+    return `em ${other ? chargeTitle(other) : label}`
+  }
+
   return (
-    <ul className="max-w-xl space-y-1 rounded-xl bg-muted px-3 py-2 text-xs">
+    <ul className="max-w-xl space-y-2 rounded-xl bg-muted px-3 py-2 text-xs">
       {payments.map(({ payment, amount }) => (
         <li key={payment.id} className="space-y-0.5">
-          <div className="flex justify-between gap-3">
-            <span>
-              {formatDate(payment.paid_on)}
-              {methodLabel(payment) && ` · ${methodLabel(payment)}`}
-            </span>
-            <span className="font-semibold">{formatMoney(amount)}</span>
-          </div>
-          {Number(payment.amount) > Number(amount) && (
-            <p className="text-muted-foreground">
-              Parte de um pagamento de {formatMoney(payment.amount)}
-            </p>
+          {Number(payment.amount) > Number(amount) ? (
+            <>
+              <p className="font-medium">
+                Pagamento de {formatMoney(payment.amount)} em{' '}
+                {formatDate(payment.paid_on)}
+                {methodLabel(payment) && ` · ${methodLabel(payment)}`},
+                dividido em:
+              </p>
+              <p className="text-muted-foreground">
+                {payment.allocations
+                  .map(
+                    (item) =>
+                      `${formatMoney(item.amount)} ${titleOf(item.charge_id, item.label)}`,
+                  )
+                  .join(' · ')}
+              </p>
+            </>
+          ) : (
+            <div className="flex justify-between gap-3">
+              <span>
+                {formatDate(payment.paid_on)}
+                {methodLabel(payment) && ` · ${methodLabel(payment)}`}
+              </span>
+              <span className="font-semibold">{formatMoney(amount)}</span>
+            </div>
           )}
           {payment.notes && (
             <p className="text-muted-foreground">{payment.notes}</p>
