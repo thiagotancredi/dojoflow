@@ -53,6 +53,7 @@ from dojoflow.shared.enums import (
     PaymentStatus,
 )
 from dojoflow.shared.exceptions import ConflictError
+from dojoflow.shared.text import name_sort_key
 
 CENTS = Decimal('0.01')
 ZERO = Decimal('0.00')
@@ -941,10 +942,8 @@ class BillingService:
                 )
             )
 
-        if status_filter == 'overdue':
-            items.sort(key=lambda item: (-(item.days_late or 0), item.name))
-        else:
-            items.sort(key=lambda item: item.name.casefold())
+        # Sempre de A a Z, em todos os filtros
+        items.sort(key=lambda item: name_sort_key(item.name))
 
         start = (page - 1) * page_size
         return BillingOverviewRead(

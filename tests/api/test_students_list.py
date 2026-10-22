@@ -6,6 +6,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.helpers.auth import auth_headers, create_modality
+from tests.helpers.scenario import add_student
 
 URL = '/api/v1/students'
 TWO_STUDENTS = 2
@@ -154,3 +155,23 @@ async def test_page_beyond_end_and_unknown_modality_are_empty(
         'page': 1,
         'page_size': 20,
     }
+
+
+@pytest.mark.asyncio
+async def test_students_list_is_alphabetical_ignoring_accents(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers = await auth_headers(client)
+    modality = await create_modality(db_session, 'Karatê')
+    for name in ('zeca Lima', 'Bruno Dias', 'Álvaro Reis', 'ana Souza'):
+        await add_student(db_session, str(modality.public_id), name)
+
+    response = await client.get(URL, headers=headers)
+
+    assert [item['name'] for item in response.json()['items']] == [
+        'Álvaro Reis',
+        'ana Souza',
+        'Bruno Dias',
+        'zeca Lima',
+    ]

@@ -975,3 +975,39 @@ async def test_overview_open_amount_is_what_the_student_owes(
     (item,) = response.json()['items']
     assert item['open_amount'] == '200.00'
     assert item['days_late'] == 36  # noqa: PLR2004
+
+
+@pytest.mark.asyncio
+async def test_overview_lists_students_alphabetically_ignoring_accents(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # Todos atrasados, com atrasos diferentes: a ordem é a do nome (A a Z),
+    # não a do atraso; acento e maiúscula não mudam a posição
+    headers = await auth_headers(client)
+    judo = await add_modality(db_session, 'Judô')
+    for name, start in (
+        ('zeca Lima', '2027-01-01'),
+        ('Bruno Dias', '2026-11-01'),
+        ('Álvaro Reis', '2027-02-01'),
+        ('ana Souza', '2026-12-01'),
+    ):
+        await add_student(
+            db_session,
+            judo,
+            name=name,
+            monthly_fee='100',
+            due_day=5,
+            billing_start_month=start,
+        )
+    _freeze_today(monkeypatch, date(2027, 2, 20))
+
+    for filter_name in ('overdue', 'all'):
+        response = await client.get(
+            '/api/v1/billing/overview',
+            headers=headers,
+            params={'filter': filter_name},
+        )
+        names = [item['name'] for item in response.json()['items']]
+        assert names == ['Álvaro Reis', 'ana Souza', 'Bruno Dias', 'zeca Lima']
