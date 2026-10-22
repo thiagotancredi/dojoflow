@@ -617,6 +617,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/billing/bulk-payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Bulk Payments
+         * @description Dá baixa de uma vez em vários alunos que pagaram o que deviam.
+         */
+        post: operations["create_bulk_payments_api_v1_billing_bulk_payments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard/summary": {
         parameters: {
             query?: never;
@@ -1177,6 +1197,34 @@ export interface components {
         BulkBeltResultApiRead: {
             /** Saved */
             saved: number;
+        };
+        /** BulkPaymentApiPayload */
+        BulkPaymentApiPayload: {
+            /**
+             * Paid On
+             * Format: date
+             */
+            paid_on: string;
+            method?: components["schemas"]["PaymentMethod"] | null;
+            /** Items */
+            items: components["schemas"]["BulkPaymentItemApi"][];
+        };
+        /** BulkPaymentApiRead */
+        BulkPaymentApiRead: {
+            /** Count */
+            count: number;
+            /** Total */
+            total: string;
+        };
+        /** BulkPaymentItemApi */
+        BulkPaymentItemApi: {
+            /**
+             * Student Id
+             * Format: uuid
+             */
+            student_id: string;
+            /** Amount */
+            amount: number | string;
         };
         /** CepAddress */
         CepAddress: {
@@ -3326,6 +3374,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BillingOverviewRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_bulk_payments_api_v1_billing_bulk_payments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkPaymentApiPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkPaymentApiRead"];
                 };
             };
             /** @description Validation Error */

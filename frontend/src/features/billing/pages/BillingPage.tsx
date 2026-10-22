@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { OVERVIEW_PAGE_SIZE } from '@/features/billing/api'
 import type {
@@ -12,6 +13,7 @@ import type {
   OverviewFilter,
   OverviewFilters,
 } from '@/features/billing/api'
+import { BulkPaymentDialog } from '@/features/billing/components/BulkPaymentDialog'
 import { PaymentDialog } from '@/features/billing/components/PaymentDialog'
 import { WhatsAppButton } from '@/features/billing/components/WhatsAppButton'
 import { useBillingOverview } from '@/features/billing/hooks'
@@ -48,6 +50,43 @@ export function BillingPage() {
   const filters = readFilters(params)
   const overview = useBillingOverview(filters)
   const [paying, setPaying] = useState<BillingOverviewItem | null>(null)
+  // Seleção para a baixa em lote. Vale só para os filtros e a página em que
+  // foi feita: mudou a lista, a seleção some (nunca dá baixa em quem saiu
+  // da tela).
+  const listKey = params.toString()
+  const [selection, setSelection] = useState<{
+    key: string
+    items: Map<string, BillingOverviewItem>
+  }>({ key: listKey, items: new Map() })
+  const selected =
+    selection.key === listKey ? selection.items : new Map<string, BillingOverviewItem>()
+  const [bulkPaying, setBulkPaying] = useState<BillingOverviewItem[]>([])
+  const selectedTotal = [...selected.values()].reduce(
+    (sum, item) => sum + Number(item.open_amount),
+    0,
+  )
+
+  function setSelected(items: Map<string, BillingOverviewItem>) {
+    setSelection({ key: listKey, items })
+  }
+
+  function toggle(item: BillingOverviewItem) {
+    const next = new Map(selected)
+    if (next.has(item.student_id)) next.delete(item.student_id)
+    else next.set(item.student_id, item)
+    setSelected(next)
+  }
+
+  // Marca todos os da página que têm algo em aberto (ou desmarca todos)
+  function toggleAll(items: BillingOverviewItem[]) {
+    const payable = items.filter((item) => Number(item.open_amount) > 0)
+    const allOn = payable.every((item) => selected.has(item.student_id))
+    setSelected(
+      allOn
+        ? new Map()
+        : new Map(payable.map((item) => [item.student_id, item])),
+    )
+  }
 
   // O campo de busca muda na hora; a URL (e a consulta) só 300 ms depois
   const [searchText, setSearchText] = useState(filters.search)
@@ -179,7 +218,40 @@ export function BillingPage() {
           filters={filters}
           onPay={setPaying}
           onRetry={overview.refetch}
+          selected={selected}
+          onToggle={toggle}
+          onToggleAll={toggleAll}
         />
+
+        {/* Barra da baixa em lote (aparece ao marcar alunos) */}
+        {selected.size > 0 && (
+          <div className="sticky bottom-24 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-3 text-sm text-primary-foreground shadow-lg md:bottom-4">
+            <span>
+              <span className="font-semibold">
+                {selected.size} {selected.size === 1 ? 'aluno' : 'alunos'}
+              </span>{' '}
+              · {formatMoney(selectedTotal.toFixed(2))}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-full text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                onClick={() => setSelected(new Map())}
+              >
+                Limpar
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="rounded-full"
+                onClick={() => setBulkPaying([...selected.values()])}
+              >
+                Dar baixa nos selecionados
+              </Button>
+            </div>
+          </div>
+        )}
 
         {data && data.total > 0 && (
           <div className="flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
@@ -213,6 +285,14 @@ export function BillingPage() {
         )}
       </section>
 
+      <BulkPaymentDialog
+        items={bulkPaying}
+        onClose={() => setBulkPaying([])}
+        onDone={() => {
+          setSelected(new Map())
+          overview.refetch()
+        }}
+      />
       <PaymentDialog
         studentId={paying?.student_id ?? ''}
         studentName={paying?.name ?? ''}
@@ -275,11 +355,17 @@ function OverviewList({
   filters,
   onPay,
   onRetry,
+  selected,
+  onToggle,
+  onToggleAll,
 }: {
   state: ReturnType<typeof useBillingOverview>
   filters: OverviewFilters
   onPay: (item: BillingOverviewItem) => void
   onRetry: () => void
+  selected: Map<string, BillingOverviewItem>
+  onToggle: (item: BillingOverviewItem) => void
+  onToggleAll: (items: BillingOverviewItem[]) => void
 }) {
   if (state.isLoading && !state.data) {
     return (
@@ -303,6 +389,14 @@ function OverviewList({
   }
 
   const { items } = state.data
+  const payable = items.filter((item) => Number(item.open_amount) > 0)
+  const selectedHere = payable.filter((item) => selected.has(item.student_id))
+  const headerState =
+    payable.length > 0 && selectedHere.length === payable.length
+      ? true
+      : selectedHere.length > 0
+        ? 'indeterminate'
+        : false
 
   if (items.length === 0) {
     return (
@@ -321,6 +415,15 @@ function OverviewList({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
+              <th className="w-8 py-2 pr-2">
+                {payable.length > 0 && (
+                  <Checkbox
+                    aria-label="Selecionar todos com valor em aberto"
+                    checked={headerState}
+                    onCheckedChange={() => onToggleAll(items)}
+                  />
+                )}
+              </th>
               <th className="py-2 pr-3 font-medium">Aluno</th>
               <th className="py-2 pr-3 font-medium">Modalidades</th>
               <th className="py-2 pr-3 font-medium">Em aberto</th>
@@ -331,6 +434,9 @@ function OverviewList({
           <tbody>
             {items.map((item) => (
               <tr key={item.student_id} className="border-b last:border-0">
+                <td className="py-2 pr-2">
+                  <SelectBox item={item} selected={selected} onToggle={onToggle} />
+                </td>
                 <td className="py-2 pr-3">
                   <StudentName item={item} />
                 </td>
@@ -355,7 +461,8 @@ function OverviewList({
         {items.map((item) => (
           <li key={item.student_id} className="space-y-2 rounded-2xl border p-3">
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
+              <SelectBox item={item} selected={selected} onToggle={onToggle} />
+              <div className="min-w-0 flex-1">
                 <StudentName item={item} />
                 <p className="text-xs text-muted-foreground">
                   {item.modalities.join(' · ')}
@@ -411,6 +518,28 @@ function DaysLate({ days }: { days: number | null }) {
     <span className="text-status-critical">
       {days} {days === 1 ? 'dia' : 'dias'}
     </span>
+  )
+}
+
+// Caixinha da baixa em lote (só para quem tem algo em aberto)
+function SelectBox({
+  item,
+  selected,
+  onToggle,
+}: {
+  item: BillingOverviewItem
+  selected: Map<string, BillingOverviewItem>
+  onToggle: (item: BillingOverviewItem) => void
+}) {
+  if (Number(item.open_amount) <= 0) return <span className="block size-4" />
+
+  return (
+    <Checkbox
+      aria-label={`Selecionar ${item.name}`}
+      checked={selected.has(item.student_id)}
+      onCheckedChange={() => onToggle(item)}
+      className="mt-0.5"
+    />
   )
 }
 
