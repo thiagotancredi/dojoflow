@@ -61,19 +61,20 @@ export function ChargeStatement(props: StatementProps) {
           <tbody>
             {props.charges.map((charge) => {
               const payments = byCharge.get(charge.id) ?? []
-              const open = expanded === charge.id
+              const expandable = hasMoreToShow(payments)
+              const open = expandable && expanded === charge.id
               return (
                 <Fragment key={charge.id}>
                   <tr
                     className={cn(
                       'border-b',
-                      payments.length > 0 && 'cursor-pointer hover:bg-accent/50',
+                      expandable && 'cursor-pointer hover:bg-accent/50',
                       open && 'border-b-0',
                     )}
-                    onClick={() => payments.length > 0 && toggle(charge.id)}
+                    onClick={() => expandable && toggle(charge.id)}
                   >
                     <td className="py-2.5 pr-3 whitespace-nowrap">
-                      <MonthCell charge={charge} hasPayments={payments.length > 0} open={open} />
+                      <MonthCell charge={charge} hasPayments={expandable} open={open} />
                     </td>
                     <td className="py-2.5 pr-3">
                       <ModalityCell charge={charge} />
@@ -133,17 +134,18 @@ export function ChargeStatement(props: StatementProps) {
       <ul className="divide-y md:hidden">
         {props.charges.map((charge) => {
           const payments = byCharge.get(charge.id) ?? []
-          const open = expanded === charge.id
+          const expandable = hasMoreToShow(payments)
+          const open = expandable && expanded === charge.id
           return (
             <li key={charge.id} className="space-y-2 py-3">
               <div className="flex items-start justify-between gap-2">
                 <button
                   type="button"
                   className="min-w-0 text-left text-sm"
-                  disabled={payments.length === 0}
+                  disabled={!expandable}
                   onClick={() => toggle(charge.id)}
                 >
-                  <MonthCell charge={charge} hasPayments={payments.length > 0} open={open} />
+                  <MonthCell charge={charge} hasPayments={expandable} open={open} />
                   <span className="block text-xs text-muted-foreground">
                     <ModalityCell charge={charge} inline /> · vence{' '}
                     {formatDayMonth(charge.due_date)}
@@ -184,6 +186,18 @@ export function ChargeStatement(props: StatementProps) {
         })}
       </ul>
     </>
+  )
+}
+
+// Abrir a linha só mostra algo novo com 2+ pagamentos, pagamento dividido
+// com outra mensalidade ou observação; senão repetiria a própria linha
+function hasMoreToShow(payments: ChargePayment[]) {
+  return (
+    payments.length > 1 ||
+    payments.some(
+      ({ payment, amount }) =>
+        Number(payment.amount) > Number(amount) || Boolean(payment.notes),
+    )
   )
 }
 
