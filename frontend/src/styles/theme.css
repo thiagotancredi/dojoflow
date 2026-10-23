@@ -258,26 +258,26 @@
 [data-theme='grafite'] {
   /* Controles nativos (ícone de data, barras de rolagem) no tom do tema */
   color-scheme: light;
-  --app-bg-from: #dcd7ce;
-  --app-bg-to: #e2ddd5;
+  --app-bg-from: #d3d9dc;
+  --app-bg-to: #d9dfe2;
 
-  --background: #ece8e1;
+  --background: #e6ebed;
   --foreground: #18191c;
-  --card: #f4f1ec;
+  --card: #eff3f4;
   --card-foreground: #18191c;
   --popover: #ffffff;
   --popover-foreground: #18191c;
-  --muted: #e5e0d7;
-  --muted-foreground: #5e5a52;
-  --border: #d8d2c7;
-  --input: #cec7bb;
+  --muted: #dfe6e9;
+  --muted-foreground: #56606a;
+  --border: #d0d9dd;
+  --input: #c6d0d4;
   --ring: #155e75;
 
   --primary: #2a2d33;
   --primary-foreground: #ffffff;
-  --secondary: #e5e0d7;
+  --secondary: #dfe6e9;
   --secondary-foreground: #18191c;
-  --accent: #e6e1d8;
+  --accent: #dde5e8;
   --accent-foreground: #155e75;
   --destructive: #dc2626;
 
@@ -305,7 +305,7 @@
   --status-pending: #b7860b;
   --status-pending-soft: #f7f0dc;
   --status-inactive: #a3a3a0;
-  --status-inactive-soft: #ebe7e0;
+  --status-inactive-soft: #e5eaec;
   --status-inactive-foreground: #5f5f5c;
 
   --status-critical: #dc2626;
@@ -316,22 +316,22 @@
   /* Avatares neutros (o petróleo só no primeiro) */
   --avatar-1: #e1eef1;
   --avatar-1-foreground: #155e75;
-  --avatar-2: #e5e0d7;
+  --avatar-2: #dfe6e9;
   --avatar-2-foreground: #45484e;
-  --avatar-3: #e5e0d7;
+  --avatar-3: #dfe6e9;
   --avatar-3-foreground: #45484e;
-  --avatar-4: #e5e0d7;
+  --avatar-4: #dfe6e9;
   --avatar-4-foreground: #45484e;
-  --avatar-5: #e5e0d7;
+  --avatar-5: #dfe6e9;
   --avatar-5-foreground: #45484e;
 
-  --sidebar: rgb(244 241 236 / 90%);
+  --sidebar: rgb(239 243 244 / 90%);
   --sidebar-foreground: #5f5f5c;
   --sidebar-primary: #155e75;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e6e1d8;
+  --sidebar-accent: #dde5e8;
   --sidebar-accent-foreground: #155e75;
-  --sidebar-border: #d8d2c7;
+  --sidebar-border: #d0d9dd;
   --sidebar-ring: #155e75;
 }
 
