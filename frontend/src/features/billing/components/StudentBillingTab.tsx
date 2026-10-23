@@ -135,7 +135,7 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
           </div>
         </section>
 
-        <section className="space-y-3 rounded-2xl border bg-card p-5">
+        <section className="space-y-3 rounded-2xl border bg-popover p-5">
           <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
             Cobrar
           </p>

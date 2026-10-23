@@ -258,26 +258,26 @@
 [data-theme='grafite'] {
   /* Controles nativos (ícone de data, barras de rolagem) no tom do tema */
   color-scheme: light;
-  --app-bg-from: #e6e6e4;
-  --app-bg-to: #efefed;
+  --app-bg-from: #c9c9c4;
+  --app-bg-to: #d1d1cc;
 
-  --background: #efefed;
+  --background: #e4e4e0;
   --foreground: #18191c;
-  --card: #f6f6f5;
+  --card: #ecece8;
   --card-foreground: #18191c;
-  --popover: #fbfbfa;
+  --popover: #ffffff;
   --popover-foreground: #18191c;
-  --muted: #ebebe9;
-  --muted-foreground: #5f5f5c;
-  --border: #dadad6;
-  --input: #d2d2ce;
+  --muted: #dcdcd7;
+  --muted-foreground: #56564f;
+  --border: #cdcdc7;
+  --input: #c4c4be;
   --ring: #155e75;
 
   --primary: #2a2d33;
   --primary-foreground: #ffffff;
-  --secondary: #ebebe9;
+  --secondary: #dcdcd7;
   --secondary-foreground: #18191c;
-  --accent: #e9e9e6;
+  --accent: #dadad5;
   --accent-foreground: #155e75;
   --destructive: #dc2626;
 
@@ -305,7 +305,7 @@
   --status-pending: #b7860b;
   --status-pending-soft: #f7f0dc;
   --status-inactive: #a3a3a0;
-  --status-inactive-soft: #ededeb;
+  --status-inactive-soft: #e3e3df;
   --status-inactive-foreground: #5f5f5c;
 
   --status-critical: #dc2626;
@@ -316,22 +316,22 @@
   /* Avatares neutros (o petróleo só no primeiro) */
   --avatar-1: #e1eef1;
   --avatar-1-foreground: #155e75;
-  --avatar-2: #e6e6e3;
+  --avatar-2: #dcdcd7;
   --avatar-2-foreground: #45484e;
-  --avatar-3: #e6e6e3;
+  --avatar-3: #dcdcd7;
   --avatar-3-foreground: #45484e;
-  --avatar-4: #e6e6e3;
+  --avatar-4: #dcdcd7;
   --avatar-4-foreground: #45484e;
-  --avatar-5: #e6e6e3;
+  --avatar-5: #dcdcd7;
   --avatar-5-foreground: #45484e;
 
-  --sidebar: rgb(246 246 245 / 85%);
+  --sidebar: rgb(236 236 232 / 90%);
   --sidebar-foreground: #5f5f5c;
   --sidebar-primary: #155e75;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e9e9e6;
+  --sidebar-accent: #dadad5;
   --sidebar-accent-foreground: #155e75;
-  --sidebar-border: #dadad6;
+  --sidebar-border: #cdcdc7;
   --sidebar-ring: #155e75;
 }
 
