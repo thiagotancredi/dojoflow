@@ -14,6 +14,7 @@ export function parseWhatsAppUrl(url: string) {
 
 export type TemplateValues = {
   nome: string
+  mestre: string
   academia: string
   valor: string
   meses: string

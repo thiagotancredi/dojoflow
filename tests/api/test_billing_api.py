@@ -875,6 +875,45 @@ async def test_whatsapp_message_uses_template(
     )
 
 
+@pytest.mark.asyncio
+async def test_whatsapp_message_fills_master_name(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _overdue_student(client, db_session, monkeypatch)
+    await client.put(
+        '/api/v1/academy/billing-settings',
+        headers=ctx['headers'],
+        json={'message_template': '{mestre} / {academia} {link}'},
+    )
+
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    _, text = _message(body['whatsapp_url'])
+
+    assert text.startswith('Mestre Web / Academia Web Teste ')
+
+
+@pytest.mark.asyncio
+async def test_default_message_is_signed_by_master_and_academy(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _overdue_student(client, db_session, monkeypatch)
+
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    _, text = _message(body['whatsapp_url'])
+
+    assert 'há uma mensalidade em aberto: R$ 200,00.' in text
+    # Sem os meses e sem "da/do {academia}" no meio da frase
+    assert 'janeiro' not in text
+    assert text.endswith(
+        'Se já pagou, desconsidere. Obrigado!\n\n'
+        '*Mestre Web*\nAcademia Web Teste'
+    )
+
+
 async def _pay_token(session: AsyncSession, student_id: str) -> str:
     return await session.scalar(
         select(Student.pay_token).where(
