@@ -20,30 +20,28 @@ export function PayPage() {
   useLightMode()
 
   return (
-    <div className="min-h-svh bg-background text-foreground">
-      <div className="mx-auto flex min-h-svh max-w-[420px] flex-col">
-        {payment.data ? (
+    <div className="min-h-svh bg-background pb-6 text-foreground">
+      {payment.data ? (
           <PaymentView data={payment.data} />
-        ) : payment.isLoading ? (
-          <Message>Carregando…</Message>
-        ) : isInvalidLink(payment.error) ? (
-          <Message>
-            Link inválido ou expirado. Peça um novo link para a academia.
-          </Message>
-        ) : (
-          <Message>
-            <span>Não foi possível carregar. Tente de novo.</span>
-            <Button
-              variant="outline"
-              className="rounded-full"
-              onClick={payment.refetch}
-            >
-              Tentar de novo
-            </Button>
-          </Message>
-        )}
-        <Footer />
-      </div>
+      ) : payment.isLoading ? (
+        <Message>Carregando…</Message>
+      ) : isInvalidLink(payment.error) ? (
+        <Message>
+          Link inválido ou expirado. Peça um novo link para a academia.
+        </Message>
+      ) : (
+        <Message>
+          <span>Não foi possível carregar. Tente de novo.</span>
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={payment.refetch}
+          >
+            Tentar de novo
+          </Button>
+        </Message>
+      )}
+      <Footer />
     </div>
   )
 }
@@ -62,8 +60,8 @@ function PaymentView({ data }: { data: PublicPayment }) {
   const count = data.items.length
 
   return (
-    <main className="flex-1">
-      {/* Faixa escura: academia e mestre */}
+    <main>
+      {/* Faixa escura de ponta a ponta: academia e mestre */}
       <header className="bg-linear-160 from-[#2a2d33] from-30% to-[#155e75] px-4 pt-8 pb-16 text-center text-white">
         <h1 className="text-xl leading-tight font-extrabold">
           {data.academy_name}
@@ -73,7 +71,8 @@ function PaymentView({ data }: { data: PublicPayment }) {
         )}
       </header>
 
-      <div className="space-y-3 px-4">
+      {/* Conteúdo numa coluna centralizada (celular e computador) */}
+      <div className="mx-auto max-w-[420px] space-y-3 px-4">
         {data.status === 'clear' ? (
           <section className="-mt-10 rounded-2xl bg-white p-6 text-center shadow-lg">
             <CircleCheck className="mx-auto size-10 text-[#155e75]" />
@@ -203,7 +202,7 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
 
 function Message({ children }: { children: ReactNode }) {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
+    <main className="mx-auto flex min-h-[60svh] max-w-[420px] flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
       {children}
     </main>
   )
@@ -212,19 +211,21 @@ function Message({ children }: { children: ReactNode }) {
 // Rodapé: símbolo do lutador (recorte da logo) + nome Katsuflow
 function Footer() {
   return (
-    <footer className="mx-4 mt-6 mb-6 flex flex-col items-center gap-1 border-t pt-3">
-      <span className="text-[10px] tracking-wide text-muted-foreground">
-        Cobrança enviada pelo
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="h-7 w-[29px] overflow-hidden">
-          <img src={logo} alt="" className="h-7 max-w-none" />
+    <footer className="mx-auto mt-8 max-w-[420px] px-4">
+      <div className="flex flex-col items-center gap-1 border-t pt-3">
+        <span className="text-[10px] tracking-wide text-muted-foreground">
+          Cobrança enviada pelo
         </span>
-        <span className="text-base font-black tracking-tight">
-          <span className="text-[#155e75]">Katsu</span>
-          <span className="text-[#2a2d33]">flow</span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-7 w-[29px] overflow-hidden">
+            <img src={logo} alt="" className="h-7 max-w-none" />
+          </span>
+          <span className="text-base font-black tracking-tight">
+            <span className="text-[#155e75]">Katsu</span>
+            <span className="text-[#2a2d33]">flow</span>
+          </span>
         </span>
-      </span>
+      </div>
     </footer>
   )
 }
