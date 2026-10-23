@@ -19,9 +19,13 @@ import { useBelts } from '@/features/belts/hooks'
 import { todayIso } from '@/features/belts/rules'
 import { useAcademyModalities } from '@/features/modalities/hooks'
 import type { Enrollment, StudentDetail } from '@/features/students/api'
-import { EnrollmentFeeCard } from '@/features/students/components/EnrollmentFeeCard'
+import {
+  EnrollmentFeeCard,
+  EnrollmentStatusChip,
+} from '@/features/students/components/EnrollmentFeeCard'
 import { EnrollmentFields } from '@/features/students/components/EnrollmentFields'
 import { FormActions } from '@/features/students/components/tabs/BasicDataTab'
+import { TabHeader } from '@/features/students/components/tabs/TabParts'
 import {
   useAddEnrollment,
   useUpdateEnrollment,
@@ -51,30 +55,41 @@ export function EnrollmentsTab({ student: detail, onChanged }: StudentTabProps) 
   const { offered } = useAcademyModalities()
   const enrolledIds = new Set(detail.enrollments.map((item) => item.modality_id))
   const available = offered.filter((item) => !enrolledIds.has(item.id))
+  const emojis = new Map(offered.map((item) => [item.id, item.emoji]))
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <TabHeader title="Matrículas">
+        <Button
+          variant="outline"
+          className="rounded-full"
+          onClick={() => setEditing('new')}
+        >
+          <Plus /> Nova matrícula
+        </Button>
+      </TabHeader>
+
       {/* @container: as colunas dependem da largura do painel da ficha,
           não da tela inteira (a lista de alunos divide o espaço com ela) */}
       <div className="@container space-y-5">
         {detail.enrollments.map((enrollment) => (
+          // Uma caixa por modalidade: título + Faixa e Mensalidade dentro
           <section
             key={enrollment.id}
             className={cn(
-              'space-y-2',
+              'space-y-3 rounded-3xl bg-muted p-4',
               enrollment.status === 'inactive' && 'opacity-70',
             )}
           >
-            <h3 className="flex items-center gap-2 font-semibold">
-              {enrollment.modality_name}
-              {enrollment.status === 'inactive' && (
-                <span className="text-xs font-normal text-muted-foreground">
-                  Inativa
-                </span>
+            <h3 className="flex flex-wrap items-center gap-2 px-1 font-semibold">
+              {emojis.get(enrollment.modality_id) && (
+                <span aria-hidden>{emojis.get(enrollment.modality_id)}</span>
               )}
+              {enrollment.modality_name}
+              <EnrollmentStatusChip enrollment={enrollment} />
             </h3>
             {/* Faixa e Mensalidade lado a lado (um embaixo do outro se estreito) */}
-            <div className="grid gap-2.5 @lg:grid-cols-2">
+            <div className="grid gap-3 @lg:grid-cols-2">
               <EnrollmentBeltBlock
                 studentId={studentId}
                 enrollmentId={enrollment.id}
@@ -98,14 +113,6 @@ export function EnrollmentsTab({ student: detail, onChanged }: StudentTabProps) 
           </section>
         ))}
       </div>
-
-      <Button
-        variant="outline"
-        className="rounded-full"
-        onClick={() => setEditing('new')}
-      >
-        <Plus /> Nova matrícula
-      </Button>
 
       <Dialog
         open={editing !== null}

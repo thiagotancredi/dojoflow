@@ -11,23 +11,28 @@ type EnrollmentFeeCardProps = {
   actions?: ReactNode
 }
 
-// Quadro "Mensalidade" da matrícula. A cor segue o status (referência visual
-// aprovada): azul = ativa, verde = isenta, amarelo = pendência de cadastro,
-// cinza = inativa
+// Quadro "Mensalidade" da matrícula. A borda da esquerda segue o status
+// (referência visual aprovada): azul = ativa, verde = isenta, amarelo =
+// pendência de cadastro, cinza = inativa
 export function EnrollmentFeeCard({ enrollment, actions }: EnrollmentFeeCardProps) {
   const isPending = isPendingFee(enrollment)
 
   const tone =
     enrollment.status === 'inactive'
-      ? 'border-status-inactive bg-status-inactive-soft'
+      ? 'border-l-status-inactive'
       : enrollment.is_exempt
-        ? 'border-status-exempt bg-status-exempt-soft'
+        ? 'border-l-status-exempt'
         : isPending
-          ? 'border-status-pending bg-status-pending-soft'
-          : 'border-status-active bg-status-active-soft'
+          ? 'border-l-status-pending'
+          : 'border-l-status-active'
 
   return (
-    <div className={cn('flex flex-col gap-2 rounded-2xl border-l-[3px] p-4', tone)}>
+    <div
+      className={cn(
+        'flex flex-col gap-2 rounded-2xl border border-l-4 bg-popover p-4',
+        tone,
+      )}
+    >
       <div className="flex min-h-7 items-center justify-between gap-2">
         <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
           Mensalidade
@@ -61,8 +66,6 @@ export function EnrollmentFeeCard({ enrollment, actions }: EnrollmentFeeCardProp
           </p>
         </>
       )}
-
-      <StatusChip enrollment={enrollment} isPending={isPending} />
     </div>
   )
 }
@@ -76,13 +79,9 @@ function isPendingFee(enrollment: Enrollment) {
   )
 }
 
-function StatusChip({
-  enrollment,
-  isPending,
-}: {
-  enrollment: Enrollment
-  isPending: boolean
-}) {
+// Situação da matrícula (vai ao lado do nome da modalidade)
+export function EnrollmentStatusChip({ enrollment }: { enrollment: Enrollment }) {
+  const isPending = isPendingFee(enrollment)
   const [label, dot] =
     enrollment.status === 'inactive'
       ? ['Inativa', 'bg-status-inactive']
@@ -91,7 +90,7 @@ function StatusChip({
         : ['Ativa', enrollment.is_exempt ? 'bg-status-exempt' : 'bg-status-active']
 
   return (
-    <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-card px-2.5 py-0.5 text-xs">
+    <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-popover px-2.5 py-0.5 text-xs font-normal">
       {isPending ? (
         <TriangleAlert className="size-3.5 text-status-pending" />
       ) : (
