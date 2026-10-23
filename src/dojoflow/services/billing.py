@@ -947,7 +947,7 @@ class BillingService:
                 .limit(1)
             )
             or '',
-            greeting_name=greeting.split()[0],
+            greeting_name=' '.join(greeting.split()),
             status='open' if overdue else 'clear',
             items=[
                 PublicPaymentItemRead(

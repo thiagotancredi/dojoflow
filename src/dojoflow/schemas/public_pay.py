@@ -14,7 +14,7 @@ class PublicPaymentRead(BaseModel):
 
     academy_name: str
     master_name: str
-    # Primeiro nome de quem recebe a mensagem (aluno ou responsável)
+    # Nome completo de quem recebe a mensagem (aluno ou responsável)
     greeting_name: str
     status: Literal['open', 'clear']
     items: list[PublicPaymentItemRead]

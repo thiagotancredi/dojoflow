@@ -93,7 +93,7 @@ async def test_public_pay_open(
     body = response.json()
     assert body['academy_name'] == SEED.academy_name
     assert body['master_name'] == SEED.master_name
-    assert body['greeting_name'] == 'Ana'
+    assert body['greeting_name'] == 'Ana Lima'
     assert body['status'] == 'open'
     assert body['items'] == [
         {'label': 'Mensalidade · janeiro', 'amount': '100.00'},
@@ -131,7 +131,7 @@ async def test_public_pay_minor_greets_responsible(
 
     body = (await client.get(_pay_url(ctx['token']))).json()
 
-    assert body['greeting_name'] == 'Maria'
+    assert body['greeting_name'] == 'Maria Lima'
     assert body['items'][0]['label'] == 'Mensalidade de Ana · janeiro'
 
 
