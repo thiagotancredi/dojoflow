@@ -1,4 +1,4 @@
-"""Carga de demonstração de alunos e mensalidades (só no ambiente local).
+"""Carga de demonstração de alunos e mensalidades.
 
 Cria alunos de Taekwondo e Kickboxing com mensalidades de R$ 100 a R$ 200
 em várias situações: pagas, parciais, atrasadas, a vencer, isentas, inativa,
@@ -12,8 +12,14 @@ Uso:
     poetry run python -m dojoflow.commands.seed_demo --academy-id 13 \\
         --reset --contato ...
 
+    # Produção: só com o nome exato da academia (academia de demonstração)
+    python -m dojoflow.commands.seed_demo --academy-id 1 \\
+        --confirmar-academia "Katsuflow"
+
 Telefones reais entram por --contato, para não ficarem no código. Alunos
 fictícios ficam sem telefone (o WhatsApp não abre conversa com estranhos).
+Se a academia não oferece Taekwondo e Kickboxing, a carga ativa as duas
+(com as faixas padrão).
 """
 
 import argparse
@@ -28,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dojoflow.core.settings import settings
 from dojoflow.database.session import AsyncSessionLocal, engine
 from dojoflow.database.transaction import unit_of_work
+from dojoflow.models.academy import Academy
 from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.belt import Belt
 from dojoflow.models.enrollment import Enrollment
@@ -39,6 +46,8 @@ from dojoflow.models.payment_transaction import PaymentTransaction
 from dojoflow.models.responsible import Responsible
 from dojoflow.models.student import Student
 from dojoflow.models.student_responsible import StudentResponsible
+from dojoflow.repositories.belt import BeltRepository
+from dojoflow.services.belt import BeltService
 from dojoflow.services.belt_rules import local_today
 from dojoflow.services.billing import BillingService
 from dojoflow.shared.enums import (
@@ -317,22 +326,60 @@ async def reset(session: AsyncSession, academy_id: int) -> int:
     return total
 
 
-async def modality_ids(session: AsyncSession, academy_id: int) -> dict:
-    rows = await session.execute(
-        select(Modality.name, Modality.id)
-        .join(AcademyModality, AcademyModality.modality_id == Modality.id)
-        .where(
-            AcademyModality.academy_id == academy_id,
-            Modality.name.in_([TKD, KB]),
-        )
-    )
-    found = dict(rows.tuples().all())
-    missing = {TKD, KB} - set(found)
-    if missing:
+def check_target(
+    academy_name: str | None, confirm: str | None, environment: str
+) -> None:
+    """Fora do ambiente local, só roda com o nome exato da academia."""
+    if academy_name is None:
+        raise SystemExit('Academia não encontrada.')
+    if environment == 'dev' and confirm is None:
+        return
+    if confirm is None:
         raise SystemExit(
-            f'A academia não oferece: {", ".join(sorted(missing))}.'
+            'Em produção, confirme com --confirmar-academia "<nome>".'
         )
-    return found
+    if confirm.strip().casefold() != academy_name.strip().casefold():
+        raise SystemExit(
+            f'O nome não confere: a academia se chama "{academy_name}".'
+        )
+
+
+async def ensure_modalities(
+    session: AsyncSession, academy_id: int
+) -> dict[str, int]:
+    """Taekwondo e Kickboxing oferecidos pela academia, com faixas."""
+    catalog = dict(
+        (
+            await session.execute(
+                select(Modality.name, Modality.id).where(
+                    Modality.name.in_([TKD, KB])
+                )
+            )
+        )
+        .tuples()
+        .all()
+    )
+    missing = {TKD, KB} - set(catalog)
+    if missing:
+        raise SystemExit(f'Fora do catálogo: {", ".join(sorted(missing))}.')
+
+    belts = BeltService(BeltRepository(db_session=session), session)
+    for modality_id in catalog.values():
+        offered = await session.scalar(
+            select(AcademyModality.id).where(
+                AcademyModality.academy_id == academy_id,
+                AcademyModality.modality_id == modality_id,
+            )
+        )
+        if offered is None:
+            session.add(
+                AcademyModality(academy_id=academy_id, modality_id=modality_id)
+            )
+            await session.flush()
+        if not await belts.list_by_modality(academy_id, modality_id):
+            await belts.apply_preset(academy_id, modality_id)
+
+    return catalog
 
 
 async def belt_id(
@@ -359,7 +406,7 @@ async def seed(  # noqa: PLR0914
 ) -> int:
     today = local_today()
     billing = BillingService(session)
-    modalities = await modality_ids(session, academy_id)
+    modalities = await ensure_modalities(session, academy_id)
     responsibles: dict[str, int] = {}
 
     for profile in PROFILES:
@@ -471,17 +518,19 @@ async def main() -> None:
     parser.add_argument('--academy-id', type=int, required=True)
     parser.add_argument('--contato', action='append', default=[])
     parser.add_argument('--reset', action='store_true')
+    parser.add_argument('--confirmar-academia', dest='confirm')
     args = parser.parse_args()
-
-    if settings.ENVIRONMENT != 'dev':
-        raise SystemExit(
-            'A carga de demonstração só roda com ENVIRONMENT=dev.'
-        )
-
     contacts = parse_contacts(args.contato)
 
     try:
         async with AsyncSessionLocal() as session:
+            check_target(
+                await session.scalar(
+                    select(Academy.name).where(Academy.id == args.academy_id)
+                ),
+                args.confirm,
+                settings.ENVIRONMENT,
+            )
             async with unit_of_work(session):
                 existing = await session.scalar(
                     select(Student.id).where(
