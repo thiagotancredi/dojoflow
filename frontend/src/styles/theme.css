@@ -418,26 +418,26 @@
    (escolhido em 23/10/2026; o grafite continua acima, para voltar) */
 [data-theme='washi'] {
   color-scheme: light;
-  --app-bg-from: #e9e5dc;
-  --app-bg-to: #eeeae2;
+  --app-bg-from: #eceae5;
+  --app-bg-to: #f0eeea;
 
-  --background: #f2efe8;
+  --background: #f4f3ef;
   --foreground: #1b1b1b;
-  --card: #f7f5f0;
+  --card: #f9f8f5;
   --card-foreground: #1b1b1b;
-  --popover: #fffefb;
+  --popover: #ffffff;
   --popover-foreground: #1b1b1b;
-  --muted: #eeeae2;
-  --muted-foreground: #5c5850;
-  --border: #ddd7cb;
-  --input: #d2cbbd;
+  --muted: #f0eee9;
+  --muted-foreground: #5a5852;
+  --border: #e2dfd8;
+  --input: #d6d2c9;
   --ring: #155e75;
 
   --primary: #1b1b1b;
   --primary-foreground: #fffdf8;
-  --secondary: #eeeae2;
+  --secondary: #f0eee9;
   --secondary-foreground: #1b1b1b;
-  --accent: #ece6db;
+  --accent: #eeece6;
   --accent-foreground: #155e75;
   --destructive: #c81e1e;
 
@@ -466,8 +466,8 @@
   --status-pending: #b7860b;
   --status-pending-soft: #f5ecd5;
   --status-inactive: #a39e93;
-  --status-inactive-soft: #ece8df;
-  --status-inactive-foreground: #5c5850;
+  --status-inactive-soft: #efede8;
+  --status-inactive-foreground: #5a5852;
 
   --status-critical: #c81e1e;
   --status-critical-soft: #f8e3df;
@@ -476,13 +476,13 @@
 
   --avatar-1: #dfecef;
   --avatar-1-foreground: #155e75;
-  --avatar-2: #e8e3d8;
+  --avatar-2: #ebe8e2;
   --avatar-2-foreground: #4a463e;
-  --avatar-3: #e8e3d8;
+  --avatar-3: #ebe8e2;
   --avatar-3-foreground: #4a463e;
-  --avatar-4: #e8e3d8;
+  --avatar-4: #ebe8e2;
   --avatar-4-foreground: #4a463e;
-  --avatar-5: #e8e3d8;
+  --avatar-5: #ebe8e2;
   --avatar-5-foreground: #4a463e;
 
   /* Barra lateral preta (tinta) */
