@@ -83,6 +83,7 @@ class StudentBillingApiRead(BaseModel):
     open_total: Decimal
     open_months: str
     whatsapp_url: str | None
+    pay_url: str
     charges: list[ChargeApiRead]
     payments: list[PaymentApiRead]
 
@@ -94,6 +95,7 @@ class StudentBillingApiRead(BaseModel):
             open_total=billing.open_total,
             open_months=billing.open_months,
             whatsapp_url=billing.whatsapp_url,
+            pay_url=billing.pay_url,
             charges=[ChargeApiRead.from_internal(c) for c in billing.charges],
             payments=[
                 PaymentApiRead.from_internal(p) for p in billing.payments

@@ -57,6 +57,7 @@ class StudentBillingRead(BaseModel):
     open_total: Decimal
     open_months: str
     whatsapp_url: str | None
+    pay_url: str
     charges: list[ChargeRead]
     payments: list[PaymentRead]
 

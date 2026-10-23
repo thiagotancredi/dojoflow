@@ -38,7 +38,7 @@ async def test_settings_default_template(client: AsyncClient):
         'Olá, {nome}! Tudo bem? 🥋\n\n'
         'Passando para lembrar que a mensalidade da {academia} está em '
         'aberto: {valor} ({meses}).\n\n'
-        'Você pode pagar pelo Pix: {pix} ({recebedor}).\n\n'
+        'Para pagar pelo Pix, é só tocar aqui:\n{link}\n\n'
         'Se já pagou, desconsidere. Obrigado!'
     )
 

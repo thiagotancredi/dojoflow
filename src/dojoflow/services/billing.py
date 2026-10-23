@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
+from dojoflow.core.settings import settings as app_settings
 from dojoflow.database.transaction import transactional
 from dojoflow.models.academy import Academy
 from dojoflow.models.academy_billing_settings import AcademyBillingSettings
@@ -61,11 +62,18 @@ DEFAULT_MESSAGE_TEMPLATE = (
     'Olá, {nome}! Tudo bem? 🥋\n\n'
     'Passando para lembrar que a mensalidade da {academia} está em '
     'aberto: {valor} ({meses}).\n\n'
-    'Você pode pagar pelo Pix: {pix} ({recebedor}).\n\n'
+    'Para pagar pelo Pix, é só tocar aqui:\n{link}\n\n'
     'Se já pagou, desconsidere. Obrigado!'
 )
 ENROLLMENT_FEE_LABEL = 'taxa de matrícula'
 CLOSED_STATUSES = {'paid', 'waived'}
+# Texto salvo sem {link}: o link entra no fim, para ninguém ficar sem ele
+LINK_FALLBACK = '\n\nPara pagar pelo Pix, toque aqui: {link}'
+
+
+def pay_url(token: str) -> str:
+    """Endereço da página pública de pagamento do aluno."""
+    return f'{app_settings.WEB_APP_URL}/pagar/{token}'
 
 
 def _months_from(start: date, end: date) -> list[date]:
@@ -123,6 +131,7 @@ class StudentContact:
     phone: str | None
     birth_date: date | None
     responsibles: tuple[Contact, ...]
+    pay_token: str
 
 
 def choose_recipient(
@@ -170,8 +179,11 @@ def whatsapp_url(  # noqa: PLR0913, PLR0917
         '{meses}': open_label(overdue_charges, today.year),
         '{pix}': settings.pix_key or '',
         '{recebedor}': settings.recipient_name or academy_name,
+        '{link}': pay_url(student.pay_token),
     }
     text = settings.message_template or DEFAULT_MESSAGE_TEMPLATE
+    if '{link}' not in text:
+        text += LINK_FALLBACK
     # Troca simples: chaves que o mestre escrever no texto não quebram nada
     for marker, value in values.items():
         text = text.replace(marker, value)
@@ -411,6 +423,15 @@ class BillingService:
             open_months=open_label(open_charges, today.year),
             whatsapp_url=await self._whatsapp_url_for(
                 academy_id, student_id, charges, today
+            ),
+            pay_url=pay_url(
+                await self.db_session.scalar(
+                    select(Student.pay_token).where(
+                        Student.academy_id == academy_id,
+                        Student.id == student_id,
+                    )
+                )
+                or ''
             ),
             charges=charges,
             payments=await self._payments(
@@ -773,6 +794,7 @@ class BillingService:
                     Student.name,
                     Student.phone,
                     Student.birth_date,
+                    Student.pay_token,
                 ).where(
                     Student.academy_id == academy_id,
                     Student.id.in_(student_ids),
@@ -811,6 +833,7 @@ class BillingService:
                 phone=row.phone,
                 birth_date=row.birth_date,
                 responsibles=tuple(responsibles.get(row.id, [])),
+                pay_token=row.pay_token,
             )
             for row in students
         }
