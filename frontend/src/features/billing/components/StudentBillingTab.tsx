@@ -1,4 +1,4 @@
-import { Copy, Link2, Plus, RefreshCw } from 'lucide-react'
+import { Copy, Plus, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -108,64 +108,75 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
   }
 
   return (
-    <div className="space-y-5">
-      {/* Topo: total em aberto + ações principais */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-muted p-4">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-            Em aberto
-          </p>
-          <p className="text-2xl font-semibold">
-            {formatMoney(data.open_total)}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {hasOpen ? openCountLabel(openCharges) : 'Nada em aberto 🎉'}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <WhatsAppButton
-            url={data.whatsapp_url}
-            studentName={detail.student.name}
-            responsibleName={responsibleReceiving(detail, data.whatsapp_url)}
-          />
-          <Button
-            className="rounded-full"
-            disabled={!hasOpen}
-            onClick={() => setPaying(true)}
-          >
-            Dar baixa
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-7">
+      {/* Topo: quanto deve (esquerda) e como cobrar (direita); no celular,
+          um cartão embaixo do outro */}
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.25fr]">
+        <section className="flex flex-col justify-between gap-4 rounded-2xl bg-muted p-5">
+          <div>
+            <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+              Em aberto
+            </p>
+            <p className="text-3xl font-semibold tracking-tight">
+              {formatMoney(data.open_total)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {hasOpen ? openCountLabel(openCharges) : 'Nada em aberto 🎉'}
+            </p>
+          </div>
+          <div>
+            <Button
+              className="rounded-full"
+              disabled={!hasOpen}
+              onClick={() => setPaying(true)}
+            >
+              Dar baixa
+            </Button>
+          </div>
+        </section>
 
-      {/* Link da página de pagamento (vai na mensagem do WhatsApp) */}
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Link2 className="size-4 text-muted-foreground" />
-        <span className="font-medium">Link de pagamento</span>
-        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-          {data.pay_url}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          className="rounded-full"
-          onClick={() => void copyPayLink(data.pay_url)}
-        >
-          <Copy /> Copiar link
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="rounded-full text-muted-foreground"
-          disabled={renewLink.isPending}
-          onClick={() => setRenewing(true)}
-        >
-          <RefreshCw /> Gerar link novo
-        </Button>
+        <section className="space-y-3 rounded-2xl border bg-card p-5">
+          <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+            Cobrar
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <WhatsAppButton
+              url={data.whatsapp_url}
+              studentName={detail.student.name}
+              responsibleName={responsibleReceiving(detail, data.whatsapp_url)}
+              label="Enviar no WhatsApp"
+            />
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => void copyPayLink(data.pay_url)}
+            >
+              <Copy /> Copiar link
+            </Button>
+          </div>
+          {/* Link da página de pagamento (vai na mensagem do WhatsApp) */}
+          <div className="flex items-center gap-2">
+            <span
+              title={data.pay_url}
+              className="min-w-0 flex-1 truncate rounded-xl border bg-background px-3 py-2 font-mono text-xs text-muted-foreground"
+            >
+              {data.pay_url.replace(/^https?:\/\//, '')}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0 rounded-full text-muted-foreground"
+              disabled={renewLink.isPending}
+              onClick={() => setRenewing(true)}
+            >
+              <RefreshCw /> Gerar novo
+            </Button>
+          </div>
+        </section>
       </div>
 
       {/* Extrato: uma linha por mensalidade (mais nova em cima) */}
-      <section className="space-y-2">
+      <section className="space-y-4">
         {data.charges.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nenhuma cobrança ainda. A primeira mensalidade aparece no mês

@@ -48,14 +48,14 @@ export function ChargeStatement(props: StatementProps) {
       {/* Computador: tabela */}
       <table className="hidden w-full text-sm md:table">
         <thead>
-          <tr className="border-b text-left text-xs text-muted-foreground">
-            <th className="py-2 pr-3 font-medium">Mês</th>
-            <th className="py-2 pr-3 font-medium">Modalidade</th>
-            <th className="py-2 pr-3 font-medium">Mensalidade</th>
-            <th className="py-2 pr-3 font-medium">Pago</th>
-            <th className="py-2 pr-3 font-medium">Falta</th>
-            <th className="py-2 pr-3 font-medium">Pago em</th>
-            <th className="py-2 pr-3 font-medium">Situação</th>
+          <tr className="border-b text-left text-[11px] tracking-wider text-muted-foreground uppercase">
+            <th className="pb-3 pr-4 font-semibold">Mês</th>
+            <th className="pb-3 pr-4 font-semibold">Modalidade</th>
+            <th className="pb-3 pr-6 text-right font-semibold">Mensalidade</th>
+            <th className="pb-3 pr-6 text-right font-semibold">Pago</th>
+            <th className="pb-3 pr-6 text-right font-semibold">Falta</th>
+            <th className="pb-3 pr-4 font-semibold">Pago em</th>
+            <th className="pb-3 pr-4 font-semibold">Situação</th>
             <th className="w-8" />
           </tr>
         </thead>
@@ -63,30 +63,30 @@ export function ChargeStatement(props: StatementProps) {
           {props.charges.map((charge) => (
             <tr key={charge.id} className="border-b last:border-0">
               <td
-                className="py-2.5 pr-3 font-medium whitespace-nowrap"
+                className="py-3.5 pr-4 font-medium whitespace-nowrap"
                 title={`Vence em ${formatDate(charge.due_date)}`}
               >
                 {formatMonth(charge.reference_month)}
               </td>
-              <td className="py-2.5 pr-3">
+              <td className="py-3.5 pr-4">
                 <What charge={charge} />
               </td>
-              <td className="py-2.5 pr-3 whitespace-nowrap">
+              <td className="py-3.5 pr-6 text-right whitespace-nowrap tabular-nums">
                 {formatMoney(charge.amount)}
               </td>
-              <td className="py-2.5 pr-3 whitespace-nowrap">
+              <td className="py-3.5 pr-6 text-right whitespace-nowrap tabular-nums">
                 <Paid charge={charge} />
               </td>
-              <td className="py-2.5 pr-3 whitespace-nowrap">
+              <td className="py-3.5 pr-6 text-right whitespace-nowrap tabular-nums">
                 <Missing charge={charge} />
               </td>
-              <td className="py-2.5 pr-3 whitespace-nowrap">
+              <td className="py-3.5 pr-4 whitespace-nowrap">
                 <PaidOn payments={byCharge.get(charge.id) ?? []} />
               </td>
-              <td className="py-2.5 pr-3">
+              <td className="py-3.5 pr-4">
                 <ChargeStatusChip status={charge.status} />
               </td>
-              <td className="py-2.5 text-right">{menu(charge)}</td>
+              <td className="py-3.5 text-right">{menu(charge)}</td>
             </tr>
           ))}
         </tbody>

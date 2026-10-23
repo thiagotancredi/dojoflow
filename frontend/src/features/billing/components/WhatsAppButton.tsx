@@ -22,6 +22,8 @@ type WhatsAppButtonProps = {
   responsibleName?: string | null
   size?: 'sm' | 'default'
   className?: string
+  // Texto do botão (padrão: "WhatsApp")
+  label?: string
 }
 
 // Botão WhatsApp: mostra antes a mensagem e para quem vai; "Abrir no
@@ -32,6 +34,7 @@ export function WhatsAppButton({
   responsibleName,
   size = 'default',
   className,
+  label = 'WhatsApp',
 }: WhatsAppButtonProps) {
   const [open, setOpen] = useState(false)
 
@@ -44,7 +47,7 @@ export function WhatsAppButton({
         title="Sem telefone ou sem atraso"
         className={cn('rounded-full', className)}
       >
-        <MessageCircle /> WhatsApp
+        <MessageCircle /> {label}
       </Button>
     )
   }
@@ -59,7 +62,7 @@ export function WhatsAppButton({
         className={cn('rounded-full', className)}
         onClick={() => setOpen(true)}
       >
-        <MessageCircle /> WhatsApp
+        <MessageCircle /> {label}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
