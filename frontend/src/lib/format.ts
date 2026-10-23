@@ -22,3 +22,12 @@ export function formatDate(isoDate: string) {
 export function formatZip(zip: string) {
   return zip.length === 8 ? `${zip.slice(0, 5)}-${zip.slice(5)}` : zip
 }
+
+// Idade em anos completos a partir de "AAAA-MM-DD" (data de hoje do navegador)
+export function ageInYears(birthDate: string, today = new Date()) {
+  const [year, month, day] = birthDate.split('-').map(Number)
+  const hadBirthday =
+    today.getMonth() + 1 > month ||
+    (today.getMonth() + 1 === month && today.getDate() >= day)
+  return today.getFullYear() - year - (hadBirthday ? 0 : 1)
+}

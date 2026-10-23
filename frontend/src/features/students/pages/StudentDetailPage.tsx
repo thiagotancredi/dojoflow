@@ -11,6 +11,7 @@ import { EnrollmentsTab } from '@/features/students/components/tabs/EnrollmentsT
 import { ResponsiblesTab } from '@/features/students/components/tabs/ResponsiblesTab'
 import { useStudent } from '@/features/students/hooks'
 import { formatPhone } from '@/lib/format'
+import { callHref, whatsappHref } from '@/lib/phone'
 
 // Ficha do aluno: lê o ":studentId" da URL (/app/alunos/<uuid>).
 export function StudentDetailPage() {
@@ -85,7 +86,7 @@ export function StudentDetailPage() {
               {/* O próprio número liga (no celular; no computador abre o
                   app de chamadas, se houver) */}
               <a
-                href={`tel:+55${digitsOnly(student.phone)}`}
+                href={callHref(student.phone)}
                 title="Ligar"
                 className="inline-flex h-8 items-center gap-1.5 rounded-full bg-muted px-3 text-sm tabular-nums transition-colors hover:bg-accent"
               >
@@ -95,7 +96,7 @@ export function StudentDetailPage() {
               {/* Conversa em branco (a cobrança fica na aba Mensalidades) */}
               {student.phone_is_whatsapp && (
                 <a
-                  href={`https://wa.me/55${digitsOnly(student.phone)}`}
+                  href={whatsappHref(student.phone)}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex h-8 items-center gap-1.5 rounded-full border border-status-active/30 bg-status-active-soft px-3 text-sm font-medium text-status-active transition-colors hover:brightness-95"
@@ -118,7 +119,7 @@ export function StudentDetailPage() {
             <TabsTrigger
               key={value}
               value={value}
-              className="rounded-full px-4 py-1.5 data-active:bg-card"
+              className="rounded-full px-4 py-1.5 focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-ring/40 data-active:bg-card"
             >
               {label}
             </TabsTrigger>
@@ -152,11 +153,6 @@ const TABS = [
   ['address', 'Endereço'],
   ['responsibles', 'Responsáveis'],
 ] as const
-
-// Telefone só com números, para os links de ligar e do WhatsApp
-function digitsOnly(phone: string) {
-  return phone.replace(/\D/g, '')
-}
 
 // Aba que abre primeiro: quem vem de uma tela de cobrança pede
 // "Mensalidades" (navigate/Link com state { tab: 'billing' }); o resto abre

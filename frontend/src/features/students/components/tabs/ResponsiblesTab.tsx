@@ -1,11 +1,18 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Phone, Plus } from 'lucide-react'
+import { Ellipsis, MessageCircle, Phone, Plus } from 'lucide-react'
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -16,6 +23,7 @@ import type { ResponsibleLink } from '@/features/students/api'
 import { ResponsibleFields } from '@/features/students/components/ResponsibleFields'
 import { FormActions } from '@/features/students/components/tabs/BasicDataTab'
 import type { StudentTabProps } from '@/features/students/components/tabs/EnrollmentsTab'
+import { TabHeader } from '@/features/students/components/tabs/TabParts'
 import {
   useAddResponsible,
   useRemoveResponsible,
@@ -32,6 +40,7 @@ import type {
 } from '@/features/students/schemas'
 import { applyFieldErrors, showApiError } from '@/lib/api/errors'
 import { formatPhone } from '@/lib/format'
+import { callHref, whatsappHref } from '@/lib/phone'
 
 export function ResponsiblesTab({ student: detail, onChanged }: StudentTabProps) {
   const studentId = detail.student.id
@@ -53,62 +62,40 @@ export function ResponsiblesTab({ student: detail, onChanged }: StudentTabProps)
   }
 
   return (
-    <div className="space-y-3">
-      {detail.responsibles.length === 0 ? (
-        // Como no bot: sem ninguém cadastrado, o próprio aluno responde por si
-        <div className="space-y-1 py-4 text-center">
-          <p className="text-sm font-medium">O próprio aluno é o responsável</p>
-          <p className="text-xs text-muted-foreground">
-            Se outra pessoa responde por ele (pai, mãe, avó…), adicione abaixo.
-          </p>
-        </div>
-      ) : (
-        <ul className="space-y-2">
-          {detail.responsibles.map((responsible) => (
-            <li
-              key={responsible.id}
-              className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-sm"
-            >
-              <div className="min-w-0">
-                <p className="truncate">
-                  <span className="font-medium">{responsible.name}</span>{' '}
-                  <span className="text-xs text-muted-foreground">
-                    · {relationshipLabel(responsible.relationship)}
-                  </span>
-                </p>
-                {responsible.phone && (
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Phone className="size-3" />
-                    {formatPhone(responsible.phone)}
-                    {responsible.phone_is_whatsapp && ' · WhatsApp'}
-                  </p>
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-full text-destructive"
-                onClick={() => setToRemove(responsible)}
-              >
-                Remover
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          variant="outline"
-          className="rounded-full"
-          onClick={() => setAdding(true)}
-        >
-          <Plus /> Adicionar outra pessoa
-        </Button>
-        <span className="text-xs text-muted-foreground">
-          Para corrigir um responsável: remova e adicione de novo.
-        </span>
-      </div>
+    <div className="space-y-4">
+      <TabHeader title="Responsáveis" />
+      <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {detail.responsibles.length === 0 && (
+          // Sem ninguém cadastrado, o próprio aluno responde por si
+          <li className="flex flex-col justify-center gap-1 rounded-2xl border bg-popover p-5">
+            <p className="text-sm font-medium">O próprio aluno é o responsável</p>
+            <p className="text-xs text-muted-foreground">
+              Se outra pessoa responde por ele (pai, mãe, avó…), adicione ao
+              lado.
+            </p>
+          </li>
+        )}
+        {detail.responsibles.map((responsible) => (
+          <ResponsibleCard
+            key={responsible.id}
+            responsible={responsible}
+            onRemove={() => setToRemove(responsible)}
+          />
+        ))}
+        <li>
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="flex size-full min-h-40 flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed text-sm font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+          >
+            <Plus className="size-5" />
+            Adicionar responsável
+          </button>
+        </li>
+      </ul>
+      <p className="text-xs text-muted-foreground">
+        Para corrigir um responsável: remova e adicione de novo.
+      </p>
 
       <Dialog open={adding} onOpenChange={setAdding}>
         <DialogContent>
@@ -140,6 +127,103 @@ type AddResponsibleFormProps = {
   studentId: string
   onClose: () => void
   onSaved: () => void
+}
+
+// Um cartão por pessoa: iniciais, nome, parentesco e os contatos
+function ResponsibleCard({
+  responsible,
+  onRemove,
+}: {
+  responsible: ResponsibleLink
+  onRemove: () => void
+}) {
+  return (
+    <li className="space-y-4 rounded-2xl border bg-popover p-5">
+      <div className="flex items-start justify-between gap-2">
+        <span className="flex size-12 items-center justify-center rounded-full bg-chip-active font-semibold text-chip-active-foreground">
+          {initials(responsible.name)}
+        </span>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Opções de ${responsible.name}`}
+              className="size-8 rounded-full"
+            >
+              <Ellipsis />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem variant="destructive" onSelect={onRemove}>
+              Remover
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="min-w-0">
+        <p className="truncate font-semibold">{responsible.name}</p>
+        <p className="text-sm text-muted-foreground">
+          {relationshipLabel(responsible.relationship)}
+        </p>
+      </div>
+      <dl className="divide-y text-sm">
+        <ContactRow label="Telefone">
+          {responsible.phone ? (
+            <a
+              href={callHref(responsible.phone)}
+              className="flex items-center gap-1.5 font-medium text-chip-active-foreground hover:underline"
+            >
+              <Phone className="size-3.5" />
+              {formatPhone(responsible.phone)}
+            </a>
+          ) : (
+            <span className="text-muted-foreground">Não informado</span>
+          )}
+        </ContactRow>
+        <ContactRow label="WhatsApp">
+          {responsible.phone && responsible.phone_is_whatsapp ? (
+            <a
+              href={whatsappHref(responsible.phone)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 font-medium text-chip-active-foreground hover:underline"
+            >
+              <MessageCircle className="size-3.5" />
+              Abrir conversa
+            </a>
+          ) : (
+            <span className="text-muted-foreground">Não usa</span>
+          )}
+        </ContactRow>
+      </dl>
+    </li>
+  )
+}
+
+function ContactRow({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <dt className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd>{children}</dd>
+    </div>
+  )
+}
+
+// "Cláudia Martins" → "CM"
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/)
+  const first = parts[0]?.[0] ?? ''
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : ''
+  return (first + last).toUpperCase()
 }
 
 function AddResponsibleForm({
