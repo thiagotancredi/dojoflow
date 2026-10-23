@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { Copy, Link2, Plus, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -12,6 +12,7 @@ import { PaymentDialog } from '@/features/billing/components/PaymentDialog'
 import { WhatsAppButton } from '@/features/billing/components/WhatsAppButton'
 import {
   useDeletePayment,
+  useRenewPayLink,
   useSetChargeWaived,
   useStudentBilling,
 } from '@/features/billing/hooks'
@@ -32,6 +33,8 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
   const [removing, setRemoving] = useState<Payment | null>(null)
   const waive = useSetChargeWaived(studentId)
   const removePayment = useDeletePayment(studentId)
+  const renewLink = useRenewPayLink(studentId)
+  const [renewing, setRenewing] = useState(false)
 
   if (isLoading && !data) {
     return (
@@ -67,6 +70,27 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
       refetch()
     } catch (caught) {
       showApiError(caught)
+    }
+  }
+
+  async function copyPayLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success('Link copiado')
+    } catch {
+      toast.error('Não foi possível copiar. Copie o link à mão.')
+    }
+  }
+
+  async function confirmRenew() {
+    try {
+      await renewLink.mutate()
+      toast.success('Link novo gerado')
+      refetch()
+    } catch (caught) {
+      showApiError(caught)
+    } finally {
+      setRenewing(false)
     }
   }
 
@@ -112,6 +136,32 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
             Dar baixa
           </Button>
         </div>
+      </div>
+
+      {/* Link da página de pagamento (vai na mensagem do WhatsApp) */}
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <Link2 className="size-4 text-muted-foreground" />
+        <span className="font-medium">Link de pagamento</span>
+        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+          {data.pay_url}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-full"
+          onClick={() => void copyPayLink(data.pay_url)}
+        >
+          <Copy /> Copiar link
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="rounded-full text-muted-foreground"
+          disabled={renewLink.isPending}
+          onClick={() => setRenewing(true)}
+        >
+          <RefreshCw /> Gerar link novo
+        </Button>
       </div>
 
       {/* Extrato: uma linha por mensalidade (mais nova em cima) */}
@@ -163,6 +213,14 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
         title={editing ? chargeTitle(editing) : ''}
         onClose={() => setEditing(null)}
         onDone={refetch}
+      />
+      <ConfirmDialog
+        open={renewing}
+        onOpenChange={setRenewing}
+        title="Gerar um link de pagamento novo?"
+        description="O link antigo para de funcionar. Quem já recebeu precisa receber o novo."
+        confirmLabel="Gerar link novo"
+        onConfirm={() => void confirmRenew()}
       />
       <ConfirmDialog
         open={removing !== null}
