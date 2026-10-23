@@ -62,7 +62,7 @@ function PaymentView({ data }: { data: PublicPayment }) {
   return (
     <main>
       {/* Faixa escura de ponta a ponta: academia e mestre */}
-      <header className="bg-linear-160 from-[#2a2d33] from-30% to-[#155e75] px-4 pt-8 pb-16 text-center text-white">
+      <header className="bg-linear-160 from-brand-from from-30% to-brand-to px-4 pt-8 pb-16 text-center text-brand-foreground">
         <h1 className="text-xl leading-tight font-extrabold">
           {data.academy_name}
         </h1>
@@ -75,7 +75,7 @@ function PaymentView({ data }: { data: PublicPayment }) {
       <div className="mx-auto max-w-[420px] space-y-3 px-4">
         {data.status === 'clear' ? (
           <section className="-mt-10 rounded-2xl bg-white p-6 text-center shadow-lg">
-            <CircleCheck className="mx-auto size-10 text-[#155e75]" />
+            <CircleCheck className="mx-auto size-10 text-sidebar-primary" />
             <p className="mt-2 text-[11px] font-bold tracking-wide text-muted-foreground uppercase">
               Olá, {data.greeting_name}
             </p>
@@ -163,15 +163,14 @@ function CopyPixCode({ code, total }: { code: string; total: string }) {
     <div className="space-y-2 pt-2">
       <Button
         size="lg"
-        className="h-12 w-full rounded-full text-base font-bold"
-        style={copied ? { backgroundColor: '#155e75' } : undefined}
+        className={`h-12 w-full rounded-full text-base font-bold ${copied ? 'bg-sidebar-primary hover:bg-sidebar-primary' : ''}`}
         onClick={copy}
       >
         {copied ? <Check /> : <Copy />}
         {copied ? 'Código copiado!' : 'Copiar código Pix'}
       </Button>
       {copied && (
-        <p className="rounded-xl bg-[#18191c] px-3 py-2 text-center text-sm text-white">
+        <p className="rounded-xl bg-primary px-3 py-2 text-center text-sm text-primary-foreground">
           Agora abra o app do seu banco → Pix → Pix copia e cola.
         </p>
       )}
@@ -224,8 +223,8 @@ function Footer() {
             <img src={logo} alt="" className="h-7 max-w-none" />
           </span>
           <span className="text-base font-black tracking-tight">
-            <span className="text-[#155e75]">Katsu</span>
-            <span className="text-[#2a2d33]">flow</span>
+            <span className="text-sidebar-primary">Katsu</span>
+            <span className="text-foreground">flow</span>
           </span>
         </span>
       </div>

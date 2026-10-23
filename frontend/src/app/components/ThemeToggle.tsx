@@ -14,7 +14,7 @@ export function ThemeToggle() {
       title={label}
       aria-label={label}
       onClick={() => setMode(next)}
-      className="grid size-10 place-items-center rounded-full border border-sidebar-border bg-card text-sidebar-foreground transition-colors hover:text-sidebar-primary"
+      className="grid size-10 place-items-center rounded-full border border-sidebar-border bg-sidebar-accent text-sidebar-foreground transition-colors hover:text-sidebar-primary"
     >
       {mode === 'dark' ? (
         <Sun className="size-[18px]" strokeWidth={1.6} />
