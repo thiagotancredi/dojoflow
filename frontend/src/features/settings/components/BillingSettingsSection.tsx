@@ -1,9 +1,10 @@
-import { MessageCircle, RotateCcw, TriangleAlert } from 'lucide-react'
+import { Pencil, RotateCcw, TriangleAlert } from 'lucide-react'
 import { Fragment, useRef } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { FormField } from '@/components/FormField'
+import { InfoTip } from '@/components/InfoTip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,7 +19,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/features/auth/useAuth'
 import type { BillingSettings } from '@/features/billing/api'
-import { WhatsAppMessage } from '@/features/billing/components/WhatsAppMessage'
+import { WhatsAppPhone } from '@/features/billing/components/WhatsAppPhone'
 import { useBillingSettings, useSaveBillingSettings } from '@/features/billing/hooks'
 import { fillTemplate } from '@/features/billing/whatsapp'
 import { showApiError } from '@/lib/api/errors'
@@ -26,15 +27,16 @@ import { showApiError } from '@/lib/api/errors'
 // Mesmo texto de DEFAULT_MESSAGE_TEMPLATE (backend, services/billing.py).
 // Salvar exatamente este texto faz a academia seguir o padrão.
 const DEFAULT_MESSAGE_TEMPLATE =
-  'Olá, {nome}! Tudo bem? 🥋\n\n' +
-  'Passando para lembrar que a mensalidade da {academia} está em ' +
-  'aberto: {valor} ({meses}).\n\n' +
+  'Olá, {nome}! Tudo bem?\n\n' +
+  'Passando para lembrar que há uma mensalidade em aberto: {valor}.\n\n' +
   'Para pagar pelo Pix, é só tocar aqui:\n{link}\n\n' +
-  'Se já pagou, desconsidere. Obrigado!'
+  'Se já pagou, desconsidere. Obrigado!\n\n' +
+  '*{mestre}*\n{academia}'
 
 // Marcadores trocados pelos dados de cada aluno ao abrir o WhatsApp
 const MARKERS = [
   { marker: '{nome}', help: 'primeiro nome de quem recebe' },
+  { marker: '{mestre}', help: 'seu nome (assina a mensagem)' },
   { marker: '{academia}', help: 'nome da academia' },
   { marker: '{valor}', help: 'total em atraso' },
   { marker: '{meses}', help: 'meses em atraso' },
@@ -112,7 +114,8 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
   const form = useForm<FormValues>({ defaultValues: toForm(initial) })
   const { register, setValue, getValues, reset } = form
   const messageRef = useRef<HTMLTextAreaElement | null>(null)
-  const academyName = useAuth().master?.academy.name ?? ''
+  const master = useAuth().master
+  const academyName = master?.academy.name ?? ''
   // Prévia: o texto como chega no WhatsApp, com um aluno de exemplo
   const [template, pixKey, recipientName, pixKeyType, pixCity] = useWatch({
     control: form.control,
@@ -126,6 +129,7 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
   })
   const preview = fillTemplate(template || DEFAULT_MESSAGE_TEMPLATE, {
     nome: 'Ana',
+    mestre: master?.name ?? '',
     academia: academyName,
     valor: 'R$ 150,00',
     meses: 'janeiro e fevereiro',
@@ -269,68 +273,72 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
           title="Mensagem de cobrança"
           description="O texto que abre no WhatsApp quando você cobra um aluno."
         />
-        <div className="grid gap-8 lg:grid-cols-2">
-          <div className="space-y-4">
-            <Label htmlFor="billing-message" className="sr-only">
-              Mensagem de cobrança
+        {/* Texto à esquerda; à direita, um celular com a conversa como o
+            aluno vai ver, centralizado na altura do texto. Largura limitada
+            (40rem): numa tela grande o campo não estica até a borda e o
+            celular fica junto dele. No celular, um embaixo do outro */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,40rem)_18rem] lg:items-center lg:gap-10">
+          <div className="space-y-2">
+            <Label
+              htmlFor="billing-message"
+              className="flex items-center gap-1.5 text-sm font-medium"
+            >
+              <Pencil className="size-4" /> Texto da mensagem
             </Label>
-            <Textarea
-              id="billing-message"
-              maxLength={1000}
-              className="min-h-48 rounded-xl"
-              {...messageField}
-              ref={(element) => {
-                registerMessageRef(element)
-                messageRef.current = element
-              }}
-            />
-            {errors.message_template && (
-              <p role="alert" className="text-xs text-destructive">
-                {errors.message_template.message}
-              </p>
-            )}
-
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                Inserir no texto (entra onde está o cursor):
-              </p>
-              <div className="flex flex-wrap gap-2">
+            {/* Campo com a barra de marcadores no topo */}
+            <div className="overflow-hidden rounded-xl border border-input bg-background focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+              <div className="flex flex-wrap items-center gap-1.5 border-b bg-muted/50 px-3 py-2">
+                <span className="text-xs text-muted-foreground">Inserir:</span>
                 {MARKERS.map(({ marker, help }) => (
                   <button
                     key={marker}
                     type="button"
                     title={help}
                     onClick={() => insertMarker(marker)}
-                    className="rounded-full border px-3 py-1 font-mono text-xs hover:bg-accent"
+                    className="rounded-full border bg-background px-2.5 py-0.5 font-mono text-xs hover:bg-accent"
                   >
                     {marker}
                   </button>
                 ))}
+                <span className="ml-auto">
+                  <InfoTip label="O que cada marcador significa">
+                    <p className="font-semibold">Marcadores</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Na hora de cobrar, cada um vira o dado do aluno. Tocar
+                      num marcador coloca ele onde está o cursor.
+                    </p>
+                    <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                      {MARKERS.map(({ marker, help }) => (
+                        <Fragment key={marker}>
+                          <dt className="font-mono">{marker}</dt>
+                          <dd className="text-muted-foreground">{help}</dd>
+                        </Fragment>
+                      ))}
+                    </dl>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      *Entre asteriscos* sai em negrito no WhatsApp.
+                    </p>
+                  </InfoTip>
+                </span>
               </div>
-              <details className="text-xs text-muted-foreground">
-                <summary className="w-fit cursor-pointer hover:text-foreground">
-                  O que cada marcador significa?
-                </summary>
-                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-                  {MARKERS.map(({ marker, help }) => (
-                    <Fragment key={marker}>
-                      <dt className="font-mono text-foreground">{marker}</dt>
-                      <dd>{help}</dd>
-                    </Fragment>
-                  ))}
-                </dl>
-              </details>
+              <Textarea
+                id="billing-message"
+                maxLength={1000}
+                // field-sizing-content: o campo cresce com o texto, sem
+                // esconder as últimas linhas (a assinatura) atrás de rolagem
+                className="field-sizing-content min-h-64 rounded-none border-0 bg-transparent focus-visible:ring-0 dark:bg-transparent"
+                {...messageField}
+                ref={(element) => {
+                  registerMessageRef(element)
+                  messageRef.current = element
+                }}
+              />
             </div>
-          </div>
-
-          <div className="space-y-3">
-            <p className="flex items-center gap-1.5 text-sm font-medium">
-              <MessageCircle className="size-4" /> Prévia no WhatsApp
-            </p>
-            <WhatsAppMessage text={preview} />
-            <p className="text-xs text-muted-foreground">
-              Exemplo: aluna Ana, devendo R$ 150,00 de janeiro e fevereiro.
-            </p>
+            {errors.message_template && (
+              <p role="alert" className="text-xs text-destructive">
+                {errors.message_template.message}
+              </p>
+            )}
             {!pixKey.trim() && (template ?? '').includes('{pix}') && (
               <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                 <TriangleAlert className="mt-px size-3.5 shrink-0 text-status-pending" />
@@ -339,6 +347,8 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
               </p>
             )}
           </div>
+
+          <WhatsAppPhone contact="Ana" text={preview} />
         </div>
       </div>
 

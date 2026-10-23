@@ -35,11 +35,12 @@ async def test_settings_default_template(client: AsyncClient):
         'message_template': DEFAULT_MESSAGE_TEMPLATE,
     }
     assert DEFAULT_MESSAGE_TEMPLATE == (
-        'Olá, {nome}! Tudo bem? 🥋\n\n'
-        'Passando para lembrar que a mensalidade da {academia} está em '
-        'aberto: {valor} ({meses}).\n\n'
+        'Olá, {nome}! Tudo bem?\n\n'
+        'Passando para lembrar que há uma mensalidade em aberto: '
+        '{valor}.\n\n'
         'Para pagar pelo Pix, é só tocar aqui:\n{link}\n\n'
-        'Se já pagou, desconsidere. Obrigado!'
+        'Se já pagou, desconsidere. Obrigado!\n\n'
+        '*{mestre}*\n{academia}'
     )
 
 

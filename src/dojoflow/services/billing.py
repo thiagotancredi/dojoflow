@@ -65,12 +65,15 @@ from dojoflow.shared.text import name_sort_key
 
 CENTS = Decimal('0.01')
 ZERO = Decimal('0.00')
+# Sem "da/do {academia}" (o artigo depende do nome) e sem "sua mensalidade"
+# (no aluno menor, quem lê é o responsável); assinada pelo mestre, com o
+# nome em negrito no WhatsApp (*...*), e pela academia
 DEFAULT_MESSAGE_TEMPLATE = (
-    'Olá, {nome}! Tudo bem? 🥋\n\n'
-    'Passando para lembrar que a mensalidade da {academia} está em '
-    'aberto: {valor} ({meses}).\n\n'
+    'Olá, {nome}! Tudo bem?\n\n'
+    'Passando para lembrar que há uma mensalidade em aberto: {valor}.\n\n'
     'Para pagar pelo Pix, é só tocar aqui:\n{link}\n\n'
-    'Se já pagou, desconsidere. Obrigado!'
+    'Se já pagou, desconsidere. Obrigado!\n\n'
+    '*{mestre}*\n{academia}'
 )
 ENROLLMENT_FEE_LABEL = 'taxa de matrícula'
 CLOSED_STATUSES = {'paid', 'waived'}
@@ -164,11 +167,19 @@ def choose_recipient(
     return None
 
 
+@dataclass(frozen=True)
+class MessageSender:
+    """Quem assina a cobrança: a academia e o mestre dela."""
+
+    academy: str
+    master: str
+
+
 def whatsapp_url(  # noqa: PLR0913, PLR0917
     student: StudentContact,
     overdue_charges: list[ChargeRead],
     settings: BillingSettingsApi,
-    academy_name: str,
+    sender: MessageSender,
     today: date,
 ) -> str | None:
     """Link wa.me com a mensagem de cobrança; None sem atraso ou telefone."""
@@ -181,11 +192,12 @@ def whatsapp_url(  # noqa: PLR0913, PLR0917
     overdue_total = sum((c.open_amount for c in overdue_charges), ZERO)
     values = {
         '{nome}': contact.name.split()[0],
-        '{academia}': academy_name,
+        '{mestre}': sender.master,
+        '{academia}': sender.academy,
         '{valor}': format_brl(overdue_total),
         '{meses}': open_label(overdue_charges, today.year),
         '{pix}': settings.pix_key or '',
-        '{recebedor}': settings.recipient_name or academy_name,
+        '{recebedor}': settings.recipient_name or sender.academy,
         '{link}': pay_url(student.pay_token),
     }
     text = settings.message_template or DEFAULT_MESSAGE_TEMPLATE
@@ -869,6 +881,19 @@ class BillingService:
             or ''
         )
 
+    async def _sender(self, academy_id: int) -> MessageSender:
+        # Academia com mais de um mestre: assina o primeiro cadastrado
+        master = await self.db_session.scalar(
+            select(Master.name)
+            .where(Master.academy_id == academy_id)
+            .order_by(Master.id)
+            .limit(1)
+        )
+        return MessageSender(
+            academy=await self._academy_name(academy_id),
+            master=master or '',
+        )
+
     @transactional
     async def renew_pay_token(self, academy_id: int, student_id: int) -> str:
         """Troca o código do link de pagamento; o antigo para de valer."""
@@ -982,7 +1007,7 @@ class BillingService:
             contacts[student_id],
             overdue,
             await self.get_settings(academy_id),
-            await self._academy_name(academy_id),
+            await self._sender(academy_id),
             today,
         )
 
@@ -1051,7 +1076,7 @@ class BillingService:
                 )
         normalized = ' '.join(search.split()).casefold() if search else ''
         settings = await self.get_settings(academy_id)
-        academy_name = await self._academy_name(academy_id)
+        sender = await self._sender(academy_id)
         items = []
 
         for student_id, student_charges in by_student.items():
@@ -1082,7 +1107,7 @@ class BillingService:
                         else None
                     ),
                     whatsapp_url=whatsapp_url(
-                        contact, student_overdue, settings, academy_name, today
+                        contact, student_overdue, settings, sender, today
                     ),
                 )
             )
