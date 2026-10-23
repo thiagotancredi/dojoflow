@@ -9,11 +9,11 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dojoflow.core.settings import settings
 from dojoflow.models.academy import Academy
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.payment import Payment
 from dojoflow.models.payment_allocation import PaymentAllocation
-from dojoflow.core.settings import settings
 from dojoflow.models.payment_transaction import PaymentTransaction
 from dojoflow.models.student import Student
 from dojoflow.services import billing as billing_module
