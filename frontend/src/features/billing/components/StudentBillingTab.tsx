@@ -111,7 +111,7 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
     <div className="space-y-7">
       {/* Topo: quanto deve (esquerda) e como cobrar (direita); no celular,
           um cartão embaixo do outro */}
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.25fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1.25fr]">
         <section className="flex flex-col justify-between gap-4 rounded-2xl bg-muted p-5">
           <div>
             <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">

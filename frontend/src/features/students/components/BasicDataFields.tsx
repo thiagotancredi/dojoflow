@@ -1,6 +1,7 @@
 import { Controller } from 'react-hook-form'
 import type { UseFormReturn } from 'react-hook-form'
 
+import { DateField } from '@/components/DatePicker'
 import { FormField } from '@/components/FormField'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -75,11 +76,16 @@ export function BasicDataFields({ form }: { form: UseFormReturn<BasicDataValues>
         htmlFor="birth_date"
         error={errors.birth_date?.message}
       >
-        <Input
-          id="birth_date"
-          type="date"
-          className="rounded-xl"
-          {...register('birth_date')}
+        <Controller
+          control={control}
+          name="birth_date"
+          render={({ field }) => (
+            <DateField
+              id="birth_date"
+              value={field.value ?? ''}
+              onChange={field.onChange}
+            />
+          )}
         />
       </FormField>
 

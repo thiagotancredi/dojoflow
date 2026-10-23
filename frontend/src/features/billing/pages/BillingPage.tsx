@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
+import { MonthField } from '@/components/DatePicker'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -126,20 +127,13 @@ export function BillingPage() {
       <PageHeader
         title="Mensalidades"
         actions={
-          <Input
-            type="month"
+          <MonthField
             aria-label="Mês"
             value={filters.month}
-            onChange={(event) =>
-              event.target.value &&
-              updateParams({
-                mes:
-                  event.target.value === currentMonth()
-                    ? null
-                    : event.target.value,
-              })
+            onChange={(month) =>
+              updateParams({ mes: month === currentMonth() ? null : month })
             }
-            className="w-auto rounded-full"
+            className="w-auto gap-3 rounded-full px-4"
           />
         }
       />
@@ -195,7 +189,9 @@ export function BillingPage() {
               </button>
             ))}
           </div>
-          <div className="relative min-w-0 flex-1 sm:max-w-xs">
+          {/* min-w-40: sem espaço ao lado dos filtros, a busca desce para
+              uma linha própria em vez de virar só a lupa */}
+          <div className="relative min-w-40 flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
@@ -456,6 +452,18 @@ function OverviewList({
         </table>
       </div>
 
+      {/* Celular: "Marcar todos" faz o papel da caixinha do topo da tabela.
+          O <label> em volta deixa o texto inteiro clicável */}
+      {payable.length > 0 && (
+        <label className="flex w-fit items-center gap-2 px-3 py-1 text-sm font-medium md:hidden">
+          <Checkbox
+            checked={headerState}
+            onCheckedChange={() => onToggleAll(items)}
+          />
+          Marcar todos ({payable.length})
+        </label>
+      )}
+
       {/* Celular: um cartão por aluno */}
       <ul className="space-y-2 md:hidden">
         {items.map((item) => (
@@ -498,14 +506,19 @@ function StudentName({ item }: { item: BillingOverviewItem }) {
       >
         {item.name}
       </Link>
+      {/* whitespace-nowrap: "· sem telefone" desce inteiro para a linha de
+          baixo, em vez de partir no meio ("sem" / "telefone") */}
       {item.responsible_name && (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs whitespace-nowrap text-muted-foreground">
           {' '}
           · resp. {item.responsible_name.split(' ')[0]}
         </span>
       )}
       {noPhone && (
-        <span className="text-xs text-muted-foreground"> · sem telefone</span>
+        <span className="text-xs whitespace-nowrap text-muted-foreground">
+          {' '}
+          · sem telefone
+        </span>
       )}
     </p>
   )

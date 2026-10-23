@@ -3,9 +3,9 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
 
+import { DateField } from '@/components/DatePicker'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -150,16 +150,13 @@ export function BulkBeltsPage() {
                           </Select>
                         </td>
                         <td className="py-2">
-                          <Input
-                            type="date"
+                          <DateField
                             aria-label={`Desde quando ${item.student_name} tem a faixa`}
                             value={row?.graduatedOn ?? ''}
-                            onChange={(event) =>
-                              update(item.enrollment_id, {
-                                graduatedOn: event.target.value,
-                              })
+                            onChange={(date) =>
+                              update(item.enrollment_id, { graduatedOn: date })
                             }
-                            className="w-40 rounded-xl"
+                            className="w-40"
                           />
                         </td>
                       </tr>

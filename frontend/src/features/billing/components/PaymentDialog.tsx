@@ -4,6 +4,7 @@ import { Controller, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import { DateField } from '@/components/DatePicker'
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import {
@@ -156,11 +157,16 @@ function PaymentForm({
           htmlFor="payment-date"
           error={errors.paid_on?.message}
         >
-          <Input
-            id="payment-date"
-            type="date"
-            className="rounded-xl"
-            {...register('paid_on')}
+          <Controller
+            control={control}
+            name="paid_on"
+            render={({ field }) => (
+              <DateField
+                id="payment-date"
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
           />
         </FormField>
         <FormField label="Forma (opcional)">

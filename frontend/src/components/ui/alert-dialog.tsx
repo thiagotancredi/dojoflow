@@ -56,7 +56,9 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Igual à janela comum (dialog.tsx): gaveta embaixo no celular,
+          // no meio da tela do md (768px) para cima
+          "group/alert-dialog-content fixed inset-x-0 bottom-0 z-50 grid max-h-[90dvh] w-full gap-4 overflow-y-auto rounded-t-3xl bg-popover px-4 pt-7 pb-[max(1rem,env(safe-area-inset-bottom))] text-popover-foreground ring-1 ring-foreground/10 duration-200 outline-none before:absolute before:top-2.5 before:left-1/2 before:h-1 before:w-10 before:-translate-x-1/2 before:rounded-full before:bg-border data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 max-md:data-open:slide-in-from-bottom max-md:data-closed:slide-out-to-bottom md:inset-x-auto md:top-1/2 md:bottom-auto md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-xl md:p-4 md:duration-100 md:before:hidden md:data-[size=default]:max-w-sm md:data-[size=sm]:max-w-xs md:data-open:zoom-in-95 md:data-closed:zoom-out-95",
           className
         )}
         {...props}

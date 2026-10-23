@@ -33,8 +33,9 @@ export function AppLayout() {
           <Outlet />
         </main>
 
-        {/* Barra inferior: só no celular (abaixo de "md") */}
-        <nav className="fixed inset-x-3 bottom-3 flex justify-around rounded-3xl bg-card p-2 shadow-lg shadow-primary/10 md:hidden">
+        {/* Barra inferior: só no celular (abaixo de "md"). Mesma cor da
+            sidebar do computador (bg-sidebar), para os dois combinarem */}
+        <nav className="fixed inset-x-3 bottom-3 z-40 flex justify-around rounded-3xl bg-sidebar p-2 shadow-lg shadow-black/20 md:hidden">
           {allItems.map((item) => (
             <NavIconLink key={item.to} item={item} />
           ))}

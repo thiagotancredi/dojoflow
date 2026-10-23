@@ -195,12 +195,22 @@ export function ModalityBeltsPage() {
         ) : (
           <ol className="divide-y">
             {list.map((belt, index) => (
-              <li key={belt.id} className="flex items-center gap-3 py-2.5">
+              // flex-wrap: no celular os botões descem para uma 2ª linha,
+              // senão empurram o nome da faixa para fora da tela
+              <li
+                key={belt.id}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5"
+              >
                 <span className="w-6 text-right text-xs text-muted-foreground">
                   {belt.position}
                 </span>
-                <BeltDrawing belt={belt} width={150} height={24} />
-                <span className="min-w-0 flex-1">
+                <BeltDrawing
+                  belt={belt}
+                  width={150}
+                  height={24}
+                  className="w-[110px] sm:w-[150px]"
+                />
+                <span className="min-w-24 flex-1">
                   <span className="block truncate text-sm font-medium">
                     {belt.name}
                   </span>
@@ -209,41 +219,43 @@ export function ModalityBeltsPage() {
                   </span>
                 </span>
                 {/* Um movimento por vez: os botões travam até salvar */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Subir ${belt.name}`}
-                  disabled={index === 0 || reordering}
-                  onClick={() => void move(index, -1)}
-                >
-                  <ArrowUp />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Descer ${belt.name}`}
-                  disabled={index === list.length - 1 || reordering}
-                  onClick={() => void move(index, 1)}
-                >
-                  <ArrowDown />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Editar ${belt.name}`}
-                  onClick={() => setEditing(belt)}
-                >
-                  <Pencil />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Excluir ${belt.name}`}
-                  className="text-destructive"
-                  onClick={() => setToDelete(belt)}
-                >
-                  <Trash2 />
-                </Button>
+                <div className="ml-auto flex shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Subir ${belt.name}`}
+                    disabled={index === 0 || reordering}
+                    onClick={() => void move(index, -1)}
+                  >
+                    <ArrowUp />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Descer ${belt.name}`}
+                    disabled={index === list.length - 1 || reordering}
+                    onClick={() => void move(index, 1)}
+                  >
+                    <ArrowDown />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Editar ${belt.name}`}
+                    onClick={() => setEditing(belt)}
+                  >
+                    <Pencil />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Excluir ${belt.name}`}
+                    className="text-destructive"
+                    onClick={() => setToDelete(belt)}
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
               </li>
             ))}
           </ol>
@@ -254,7 +266,7 @@ export function ModalityBeltsPage() {
         open={editing !== null}
         onOpenChange={(open) => !open && setEditing(null)}
       >
-        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>
               {editing === 'new' ? 'Nova faixa' : 'Editar faixa'}

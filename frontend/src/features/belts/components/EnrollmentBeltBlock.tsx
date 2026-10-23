@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { DateField } from '@/components/DatePicker'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -12,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   addEnrollmentBelt,
@@ -192,7 +192,7 @@ export function EnrollmentBeltBlock({
 
       <Dialog open={showHistory} onOpenChange={setShowHistory}>
         {/* Mais larga que o padrão (384 px) para o nome da faixa caber inteiro */}
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="md:max-w-md">
           <DialogHeader>
             <DialogTitle>Histórico de faixas · {modalityName}</DialogTitle>
           </DialogHeader>
@@ -322,12 +322,10 @@ function GraduationForm({
         <Label htmlFor="graduated_on" className="text-xs text-muted-foreground">
           Data da graduação
         </Label>
-        <Input
+        <DateField
           id="graduated_on"
-          type="date"
           value={graduatedOn}
-          onChange={(event) => setGraduatedOn(event.target.value)}
-          className="rounded-xl"
+          onChange={setGraduatedOn}
         />
       </div>
       {!record && (

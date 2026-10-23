@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import { DateField } from '@/components/DatePicker'
 import { FormField } from '@/components/FormField'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -196,11 +197,16 @@ function NewListForm({ onClose }: { onClose: () => void }) {
           htmlFor="exam-date"
           error={errors.exam_date?.message}
         >
-          <Input
-            id="exam-date"
-            type="date"
-            className="rounded-xl"
-            {...register('exam_date')}
+          <Controller
+            control={control}
+            name="exam_date"
+            render={({ field }) => (
+              <DateField
+                id="exam-date"
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
           />
         </FormField>
       </div>

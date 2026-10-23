@@ -1,8 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import { DateField } from '@/components/DatePicker'
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import {
@@ -96,6 +97,7 @@ function EditForm({
   })
   const {
     register,
+    control,
     formState: { errors },
   } = form
 
@@ -132,11 +134,16 @@ function EditForm({
           htmlFor="charge-due"
           error={errors.due_date?.message}
         >
-          <Input
-            id="charge-due"
-            type="date"
-            className="rounded-xl"
-            {...register('due_date')}
+          <Controller
+            control={control}
+            name="due_date"
+            render={({ field }) => (
+              <DateField
+                id="charge-due"
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
           />
         </FormField>
       </div>

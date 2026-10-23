@@ -3,8 +3,8 @@ import { useImperativeHandle, useState } from 'react'
 import type { Ref } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 
+import { DateField } from '@/components/DatePicker'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BeltPicker } from '@/features/belts/components/BeltPicker'
 import { useBelts } from '@/features/belts/hooks'
@@ -116,12 +116,10 @@ export function EnrollmentBlock({
             >
               Desde
             </Label>
-            <Input
+            <DateField
               id={`belt-since-${index}`}
-              type="date"
               value={since}
-              onChange={(event) => setSince(event.target.value)}
-              className="rounded-xl"
+              onChange={setSince}
             />
           </div>
         </div>
