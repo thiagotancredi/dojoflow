@@ -414,7 +414,7 @@
   --sidebar-ring: #3d8fa3;
 }
 
-/* Washi: creme suave, barra lateral preta e destaque laranja queimado
+/* Washi: creme suave, barra lateral preta e destaque verde-musgo
    (escolhido em 23/10/2026; o grafite continua acima, para voltar) */
 [data-theme='washi'] {
   color-scheme: light;
@@ -431,38 +431,38 @@
   --muted-foreground: #5c5850;
   --border: #ddd7cb;
   --input: #d2cbbd;
-  --ring: #c2410c;
+  --ring: #4f6b3a;
 
   --primary: #1b1b1b;
   --primary-foreground: #fffdf8;
   --secondary: #eeeae2;
   --secondary-foreground: #1b1b1b;
   --accent: #ece6db;
-  --accent-foreground: #c2410c;
+  --accent-foreground: #4f6b3a;
   --destructive: #c81e1e;
 
   --brand-from: #1b1b1b;
-  --brand-to: #7a2e0e;
+  --brand-to: #2f4123;
   --brand-foreground: #fffdf8;
 
-  --chip-active: #f8e3d6;
-  --chip-active-border: #eeb898;
-  --chip-active-foreground: #9a3412;
+  --chip-active: #e5ebdc;
+  --chip-active-border: #b9c9a6;
+  --chip-active-foreground: #3d5530;
 
   --tooltip: #1b1b1b;
   --tooltip-foreground: #fffdf8;
 
-  --chart-1: #c2410c;
-  --chart-2: #e08a5c;
-  --chart-3: #2f6b4f;
+  --chart-1: #4f6b3a;
+  --chart-2: #8aa171;
+  --chart-3: #2c6e7a;
   --chart-4: #a16207;
   --chart-5: #5c554a;
 
-  /* Ativa em azul-índigo (ai-iro): o laranja fica só para destaque */
+  /* Ativa em azul-índigo (ai-iro): o verde-musgo fica só para destaque */
   --status-active: #2d4a6b;
   --status-active-soft: #e3e8ee;
-  --status-exempt: #2f6b4f;
-  --status-exempt-soft: #e2ede6;
+  --status-exempt: #2c6e7a;
+  --status-exempt-soft: #dfedf0;
   --status-pending: #b7860b;
   --status-pending-soft: #f5ecd5;
   --status-inactive: #a39e93;
@@ -474,8 +474,8 @@
   --status-warning: #b7791f;
   --status-warning-soft: #f7ecd6;
 
-  --avatar-1: #f8e3d6;
-  --avatar-1-foreground: #9a3412;
+  --avatar-1: #e5ebdc;
+  --avatar-1-foreground: #3d5530;
   --avatar-2: #e8e3d8;
   --avatar-2-foreground: #4a463e;
   --avatar-3: #e8e3d8;
@@ -488,12 +488,12 @@
   /* Barra lateral preta (tinta) */
   --sidebar: #1b1b1b;
   --sidebar-foreground: #cfc6b6;
-  --sidebar-primary: #c2410c;
+  --sidebar-primary: #4f6b3a;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #2c2a27;
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: #3a3733;
-  --sidebar-ring: #c2410c;
+  --sidebar-ring: #4f6b3a;
 }
 
 /* Escuro do washi: por enquanto igual ao escuro do grafite */
