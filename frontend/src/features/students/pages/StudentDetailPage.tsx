@@ -119,7 +119,7 @@ export function StudentDetailPage() {
             <TabsTrigger
               key={value}
               value={value}
-              className="rounded-full px-4 py-1.5 focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-ring/40 data-active:bg-card"
+              className="rounded-full px-4 py-1.5 focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-ring/40 data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground dark:data-active:text-sidebar-primary-foreground"
             >
               {label}
             </TabsTrigger>
