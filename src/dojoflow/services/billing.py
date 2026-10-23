@@ -306,8 +306,10 @@ class BillingService:
                 message_template=DEFAULT_MESSAGE_TEMPLATE
             )
 
-        return BillingSettingsApi(
+        return BillingSettingsApi.model_construct(
             pix_key=settings.pix_key,
+            pix_key_type=settings.pix_key_type,
+            pix_city=settings.pix_city,
             recipient_name=settings.recipient_name,
             bank_details=settings.bank_details,
             message_template=(

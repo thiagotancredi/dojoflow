@@ -1,6 +1,8 @@
+import secrets
 from datetime import date
 
-from sqlalchemy.orm import Mapped
+from sqlalchemy import String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from dojoflow.database.helper_mapped_columns import (
     bool_column,
@@ -11,6 +13,11 @@ from dojoflow.database.helper_mapped_columns import (
 )
 from dojoflow.models.base_model import BaseModel
 from dojoflow.shared.enums import StudentSex
+
+
+def new_pay_token() -> str:
+    """Código secreto do link de pagamento do aluno (/pagar/<código>)."""
+    return secrets.token_urlsafe(16)
 
 
 class Student(BaseModel):
@@ -34,4 +41,12 @@ class Student(BaseModel):
     sex: Mapped[StudentSex | None] = enum_column(
         StudentSex,
         nullable=True,
+    )
+
+    pay_token: Mapped[str] = mapped_column(
+        String(32),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=new_pay_token,
     )

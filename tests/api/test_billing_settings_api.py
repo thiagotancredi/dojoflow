@@ -11,6 +11,8 @@ URL = '/api/v1/academy/billing-settings'
 
 SETTINGS = {
     'pix_key': 'dojo@exemplo.com',
+    'pix_key_type': 'email',
+    'pix_city': 'Goiânia',
     'recipient_name': 'Dojo Dragão Branco',
     'bank_details': 'Banco 001 · Agência 1234 · Conta 5678-9',
     'message_template': 'Oi, {nome}! Falta {valor} ({meses}).',
@@ -26,6 +28,8 @@ async def test_settings_default_template(client: AsyncClient):
     assert response.status_code == HTTPStatus.OK, response.text
     assert response.json() == {
         'pix_key': None,
+        'pix_key_type': None,
+        'pix_city': None,
         'recipient_name': None,
         'bank_details': None,
         'message_template': DEFAULT_MESSAGE_TEMPLATE,
@@ -83,3 +87,59 @@ async def test_settings_scoped_to_academy(
 
     assert response.json()['pix_key'] is None
     assert response.json()['message_template'] == DEFAULT_MESSAGE_TEMPLATE
+
+
+@pytest.mark.asyncio
+async def test_settings_requires_key_type(client: AsyncClient):
+    headers = await auth_headers(client)
+
+    response = await client.put(
+        URL, headers=headers, json={**SETTINGS, 'pix_key_type': None}
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.asyncio
+async def test_settings_rejects_key_not_matching_type(client: AsyncClient):
+    headers = await auth_headers(client)
+
+    response = await client.put(
+        URL, headers=headers, json={**SETTINGS, 'pix_key_type': 'cpf'}
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.asyncio
+async def test_settings_normalizes_key(client: AsyncClient):
+    headers = await auth_headers(client)
+
+    saved = await client.put(
+        URL,
+        headers=headers,
+        json={
+            **SETTINGS,
+            'pix_key': '(11) 91234-5678',
+            'pix_key_type': 'phone',
+        },
+    )
+
+    assert saved.status_code == HTTPStatus.OK, saved.text
+    assert saved.json()['pix_key'] == '+5511912345678'
+    assert saved.json()['pix_key_type'] == 'phone'
+
+
+@pytest.mark.asyncio
+async def test_settings_type_without_key_is_dropped(client: AsyncClient):
+    headers = await auth_headers(client)
+
+    saved = await client.put(
+        URL,
+        headers=headers,
+        json={**SETTINGS, 'pix_key': '', 'pix_key_type': 'cpf'},
+    )
+
+    assert saved.status_code == HTTPStatus.OK, saved.text
+    assert saved.json()['pix_key'] is None
+    assert saved.json()['pix_key_type'] is None
