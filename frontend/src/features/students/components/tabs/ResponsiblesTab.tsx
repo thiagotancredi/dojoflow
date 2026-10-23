@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Ellipsis, MessageCircle, Phone, Plus } from 'lucide-react'
+import { Ellipsis, MessageCircle, Phone } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
@@ -23,7 +23,10 @@ import type { ResponsibleLink } from '@/features/students/api'
 import { ResponsibleFields } from '@/features/students/components/ResponsibleFields'
 import { FormActions } from '@/features/students/components/tabs/BasicDataTab'
 import type { StudentTabProps } from '@/features/students/components/tabs/EnrollmentsTab'
-import { TabHeader } from '@/features/students/components/tabs/TabParts'
+import {
+  AddCard,
+  TabHeader,
+} from '@/features/students/components/tabs/TabParts'
 import {
   useAddResponsible,
   useRemoveResponsible,
@@ -83,14 +86,11 @@ export function ResponsiblesTab({ student: detail, onChanged }: StudentTabProps)
           />
         ))}
         <li>
-          <button
-            type="button"
+          <AddCard
+            label="Adicionar responsável"
             onClick={() => setAdding(true)}
-            className="flex size-full min-h-40 flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed text-sm font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-          >
-            <Plus className="size-5" />
-            Adicionar responsável
-          </button>
+            className="size-full min-h-40"
+          />
         </li>
       </ul>
       <p className="text-xs text-muted-foreground">

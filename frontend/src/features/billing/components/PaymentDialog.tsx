@@ -147,7 +147,6 @@ function PaymentForm({
             id="payment-amount"
             inputMode="decimal"
             placeholder="150,00"
-            autoFocus
             className="rounded-xl"
             {...register('amount')}
           />

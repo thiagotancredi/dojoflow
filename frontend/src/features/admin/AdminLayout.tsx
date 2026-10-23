@@ -2,7 +2,6 @@ import { LogOut } from 'lucide-react'
 import { Outlet } from 'react-router'
 
 import { Logo } from '@/app/components/Logo'
-import { ThemeToggle } from '@/app/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/features/auth/useAuth'
 
@@ -21,7 +20,6 @@ export function AdminLayout() {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
           <Button
             variant="ghost"
             className="rounded-full"

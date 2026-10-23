@@ -96,6 +96,31 @@ export function shortTimeSince(isoDate: string, reference: string) {
   return parts.length ? parts.join(' ') : '0d'
 }
 
+// Dia em que o aluno fica apto: data da graduação + tempo mínimo da faixa
+// (mesma conta do backend, services/belt_rules.py). null = sem tempo mínimo
+export function eligibleOn(
+  graduatedOn: string,
+  amount: number | null,
+  unit: keyof typeof UNIT_LABELS | null,
+): string | null {
+  if (amount === null || unit === null) return null
+  const start = parseDate(graduatedOn)
+  if (unit === 'days') {
+    return toIsoDate(
+      new Date(start.getFullYear(), start.getMonth(), start.getDate() + amount),
+    )
+  }
+  const months = unit === 'years' ? amount * 12 : amount
+  return toIsoDate(addMonthsClamped(start, months))
+}
+
+// Quanto falta para ficar apto, contando a partir de "reference" (hoje ou
+// a data do exame): "2m 3d", "18d". null = já está apto ou não há como saber
+export function timeLeft(eligibleOnIso: string | null, reference: string) {
+  if (!eligibleOnIso || eligibleOnIso <= reference) return null
+  return shortTimeSince(reference, eligibleOnIso)
+}
+
 // Próxima faixa da sequência (sem faixa → a primeira; última → nenhuma)
 export function nextBeltId(belts: Belt[], currentId: string | null) {
   if (!currentId) return belts[0]?.id ?? null

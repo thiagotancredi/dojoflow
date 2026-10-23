@@ -23,12 +23,17 @@ import type {
   Belt,
   BeltRecord,
   EnrollmentBeltPayload,
-  EnrollmentBelts,
 } from '@/features/belts/api'
 import { BeltDrawing } from '@/features/belts/components/BeltDrawing'
 import { BeltPicker } from '@/features/belts/components/BeltPicker'
+import { EligibilityBadge } from '@/features/belts/components/EligibilityBadge'
 import { useBelts, useEnrollmentBelts } from '@/features/belts/hooks'
-import { nextBeltId, timeSince, todayIso } from '@/features/belts/rules'
+import {
+  nextBeltId,
+  timeLeft,
+  timeSince,
+  todayIso,
+} from '@/features/belts/rules'
 import { showApiError } from '@/lib/api/errors'
 import { formatDate } from '@/lib/format'
 import { useMutation } from '@/lib/hooks/useMutation'
@@ -128,10 +133,17 @@ export function EnrollmentBeltBlock({
           <BeltDrawing belt={current.belt} width={220} height={26} />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-base font-semibold">{current.belt.name}</span>
-            <EligibilityChip data={data} />
+            {/* Mesmos nomes das listas de graduação (Apto / Não apto…) */}
+            <EligibilityBadge
+              value={data.eligibility}
+              left={timeLeft(data.eligible_on, todayIso())}
+            />
           </div>
           <p className="text-xs text-muted-foreground">
             {timeSince(current.graduated_on)}
+            {data.eligibility === 'not_yet' &&
+              data.eligible_on &&
+              ` · apto em ${formatDate(data.eligible_on)}`}
           </p>
           <div className="flex flex-wrap gap-1.5 pt-1">
             <Button
@@ -262,29 +274,6 @@ function BeltTile({ children }: { children: ReactNode }) {
       {children}
     </div>
   )
-}
-
-// Aptidão calculada pela API (com a data de hoje)
-function EligibilityChip({ data }: { data: EnrollmentBelts }) {
-  if (data.eligibility === 'eligible') {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-status-exempt-soft px-2.5 py-0.5 text-xs text-status-exempt">
-        <span className="size-2 rounded-full bg-status-exempt" />
-        Apto
-      </span>
-    )
-  }
-
-  if (data.eligibility === 'not_yet' && data.eligible_on) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-status-pending-soft px-2.5 py-0.5 text-xs">
-        <span className="size-2 rounded-full bg-status-pending" />
-        Apto em {formatDate(data.eligible_on)}
-      </span>
-    )
-  }
-
-  return <span className="text-xs text-muted-foreground">Sem tempo mínimo</span>
 }
 
 type GraduationFormProps = {

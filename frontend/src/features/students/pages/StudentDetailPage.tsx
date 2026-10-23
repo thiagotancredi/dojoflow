@@ -84,14 +84,26 @@ export function StudentDetailPage() {
         <ArrowLeft className="size-4" /> Alunos
       </Link>
 
-      <div className="flex items-center gap-4">
-        <StudentAvatar size="lg" />
-        <div className="min-w-0 flex-1 space-y-2">
-          <h2 className="truncate text-xl font-semibold tracking-tight">
+      {/* Ficha estreita (celular, tablet): tudo numa linha só. Número em
+          texto embaixo do nome e Ligar/WhatsApp como botões redondos à
+          direita. Ficha larga: número e WhatsApp como pílulas, como antes */}
+      <div className="flex items-center gap-4 @max-xl/ficha:gap-3">
+        {/* Ficha bem estreita (tablet, ao lado da lista): sem avatar, para
+            sobrar espaço para o nome */}
+        <div className="@max-[18rem]/ficha:hidden">
+          <StudentAvatar size="lg" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-2 @max-xl/ficha:space-y-0">
+          <h2 className="truncate text-xl font-semibold tracking-tight @max-xl/ficha:text-lg">
             {student.name}
           </h2>
           {student.phone && (
-            <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm whitespace-nowrap text-muted-foreground tabular-nums @xl/ficha:hidden">
+              {formatPhone(student.phone)}
+            </p>
+          )}
+          {student.phone && (
+            <div className="flex flex-wrap items-center gap-2 @max-xl/ficha:hidden">
               {/* O próprio número liga (no celular; no computador abre o
                   app de chamadas, se houver) */}
               <a
@@ -117,6 +129,28 @@ export function StudentDetailPage() {
             </div>
           )}
         </div>
+        {student.phone && (
+          <div className="flex shrink-0 gap-2 @xl/ficha:hidden">
+            <a
+              href={callHref(student.phone)}
+              aria-label="Ligar"
+              className="grid size-10 place-items-center rounded-full bg-muted transition-colors hover:bg-accent"
+            >
+              <Phone className="size-4" />
+            </a>
+            {student.phone_is_whatsapp && (
+              <a
+                href={whatsappHref(student.phone)}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Abrir conversa no WhatsApp"
+                className="grid size-10 place-items-center rounded-full border border-status-active/30 bg-status-active-soft text-status-active transition-colors hover:brightness-95"
+              >
+                <MessageCircle className="size-4" />
+              </a>
+            )}
+          </div>
+        )}
       </div>
 
       {/* key: ao trocar de aluno, as abas voltam ao estado inicial */}
@@ -174,9 +208,8 @@ function StudentSections({
           value="billing"
           className="space-y-4 pt-4 @max-xl/ficha:pt-0"
         >
-          {/* Mensalidades não tem título no computador; na ficha estreita
-              precisa dele para mostrar o menu */}
-          <TabHeader title="Mensalidades" narrowOnly />
+          {/* As outras abas têm o TabHeader dentro delas; esta, aqui */}
+          <TabHeader title="Mensalidades" />
           <StudentBillingTab student={student} />
         </TabsContent>
         <TabsContent value="data" className="pt-4 @max-xl/ficha:pt-0">

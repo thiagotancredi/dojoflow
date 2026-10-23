@@ -1,16 +1,23 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { MapPin, Pencil, Plus } from 'lucide-react'
+import { Ellipsis, MapPin, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import type { StudentDetail } from '@/features/students/api'
 import { AddressFields } from '@/features/students/components/AddressFields'
 import { FormActions } from '@/features/students/components/tabs/BasicDataTab'
 import type { StudentTabProps } from '@/features/students/components/tabs/EnrollmentsTab'
 import {
+  AddCard,
   InfoCard,
   TabHeader,
 } from '@/features/students/components/tabs/TabParts'
@@ -55,18 +62,12 @@ export function AddressTab({ student: detail, onChanged }: StudentTabProps) {
     return (
       <div className="space-y-4">
         <TabHeader title="Endereço" />
-        <InfoCard className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            Sem endereço cadastrado.
-          </p>
-          <Button
-            variant="outline"
-            className="rounded-full"
-            onClick={() => setEditing(true)}
-          >
-            <Plus /> Adicionar endereço
-          </Button>
-        </InfoCard>
+        {/* Sem endereço: cartão tracejado, igual a matrícula/responsável */}
+        <AddCard
+          label="Adicionar endereço"
+          onClick={() => setEditing(true)}
+          className="min-h-28"
+        />
       </div>
     )
   }
@@ -85,31 +86,42 @@ export function AddressTab({ student: detail, onChanged }: StudentTabProps) {
 
   return (
     <div className="space-y-4">
-      <TabHeader title="Endereço">
-        <Button
-          variant="outline"
-          className="rounded-full"
-          onClick={() => setEditing(true)}
-        >
-          <Pencil /> Editar
-        </Button>
-        <Button
-          variant="ghost"
-          className="rounded-full text-destructive"
-          onClick={() => setConfirming(true)}
-        >
-          Remover
-        </Button>
-      </TabHeader>
+      <TabHeader title="Endereço" />
+      {/* Editar/Remover no canto do cartão, como nas outras seções */}
+      {/* O endereço vem direto (sem rótulo repetindo "Endereço"); Editar e
+          Remover no menu "⋯" do canto, igual ao cartão de responsável */}
       <InfoCard className="flex items-start gap-4">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-chip-active text-chip-active-foreground">
           <MapPin className="size-5" />
         </span>
-        <div className="min-w-0 space-y-0.5">
+        <div className="min-w-0 flex-1 space-y-0.5">
           <p className="font-medium">{line1 || 'Endereço sem rua'}</p>
           {line2 && <p className="text-sm text-muted-foreground">{line2}</p>}
           {line3 && <p className="text-sm text-muted-foreground">{line3}</p>}
         </div>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Opções do endereço"
+              className="-mt-1 -mr-2 size-8 shrink-0 rounded-full"
+            >
+              <Ellipsis />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => setEditing(true)}>
+              <Pencil /> Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => setConfirming(true)}
+            >
+              Remover
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </InfoCard>
       <ConfirmDialog
         open={confirming}
