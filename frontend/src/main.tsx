@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router'
 import { router } from '@/app/router'
 import { adminRouter } from '@/features/admin/router'
 import { isAdminHost } from '@/lib/host'
+import { trackKeyboardInset } from '@/lib/keyboardInset'
 import { applyInitialMode } from '@/app/theme'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/features/auth/AuthProvider'
@@ -13,6 +14,9 @@ import './index.css'
 
 // Claro ou escuro antes de desenhar, para a tela não piscar
 applyInitialMode()
+
+// Gavetas (janelas no celular) sobem junto com o teclado
+trackKeyboardInset()
 
 // Título da aba: distingue o painel do app dos mestres
 if (isAdminHost) document.title = 'Katsuflow · Admin'

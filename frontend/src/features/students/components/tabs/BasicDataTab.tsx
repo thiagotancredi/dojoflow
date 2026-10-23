@@ -35,19 +35,24 @@ export function BasicDataTab({ student: detail, onChanged }: StudentTabProps) {
     )
   }
 
+  // "Editar" no canto de cada cartão (igual ao cartão Mensalidade), para a
+  // barra de seções ficar sozinha no topo; os dois abrem o mesmo formulário
+  const editButton = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 rounded-full text-xs"
+      onClick={() => setEditing(true)}
+    >
+      <Pencil /> Editar
+    </Button>
+  )
+
   return (
     <div className="space-y-4">
-      <TabHeader title="Dados pessoais">
-        <Button
-          variant="outline"
-          className="rounded-full"
-          onClick={() => setEditing(true)}
-        >
-          <Pencil /> Editar
-        </Button>
-      </TabHeader>
+      <TabHeader title="Dados pessoais" />
       <div className="grid gap-4 lg:grid-cols-2">
-        <InfoCard title="Pessoal">
+        <InfoCard title="Pessoal" action={editButton}>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
             <Field label="Nascimento">
               {student.birth_date && (
@@ -64,7 +69,7 @@ export function BasicDataTab({ student: detail, onChanged }: StudentTabProps) {
             <Field label="CPF">{student.cpf}</Field>
           </dl>
         </InfoCard>
-        <InfoCard title="Contato">
+        <InfoCard title="Contato" action={editButton}>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
             <Field label="Telefone">
               {student.phone && (

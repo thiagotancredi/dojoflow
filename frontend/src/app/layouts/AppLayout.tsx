@@ -3,7 +3,6 @@ import { Outlet } from 'react-router'
 import { Logo } from '@/app/components/Logo'
 import { NavIconLink } from '@/app/components/NavIconLink'
 import { SupportBanner } from '@/app/components/SupportBanner'
-import { ThemeToggle } from '@/app/components/ThemeToggle'
 import { mainNavItems, settingsNavItem } from '@/app/navigation'
 
 // Moldura de toda a área logada: sidebar (desktop) ou barra inferior
@@ -25,7 +24,7 @@ export function AppLayout() {
             <NavIconLink key={item.to} item={item} />
           ))}
           <div className="flex-1" />
-          <ThemeToggle />
+          {/* Botão do tema escuro fora por enquanto (ver app/theme.ts) */}
           <NavIconLink item={settingsNavItem} />
         </aside>
 

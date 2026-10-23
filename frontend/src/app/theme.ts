@@ -36,8 +36,17 @@ export function saveMode(mode: ColorMode) {
   window.dispatchEvent(new Event(CHANGE_EVENT))
 }
 
+// O tema escuro ainda não foi ajustado: por enquanto o site é sempre claro
+// (ignora a escolha antiga e o modo escuro do celular) e os botões de troca
+// estão fora da tela. Para religar: true aqui + ThemeToggle/AppearanceSetting
+const DARK_MODE_ENABLED = false
+
 // Chamado uma vez ao abrir o site, antes de desenhar a tela
 export function applyInitialMode() {
+  if (!DARK_MODE_ENABLED) {
+    applyMode('light')
+    return
+  }
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
   applyMode(savedMode() ?? (prefersDark ? 'dark' : 'light'))
 }

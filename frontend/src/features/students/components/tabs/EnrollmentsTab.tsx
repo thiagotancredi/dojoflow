@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Pencil, Plus } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -25,7 +25,10 @@ import {
 } from '@/features/students/components/EnrollmentFeeCard'
 import { EnrollmentFields } from '@/features/students/components/EnrollmentFields'
 import { FormActions } from '@/features/students/components/tabs/BasicDataTab'
-import { TabHeader } from '@/features/students/components/tabs/TabParts'
+import {
+  AddCard,
+  TabHeader,
+} from '@/features/students/components/tabs/TabParts'
 import {
   useAddEnrollment,
   useUpdateEnrollment,
@@ -59,15 +62,7 @@ export function EnrollmentsTab({ student: detail, onChanged }: StudentTabProps) 
 
   return (
     <div className="space-y-4">
-      <TabHeader title="Matrículas">
-        <Button
-          variant="outline"
-          className="rounded-full"
-          onClick={() => setEditing('new')}
-        >
-          <Plus /> Nova matrícula
-        </Button>
-      </TabHeader>
+      <TabHeader title="Matrículas" />
 
       {/* @container: as colunas dependem da largura do painel da ficha,
           não da tela inteira (a lista de alunos divide o espaço com ela) */}
@@ -112,6 +107,12 @@ export function EnrollmentsTab({ student: detail, onChanged }: StudentTabProps) 
             </div>
           </section>
         ))}
+        {/* Nova matrícula: cartão tracejado no fim, igual ao de responsável */}
+        <AddCard
+          label="Adicionar matrícula"
+          onClick={() => setEditing('new')}
+          className="min-h-28"
+        />
       </div>
 
       <Dialog

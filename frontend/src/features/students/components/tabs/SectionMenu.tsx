@@ -12,7 +12,8 @@ import {
 } from '@/features/students/components/tabs/sections'
 import { cn } from '@/lib/utils'
 
-// O título da seção vira um botão ("Matrículas ▾") que abre a lista
+// Barra bege "Matrículas · trocar seção ⌄" que abre a lista de seções.
+// Na largura toda, para ficar claro que é um botão (e não só um título)
 export function SectionMenu({ className }: { className?: string }) {
   const menu = useSectionMenu()
   if (!menu) return null
@@ -20,19 +21,28 @@ export function SectionMenu({ className }: { className?: string }) {
   const current =
     STUDENT_SECTIONS.find((section) => section.value === menu.value) ??
     STUDENT_SECTIONS[0]
+  const Icon = current.icon
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          'flex items-center gap-1 rounded-lg text-lg font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
+          'flex h-11 w-full items-center gap-2.5 rounded-full bg-accent px-4 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40',
           className,
         )}
       >
-        {current.label}
-        <ChevronDown className="size-4 text-sidebar-primary" strokeWidth={2.5} />
+        <Icon className="size-4 shrink-0" />
+        <span className="flex-1 truncate font-semibold">{current.label}</span>
+        <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+          trocar seção
+          <ChevronDown className="size-3.5" />
+        </span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56 rounded-2xl p-1.5">
+      {/* Lista na largura da barra (a variável vem do Radix) */}
+      <DropdownMenuContent
+        align="start"
+        className="w-(--radix-dropdown-menu-trigger-width) rounded-2xl p-1.5"
+      >
         {STUDENT_SECTIONS.map(({ value, label, icon: Icon }) => (
           <DropdownMenuItem
             key={value}

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Plus } from 'lucide-react'
 
 import { SectionMenu } from '@/features/students/components/tabs/SectionMenu'
 import { useSectionMenu } from '@/features/students/components/tabs/sections'
@@ -7,59 +8,73 @@ import { cn } from '@/lib/utils'
 // Peças comuns das abas da ficha: título com ações à direita e cartões
 // com um rótulo pequeno em cima
 
-export function TabHeader({
-  title,
-  children,
-  narrowOnly = false,
-}: {
-  title: string
-  // Botões do canto direito (Editar, Remover…)
-  children?: ReactNode
-  // Só aparece na ficha estreita (aba sem título próprio no computador)
-  narrowOnly?: boolean
-}) {
+// Topo de cada seção da ficha. O conteúdo vem direto, sem título na tela:
+// no computador a aba verde já diz onde você está; no celular/tablet
+// ("@max-xl/ficha": ficha com menos de 36rem) aparece a barra
+// "trocar seção". O título fica só para leitores de tela (sr-only).
+export function TabHeader({ title }: { title: string }) {
   const menu = useSectionMenu()
 
-  // "@xl/ficha": a ficha (container "ficha") tem 36rem ou mais. Abaixo
-  // disso (celular, tablet) o título vira o menu de seções ("@max-xl")
   return (
-    <div
-      className={cn(
-        'flex flex-wrap items-center justify-between gap-2',
-        narrowOnly && menu && '@xl/ficha:hidden',
-      )}
-    >
-      {menu ? (
-        <>
-          <h3 className="font-semibold @max-xl/ficha:hidden">{title}</h3>
-          <SectionMenu className="@xl/ficha:hidden" />
-        </>
-      ) : (
-        <h3 className="font-semibold">{title}</h3>
-      )}
-      {children && <div className="flex flex-wrap gap-1">{children}</div>}
-    </div>
+    <>
+      <h3 className={menu ? 'sr-only' : 'font-semibold'}>{title}</h3>
+      {menu && <SectionMenu className="@xl/ficha:hidden" />}
+    </>
   )
 }
 
 export function InfoCard({
   title,
+  action,
   children,
   className = '',
 }: {
   title?: string
+  // Botão do canto do cartão (ex.: "Editar"), na linha do título
+  action?: ReactNode
   children: ReactNode
   className?: string
 }) {
   return (
     <section className={`rounded-2xl border bg-popover p-5 ${className}`}>
-      {title && (
-        <p className="mb-3 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-          {title}
-        </p>
+      {(title || action) && (
+        <div className="mb-3 flex min-h-7 items-center justify-between gap-2">
+          {title && (
+            <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+              {title}
+            </p>
+          )}
+          {action && <div className="ml-auto flex gap-1">{action}</div>}
+        </div>
       )}
       {children}
     </section>
+  )
+}
+
+// Cartão tracejado de "adicionar" (responsável, matrícula…): fica no fim
+// da lista, no lugar de um botão solto no topo
+export function AddCard({
+  label,
+  onClick,
+  className,
+}: {
+  label: string
+  onClick: () => void
+  className?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed text-sm font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground',
+        className,
+      )}
+    >
+      <Plus className="size-5" />
+      {label}
+    </button>
   )
 }
 
