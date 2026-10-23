@@ -76,7 +76,10 @@ function PaymentView({ data }: { data: PublicPayment }) {
         {data.status === 'clear' ? (
           <section className="-mt-10 rounded-2xl bg-white p-6 text-center shadow-lg">
             <CircleCheck className="mx-auto size-10 text-[#155e75]" />
-            <p className="mt-2 text-lg font-bold">Tudo em dia!</p>
+            <p className="mt-2 text-[11px] font-bold tracking-wide text-muted-foreground uppercase">
+              Olá, {data.greeting_name}
+            </p>
+            <p className="mt-1 text-lg font-bold">Tudo em dia!</p>
             <p className="text-sm text-muted-foreground">
               Nenhuma mensalidade pendente.
             </p>
