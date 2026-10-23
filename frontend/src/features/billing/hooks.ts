@@ -5,6 +5,7 @@ import {
   getBillingSettings,
   getStudentBilling,
   launchPastCharge,
+  renewPayLink,
   saveBillingSettings,
   unwaiveCharge,
   updateCharge,
@@ -43,6 +44,10 @@ export function useBillingSettings() {
 }
 
 // ---------- Escrita ----------
+export function useRenewPayLink(studentId: string) {
+  return useMutation(() => renewPayLink(studentId))
+}
+
 export function useLaunchPastCharge(studentId: string) {
   return useMutation((payload: LaunchChargePayload) =>
     launchPastCharge(studentId, payload),

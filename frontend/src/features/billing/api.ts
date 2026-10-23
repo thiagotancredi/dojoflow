@@ -117,6 +117,15 @@ export function deletePayment(studentId: string, paymentId: string) {
   )
 }
 
+// Troca o link de pagamento do aluno (o antigo para de funcionar)
+export function renewPayLink(studentId: string) {
+  return unwrap(
+    api.POST('/api/v1/students/{student_id}/billing/pay-link', {
+      params: { path: { student_id: studentId } },
+    }),
+  )
+}
+
 // ---------- Página Mensalidades ----------
 export function getBillingOverview(
   filters: OverviewFilters,

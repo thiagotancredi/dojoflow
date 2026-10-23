@@ -19,6 +19,7 @@ export type TemplateValues = {
   meses: string
   pix: string
   recebedor: string
+  link: string
 }
 
 // Troca {nome}, {valor}... pelos dados, do mesmo jeito que o backend

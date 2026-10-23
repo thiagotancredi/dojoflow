@@ -22,6 +22,7 @@ from dojoflow.api.routes.graduation_lists import (
 )
 from dojoflow.api.routes.health import router as health_router
 from dojoflow.api.routes.modalities import router as modalities_router
+from dojoflow.api.routes.public_pay import router as public_pay_router
 from dojoflow.api.routes.students import router as students_router
 from dojoflow.core.settings import settings
 
@@ -58,3 +59,4 @@ app.include_router(dashboard_router, prefix=settings.API_V1_PREFIX)
 app.include_router(graduation_lists_router, prefix=settings.API_V1_PREFIX)
 app.include_router(cep_router, prefix=settings.API_V1_PREFIX)
 app.include_router(admin_router, prefix=settings.API_V1_PREFIX)
+app.include_router(public_pay_router, prefix=settings.API_V1_PREFIX)

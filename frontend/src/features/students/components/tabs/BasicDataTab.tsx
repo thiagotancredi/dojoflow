@@ -1,7 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pencil } from 'lucide-react'
 import { useState } from 'react'
-import type { ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -9,12 +8,18 @@ import { Button } from '@/components/ui/button'
 import type { StudentDetail } from '@/features/students/api'
 import { BasicDataFields } from '@/features/students/components/BasicDataFields'
 import type { StudentTabProps } from '@/features/students/components/tabs/EnrollmentsTab'
+import {
+  Field,
+  InfoCard,
+  TabHeader,
+} from '@/features/students/components/tabs/TabParts'
 import { useUpdateStudent } from '@/features/students/hooks'
 import { SEX_LABELS } from '@/features/students/labels'
 import { basicDataSchema, toBasicDataPayload } from '@/features/students/schemas'
 import type { BasicDataValues } from '@/features/students/schemas'
 import { applyFieldErrors, showApiError } from '@/lib/api/errors'
-import { formatDate, formatPhone } from '@/lib/format'
+import { ageInYears, formatDate, formatPhone } from '@/lib/format'
+import { callHref } from '@/lib/phone'
 
 export function BasicDataTab({ student: detail, onChanged }: StudentTabProps) {
   const [editing, setEditing] = useState(false)
@@ -32,29 +37,56 @@ export function BasicDataTab({ student: detail, onChanged }: StudentTabProps) {
 
   return (
     <div className="space-y-4">
-      <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Field label="Nome">{student.name}</Field>
-        <Field label="Telefone">
-          {student.phone ? formatPhone(student.phone) : '—'}
-          {student.phone && student.phone_is_whatsapp && ' · WhatsApp'}
-        </Field>
-        <Field label="E-mail">{student.email ?? '—'}</Field>
-        <Field label="Nascimento">
-          {student.birth_date ? formatDate(student.birth_date) : '—'}
-        </Field>
-        <Field label="Sexo">
-          {student.sex ? SEX_LABELS[student.sex] : '—'}
-        </Field>
-        <Field label="CPF">{student.cpf ?? '—'}</Field>
-        <Field label="Instagram">{student.instagram ?? '—'}</Field>
-      </dl>
-      <Button
-        variant="outline"
-        className="rounded-full"
-        onClick={() => setEditing(true)}
-      >
-        <Pencil /> Editar
-      </Button>
+      <TabHeader title="Dados pessoais">
+        <Button
+          variant="outline"
+          className="rounded-full"
+          onClick={() => setEditing(true)}
+        >
+          <Pencil /> Editar
+        </Button>
+      </TabHeader>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <InfoCard title="Pessoal">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <Field label="Nascimento">
+              {student.birth_date && (
+                <>
+                  {formatDate(student.birth_date)}
+                  <span className="text-muted-foreground">
+                    {' '}
+                    · {ageInYears(student.birth_date)} anos
+                  </span>
+                </>
+              )}
+            </Field>
+            <Field label="Sexo">{student.sex && SEX_LABELS[student.sex]}</Field>
+            <Field label="CPF">{student.cpf}</Field>
+          </dl>
+        </InfoCard>
+        <InfoCard title="Contato">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <Field label="Telefone">
+              {student.phone && (
+                <a href={callHref(student.phone)} className="hover:underline">
+                  {formatPhone(student.phone)}
+                  {student.phone_is_whatsapp && (
+                    <span className="text-muted-foreground"> · WhatsApp</span>
+                  )}
+                </a>
+              )}
+            </Field>
+            <Field label="Instagram">{student.instagram}</Field>
+            <div className="col-span-2">
+              <Field label="E-mail">
+                {student.email && (
+                  <span className="break-all">{student.email}</span>
+                )}
+              </Field>
+            </div>
+          </dl>
+        </InfoCard>
+      </div>
     </div>
   )
 }
@@ -132,15 +164,6 @@ export function FormActions({
       <Button type="submit" className="rounded-full" disabled={isPending}>
         {isPending ? 'Salvando…' : submitLabel}
       </Button>
-    </div>
-  )
-}
-
-export function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="space-y-0.5">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm">{children}</dd>
     </div>
   )
 }

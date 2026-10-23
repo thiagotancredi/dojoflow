@@ -1,12 +1,19 @@
 import { MessageCircle, RotateCcw, TriangleAlert } from 'lucide-react'
 import { Fragment, useRef } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/features/auth/useAuth'
@@ -22,7 +29,7 @@ const DEFAULT_MESSAGE_TEMPLATE =
   'Olá, {nome}! Tudo bem? 🥋\n\n' +
   'Passando para lembrar que a mensalidade da {academia} está em ' +
   'aberto: {valor} ({meses}).\n\n' +
-  'Você pode pagar pelo Pix: {pix} ({recebedor}).\n\n' +
+  'Para pagar pelo Pix, é só tocar aqui:\n{link}\n\n' +
   'Se já pagou, desconsidere. Obrigado!'
 
 // Marcadores trocados pelos dados de cada aluno ao abrir o WhatsApp
@@ -31,12 +38,27 @@ const MARKERS = [
   { marker: '{academia}', help: 'nome da academia' },
   { marker: '{valor}', help: 'total em atraso' },
   { marker: '{meses}', help: 'meses em atraso' },
+  { marker: '{link}', help: 'link da página de pagamento' },
   { marker: '{pix}', help: 'chave Pix' },
   { marker: '{recebedor}', help: 'nome de quem recebe' },
 ]
 
+// Tipos de chave Pix (o formato da chave depende dele)
+const PIX_KEY_TYPES = [
+  { value: 'cpf', label: 'CPF' },
+  { value: 'cnpj', label: 'CNPJ' },
+  { value: 'phone', label: 'Celular' },
+  { value: 'email', label: 'E-mail' },
+  { value: 'random', label: 'Chave aleatória' },
+] as const
+
+type PixKeyType = (typeof PIX_KEY_TYPES)[number]['value']
+
 type FormValues = {
   pix_key: string
+  // '' = ainda não escolhido
+  pix_key_type: PixKeyType | ''
+  pix_city: string
   recipient_name: string
   message_template: string
 }
@@ -44,6 +66,8 @@ type FormValues = {
 function toForm(settings: BillingSettings): FormValues {
   return {
     pix_key: settings.pix_key ?? '',
+    pix_key_type: settings.pix_key_type ?? '',
+    pix_city: settings.pix_city ?? '',
     recipient_name: settings.recipient_name ?? '',
     message_template: settings.message_template ?? DEFAULT_MESSAGE_TEMPLATE,
   }
@@ -90,9 +114,15 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
   const messageRef = useRef<HTMLTextAreaElement | null>(null)
   const academyName = useAuth().master?.academy.name ?? ''
   // Prévia: o texto como chega no WhatsApp, com um aluno de exemplo
-  const [template, pixKey, recipientName] = useWatch({
+  const [template, pixKey, recipientName, pixKeyType, pixCity] = useWatch({
     control: form.control,
-    name: ['message_template', 'pix_key', 'recipient_name'],
+    name: [
+      'message_template',
+      'pix_key',
+      'recipient_name',
+      'pix_key_type',
+      'pix_city',
+    ],
   })
   const preview = fillTemplate(template || DEFAULT_MESSAGE_TEMPLATE, {
     nome: 'Ana',
@@ -102,7 +132,11 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
     // Igual ao backend: sem Pix fica vazio; sem recebedor, a academia
     pix: pixKey.trim(),
     recebedor: recipientName.trim() || academyName,
+    link: `${window.location.origin}/pagar/exemplo`,
   })
+  // Sem tipo ou cidade não dá para montar o código Pix da página de pagamento
+  const pixIncomplete =
+    pixKey.trim() !== '' && (pixKeyType === '' || pixCity.trim() === '')
   // register devolve o próprio "ref"; aqui ele também vai para messageRef,
   // para saber onde está o cursor do texto
   const { ref: registerMessageRef, ...messageField } = register(
@@ -134,6 +168,8 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
     try {
       const saved = await mutate({
         pix_key: values.pix_key,
+        pix_key_type: values.pix_key_type || null,
+        pix_city: values.pix_city,
         recipient_name: values.recipient_name,
         message_template: values.message_template,
       })
@@ -152,9 +188,42 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
       <div className="space-y-4">
         <BlockTitle
           title="Pix"
-          description="Aparece na mensagem para o aluno saber para onde pagar."
+          description="Usados para montar o código Pix que o aluno copia na página de pagamento."
         />
         <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            label="Tipo da chave"
+            htmlFor="billing-pix-type"
+            error={errors.pix_key_type?.message}
+          >
+            <Controller
+              control={form.control}
+              name="pix_key_type"
+              rules={{
+                validate: (value) =>
+                  value !== '' ||
+                  getValues('pix_key').trim() === '' ||
+                  'Escolha o tipo da chave.',
+              }}
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger
+                    id="billing-pix-type"
+                    className="w-full rounded-xl"
+                  >
+                    <SelectValue placeholder="Escolha o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PIX_KEY_TYPES.map(({ value, label }) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </FormField>
           <FormField label="Chave Pix" htmlFor="billing-pix">
             <Input
               id="billing-pix"
@@ -173,7 +242,23 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
               {...register('recipient_name')}
             />
           </FormField>
+          <FormField label="Cidade" htmlFor="billing-city">
+            <Input
+              id="billing-city"
+              placeholder="cidade de quem recebe"
+              maxLength={60}
+              className="rounded-xl"
+              {...register('pix_city')}
+            />
+          </FormField>
         </div>
+        {pixIncomplete && (
+          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+            <TriangleAlert className="mt-px size-3.5 shrink-0 text-status-pending" />
+            Sem tipo da chave e cidade, o aluno não consegue copiar o código
+            Pix na página de pagamento.
+          </p>
+        )}
       </div>
 
       <Separator />

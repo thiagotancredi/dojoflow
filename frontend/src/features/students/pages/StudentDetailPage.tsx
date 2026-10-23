@@ -1,4 +1,4 @@
-import { ArrowLeft, Phone } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Phone } from 'lucide-react'
 import { Link, useLocation, useOutletContext, useParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { EnrollmentsTab } from '@/features/students/components/tabs/EnrollmentsT
 import { ResponsiblesTab } from '@/features/students/components/tabs/ResponsiblesTab'
 import { useStudent } from '@/features/students/hooks'
 import { formatPhone } from '@/lib/format'
+import { callHref, whatsappHref } from '@/lib/phone'
 
 // Ficha do aluno: lê o ":studentId" da URL (/app/alunos/<uuid>).
 export function StudentDetailPage() {
@@ -65,7 +66,7 @@ export function StudentDetailPage() {
   const { student } = data
 
   return (
-    <article className="space-y-4 rounded-3xl bg-card p-5">
+    <article className="space-y-6 rounded-3xl bg-card p-5 md:p-6">
       {/* "Voltar" só no celular, onde a lista está escondida */}
       <Link
         to={backToList}
@@ -74,16 +75,37 @@ export function StudentDetailPage() {
         <ArrowLeft className="size-4" /> Alunos
       </Link>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <StudentAvatar size="lg" />
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-lg font-semibold">{student.name}</h2>
+        <div className="min-w-0 flex-1 space-y-2">
+          <h2 className="truncate text-xl font-semibold tracking-tight">
+            {student.name}
+          </h2>
           {student.phone && (
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Phone className="size-3.5" />
-              {formatPhone(student.phone)}
-              {student.phone_is_whatsapp && ' · WhatsApp'}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* O próprio número liga (no celular; no computador abre o
+                  app de chamadas, se houver) */}
+              <a
+                href={callHref(student.phone)}
+                title="Ligar"
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-muted px-3 text-sm tabular-nums transition-colors hover:bg-accent"
+              >
+                <Phone className="size-3.5" />
+                {formatPhone(student.phone)}
+              </a>
+              {/* Conversa em branco (a cobrança fica na aba Mensalidades) */}
+              {student.phone_is_whatsapp && (
+                <a
+                  href={whatsappHref(student.phone)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-full border border-status-active/30 bg-status-active-soft px-3 text-sm font-medium text-status-active transition-colors hover:brightness-95"
+                >
+                  <MessageCircle className="size-3.5" />
+                  WhatsApp
+                </a>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -92,36 +114,45 @@ export function StudentDetailPage() {
       <Tabs key={student.id} defaultValue={initialTab(state)}>
         {/* 5 abas não cabem no celular: a barra rola para o lado, sem
             mostrar barra de rolagem (nem as setinhas do Windows) */}
-        <TabsList
-          variant="line"
-          className="max-w-full overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          <TabsTrigger value="enrollments">Matrículas</TabsTrigger>
-          <TabsTrigger value="billing">Mensalidades</TabsTrigger>
-          <TabsTrigger value="data">Dados</TabsTrigger>
-          <TabsTrigger value="address">Endereço</TabsTrigger>
-          <TabsTrigger value="responsibles">Responsáveis</TabsTrigger>
+        <TabsList className="h-auto max-w-full gap-1 overflow-x-auto overflow-y-hidden rounded-full p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {TABS.map(([value, label]) => (
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="rounded-full px-4 py-1.5 focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-ring/40 data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground data-active:hover:text-sidebar-primary-foreground dark:data-active:text-sidebar-primary-foreground"
+            >
+              {label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="enrollments" className="pt-2">
+        <TabsContent value="enrollments" className="pt-4">
           <EnrollmentsTab student={data} onChanged={onChanged} />
         </TabsContent>
-        <TabsContent value="billing" className="pt-2">
+        <TabsContent value="billing" className="pt-4">
           <StudentBillingTab student={data} />
         </TabsContent>
-        <TabsContent value="data" className="pt-2">
+        <TabsContent value="data" className="pt-4">
           <BasicDataTab student={data} onChanged={onChanged} />
         </TabsContent>
-        <TabsContent value="address" className="pt-2">
+        <TabsContent value="address" className="pt-4">
           <AddressTab student={data} onChanged={onChanged} />
         </TabsContent>
-        <TabsContent value="responsibles" className="pt-2">
+        <TabsContent value="responsibles" className="pt-4">
           <ResponsiblesTab student={data} onChanged={onChanged} />
         </TabsContent>
       </Tabs>
     </article>
   )
 }
+
+const TABS = [
+  ['enrollments', 'Matrículas'],
+  ['billing', 'Mensalidades'],
+  ['data', 'Dados'],
+  ['address', 'Endereço'],
+  ['responsibles', 'Responsáveis'],
+] as const
 
 // Aba que abre primeiro: quem vem de uma tela de cobrança pede
 // "Mensalidades" (navigate/Link com state { tab: 'billing' }); o resto abre

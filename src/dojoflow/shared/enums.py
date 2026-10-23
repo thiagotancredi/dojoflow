@@ -103,3 +103,11 @@ class Eligibility(str, enum.Enum):
     NOT_YET = 'not_yet'
     NO_BELT = 'no_belt'
     NO_REQUIREMENT = 'no_requirement'
+
+
+class PixKeyType(str, enum.Enum):
+    CPF = 'cpf'
+    CNPJ = 'cnpj'
+    PHONE = 'phone'
+    EMAIL = 'email'
+    RANDOM = 'random'

@@ -23,7 +23,7 @@ export function NavIconLink({ item }: NavIconLinkProps) {
           'grid size-10 place-items-center rounded-full border transition-colors',
           isActive
             ? 'border-sidebar-primary bg-sidebar-primary text-sidebar-primary-foreground'
-            : 'border-sidebar-border bg-card text-sidebar-foreground hover:text-sidebar-primary',
+            : 'border-sidebar-border bg-sidebar-accent text-sidebar-foreground hover:text-sidebar-primary',
         )
       }
     >

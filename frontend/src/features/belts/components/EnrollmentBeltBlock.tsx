@@ -255,7 +255,7 @@ export function EnrollmentBeltBlock({
 // Moldura do quadro, com o título "Faixa"
 function BeltTile({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border bg-card p-4">
+    <div className="flex flex-col gap-2 rounded-2xl border bg-popover p-4">
       <p className="flex min-h-7 items-center text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
         Faixa
       </p>

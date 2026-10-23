@@ -582,6 +582,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/students/{student_id}/billing/pay-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Renew Pay Link */
+        post: operations["renew_pay_link_api_v1_students__student_id__billing_pay_link_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/academy/billing-settings": {
         parameters: {
             query?: never;
@@ -843,6 +860,23 @@ export interface paths {
          * @description Código de uso único (60 s) para entrar na academia em modo suporte.
          */
         post: operations["create_support_entry_api_v1_admin_academies__academy_id__support_entry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/pay/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Public Payment */
+        get: operations["read_public_payment_api_v1_public_pay__token__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1147,6 +1181,9 @@ export interface components {
         BillingSettingsApi: {
             /** Pix Key */
             pix_key?: string | null;
+            pix_key_type?: components["schemas"]["PixKeyType"] | null;
+            /** Pix City */
+            pix_city?: string | null;
             /** Recipient Name */
             recipient_name?: string | null;
             /** Bank Details */
@@ -1676,6 +1713,11 @@ export interface components {
             /** Days Late */
             days_late: number;
         };
+        /** PayLinkApiRead */
+        PayLinkApiRead: {
+            /** Pay Url */
+            pay_url: string;
+        };
         /** PaymentApiRead */
         PaymentApiRead: {
             /**
@@ -1747,6 +1789,43 @@ export interface components {
             student_name: string;
             /** Modality Name */
             modality_name: string;
+        };
+        /**
+         * PixKeyType
+         * @enum {string}
+         */
+        PixKeyType: "cpf" | "cnpj" | "phone" | "email" | "random";
+        /** PublicPaymentItemRead */
+        PublicPaymentItemRead: {
+            /** Label */
+            label: string;
+            /** Amount */
+            amount: string;
+        };
+        /**
+         * PublicPaymentRead
+         * @description Página pública de pagamento: só o que o aluno precisa ver.
+         */
+        PublicPaymentRead: {
+            /** Academy Name */
+            academy_name: string;
+            /** Master Name */
+            master_name: string;
+            /** Greeting Name */
+            greeting_name: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "clear";
+            /** Items */
+            items: components["schemas"]["PublicPaymentItemRead"][];
+            /** Total */
+            total: string;
+            /** Recipient Name */
+            recipient_name: string;
+            /** Pix Code */
+            pix_code: string | null;
         };
         /** RecentEnrollmentRead */
         RecentEnrollmentRead: {
@@ -1867,6 +1946,8 @@ export interface components {
             open_months: string;
             /** Whatsapp Url */
             whatsapp_url: string | null;
+            /** Pay Url */
+            pay_url: string;
             /** Charges */
             charges: components["schemas"]["ChargeApiRead"][];
             /** Payments */
@@ -3299,6 +3380,37 @@ export interface operations {
             };
         };
     };
+    renew_pay_link_api_v1_students__student_id__billing_pay_link_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayLinkApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_billing_settings_api_v1_academy_billing_settings_get: {
         parameters: {
             query?: never;
@@ -3917,6 +4029,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupportEntryRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_public_payment_api_v1_public_pay__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPaymentRead"];
                 };
             };
             /** @description Validation Error */

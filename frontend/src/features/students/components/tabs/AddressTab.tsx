@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Pencil, Plus } from 'lucide-react'
+import { MapPin, Pencil, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -10,6 +10,10 @@ import type { StudentDetail } from '@/features/students/api'
 import { AddressFields } from '@/features/students/components/AddressFields'
 import { FormActions } from '@/features/students/components/tabs/BasicDataTab'
 import type { StudentTabProps } from '@/features/students/components/tabs/EnrollmentsTab'
+import {
+  InfoCard,
+  TabHeader,
+} from '@/features/students/components/tabs/TabParts'
 import { useRemoveAddress, useSaveAddress } from '@/features/students/hooks'
 import {
   addressSchema,
@@ -49,24 +53,30 @@ export function AddressTab({ student: detail, onChanged }: StudentTabProps) {
 
   if (!address) {
     return (
-      <div className="space-y-3 py-6 text-center">
-        <p className="text-sm text-muted-foreground">Sem endereço cadastrado.</p>
-        <Button
-          variant="outline"
-          className="rounded-full"
-          onClick={() => setEditing(true)}
-        >
-          <Plus /> Adicionar endereço
-        </Button>
+      <div className="space-y-4">
+        <TabHeader title="Endereço" />
+        <InfoCard className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Sem endereço cadastrado.
+          </p>
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={() => setEditing(true)}
+          >
+            <Plus /> Adicionar endereço
+          </Button>
+        </InfoCard>
       </div>
     )
   }
 
   // Monta só as partes preenchidas (o endereço pode estar incompleto)
   const line1 = [address.street, address.number].filter(Boolean).join(', ')
-  const line2 = [
-    address.complement,
-    address.neighborhood,
+  const line2 = [address.complement, address.neighborhood]
+    .filter(Boolean)
+    .join(' · ')
+  const line3 = [
     [address.city, address.state].filter(Boolean).join('/'),
     address.zip_code && `CEP ${formatZip(address.zip_code)}`,
   ]
@@ -75,11 +85,7 @@ export function AddressTab({ student: detail, onChanged }: StudentTabProps) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
-        <p className="text-base">{line1 || '—'}</p>
-        <p className="text-sm text-muted-foreground">{line2}</p>
-      </div>
-      <div className="flex flex-wrap gap-2">
+      <TabHeader title="Endereço">
         <Button
           variant="outline"
           className="rounded-full"
@@ -92,9 +98,19 @@ export function AddressTab({ student: detail, onChanged }: StudentTabProps) {
           className="rounded-full text-destructive"
           onClick={() => setConfirming(true)}
         >
-          Remover endereço
+          Remover
         </Button>
-      </div>
+      </TabHeader>
+      <InfoCard className="flex items-start gap-4">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-chip-active text-chip-active-foreground">
+          <MapPin className="size-5" />
+        </span>
+        <div className="min-w-0 space-y-0.5">
+          <p className="font-medium">{line1 || 'Endereço sem rua'}</p>
+          {line2 && <p className="text-sm text-muted-foreground">{line2}</p>}
+          {line3 && <p className="text-sm text-muted-foreground">{line3}</p>}
+        </div>
+      </InfoCard>
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}

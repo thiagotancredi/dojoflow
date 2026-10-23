@@ -258,26 +258,26 @@
 [data-theme='grafite'] {
   /* Controles nativos (ícone de data, barras de rolagem) no tom do tema */
   color-scheme: light;
-  --app-bg-from: #e6e6e4;
-  --app-bg-to: #efefed;
+  --app-bg-from: #d6d6d2;
+  --app-bg-to: #dcdcd8;
 
-  --background: #efefed;
+  --background: #e9e9e6;
   --foreground: #18191c;
-  --card: #f6f6f5;
+  --card: #f1f1ee;
   --card-foreground: #18191c;
-  --popover: #fbfbfa;
+  --popover: #ffffff;
   --popover-foreground: #18191c;
-  --muted: #ebebe9;
-  --muted-foreground: #5f5f5c;
-  --border: #dadad6;
-  --input: #d2d2ce;
+  --muted: #e1e1dd;
+  --muted-foreground: #5a5a55;
+  --border: #d4d4cf;
+  --input: #cbcbc6;
   --ring: #155e75;
 
   --primary: #2a2d33;
   --primary-foreground: #ffffff;
-  --secondary: #ebebe9;
+  --secondary: #e1e1dd;
   --secondary-foreground: #18191c;
-  --accent: #e9e9e6;
+  --accent: #e2e2de;
   --accent-foreground: #155e75;
   --destructive: #dc2626;
 
@@ -305,7 +305,7 @@
   --status-pending: #b7860b;
   --status-pending-soft: #f7f0dc;
   --status-inactive: #a3a3a0;
-  --status-inactive-soft: #ededeb;
+  --status-inactive-soft: #e8e8e4;
   --status-inactive-foreground: #5f5f5c;
 
   --status-critical: #dc2626;
@@ -316,27 +316,188 @@
   /* Avatares neutros (o petróleo só no primeiro) */
   --avatar-1: #e1eef1;
   --avatar-1-foreground: #155e75;
-  --avatar-2: #e6e6e3;
+  --avatar-2: #e1e1dd;
   --avatar-2-foreground: #45484e;
-  --avatar-3: #e6e6e3;
+  --avatar-3: #e1e1dd;
   --avatar-3-foreground: #45484e;
-  --avatar-4: #e6e6e3;
+  --avatar-4: #e1e1dd;
   --avatar-4-foreground: #45484e;
-  --avatar-5: #e6e6e3;
+  --avatar-5: #e1e1dd;
   --avatar-5-foreground: #45484e;
 
-  --sidebar: rgb(246 246 245 / 85%);
+  --sidebar: rgb(241 241 238 / 90%);
   --sidebar-foreground: #5f5f5c;
   --sidebar-primary: #155e75;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e9e9e6;
+  --sidebar-accent: #e2e2de;
   --sidebar-accent-foreground: #155e75;
-  --sidebar-border: #dadad6;
+  --sidebar-border: #d4d4cf;
   --sidebar-ring: #155e75;
 }
 
 /* Versão escura do grafite (classe .dark no <html>, ligada pelo botão) */
 [data-theme='grafite'].dark {
+  color-scheme: dark;
+  --app-bg-from: #101112;
+  --app-bg-to: #141516;
+
+  --background: #141516;
+  --foreground: #ececea;
+  --card: #1b1c1e;
+  --card-foreground: #ececea;
+  --popover: #222326;
+  --popover-foreground: #ececea;
+  --muted: #232427;
+  --muted-foreground: #a5a5a0;
+  --border: #2f3034;
+  --input: #3a3b40;
+  --ring: #3d8fa3;
+
+  --primary: #e4e4e2;
+  --primary-foreground: #18191c;
+  --secondary: #26272a;
+  --secondary-foreground: #ececea;
+  --accent: #26272a;
+  --accent-foreground: #8cc8d5;
+  --destructive: #f87171;
+
+  --brand-from: #1b1c1e;
+  --brand-to: #1f5f6f;
+  --brand-foreground: #ececea;
+
+  --chip-active: #15292e;
+  --chip-active-border: #2b5d69;
+  --chip-active-foreground: #8cc8d5;
+
+  --tooltip: #ececea;
+  --tooltip-foreground: #18191c;
+
+  --chart-1: #4a9db0;
+  --chart-2: #2b6f80;
+  --chart-3: #5cb88a;
+  --chart-4: #d9a93a;
+  --chart-5: #a5a5a0;
+
+  --status-active: #4a9db0;
+  --status-active-soft: #16262a;
+  --status-exempt: #5cb88a;
+  --status-exempt-soft: #14281c;
+  --status-pending: #d9a93a;
+  --status-pending-soft: #2a2310;
+  --status-inactive: #5b5d63;
+  --status-inactive-soft: #1f2023;
+  --status-inactive-foreground: #a5a5a0;
+
+  --status-critical: #f87171;
+  --status-critical-soft: #2c1717;
+  --status-warning: #fb923c;
+  --status-warning-soft: #2c1d12;
+
+  --avatar-1: #15292e;
+  --avatar-1-foreground: #8cc8d5;
+  --avatar-2: #26272a;
+  --avatar-2-foreground: #d4d4d2;
+  --avatar-3: #26272a;
+  --avatar-3-foreground: #d4d4d2;
+  --avatar-4: #26272a;
+  --avatar-4-foreground: #d4d4d2;
+  --avatar-5: #26272a;
+  --avatar-5-foreground: #d4d4d2;
+
+  --sidebar: rgb(27 28 30 / 85%);
+  --sidebar-foreground: #a5a5a0;
+  --sidebar-primary: #3d8fa3;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #26272a;
+  --sidebar-accent-foreground: #8cc8d5;
+  --sidebar-border: #2f3034;
+  --sidebar-ring: #3d8fa3;
+}
+
+/* Washi: creme suave, barra lateral preta e destaque verde-musgo
+   (escolhido em 23/10/2026; o grafite continua acima, para voltar) */
+[data-theme='washi'] {
+  color-scheme: light;
+  --app-bg-from: #eceae5;
+  --app-bg-to: #f0eeea;
+
+  --background: #f4f3ef;
+  --foreground: #1b1b1b;
+  --card: #f9f8f5;
+  --card-foreground: #1b1b1b;
+  --popover: #ffffff;
+  --popover-foreground: #1b1b1b;
+  --muted: #f0eee9;
+  --muted-foreground: #5a5852;
+  --border: #e2dfd8;
+  --input: #d6d2c9;
+  --ring: #4f6b3a;
+
+  --primary: #1b1b1b;
+  --primary-foreground: #fffdf8;
+  --secondary: #f0eee9;
+  --secondary-foreground: #1b1b1b;
+  --accent: #eeece6;
+  --accent-foreground: #4f6b3a;
+  --destructive: #c81e1e;
+
+  --brand-from: #1b1b1b;
+  --brand-to: #2f4123;
+  --brand-foreground: #fffdf8;
+
+  --chip-active: #e5ebdc;
+  --chip-active-border: #b9c9a6;
+  --chip-active-foreground: #3d5530;
+
+  --tooltip: #1b1b1b;
+  --tooltip-foreground: #fffdf8;
+
+  --chart-1: #4f6b3a;
+  --chart-2: #8aa171;
+  --chart-3: #2c6e7a;
+  --chart-4: #a16207;
+  --chart-5: #5c554a;
+
+  /* Ativa em azul-índigo (ai-iro): o verde-musgo fica só para destaque */
+  --status-active: #2d4a6b;
+  --status-active-soft: #e3e8ee;
+  --status-exempt: #2c6e7a;
+  --status-exempt-soft: #dfedf0;
+  --status-pending: #b7860b;
+  --status-pending-soft: #f5ecd5;
+  --status-inactive: #a39e93;
+  --status-inactive-soft: #efede8;
+  --status-inactive-foreground: #5a5852;
+
+  --status-critical: #c81e1e;
+  --status-critical-soft: #f8e3df;
+  --status-warning: #b7791f;
+  --status-warning-soft: #f7ecd6;
+
+  --avatar-1: #e5ebdc;
+  --avatar-1-foreground: #3d5530;
+  --avatar-2: #ebe8e2;
+  --avatar-2-foreground: #4a463e;
+  --avatar-3: #ebe8e2;
+  --avatar-3-foreground: #4a463e;
+  --avatar-4: #ebe8e2;
+  --avatar-4-foreground: #4a463e;
+  --avatar-5: #ebe8e2;
+  --avatar-5-foreground: #4a463e;
+
+  /* Barra lateral preta (tinta) */
+  --sidebar: #1b1b1b;
+  --sidebar-foreground: #cfc6b6;
+  --sidebar-primary: #4f6b3a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2c2a27;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #3a3733;
+  --sidebar-ring: #4f6b3a;
+}
+
+/* Escuro do washi: por enquanto igual ao escuro do grafite */
+[data-theme='washi'].dark {
   color-scheme: dark;
   --app-bg-from: #101112;
   --app-bg-to: #141516;

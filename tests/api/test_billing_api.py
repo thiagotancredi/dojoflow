@@ -9,11 +9,13 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dojoflow.core.settings import settings
 from dojoflow.models.academy import Academy
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.payment import Payment
 from dojoflow.models.payment_allocation import PaymentAllocation
 from dojoflow.models.payment_transaction import PaymentTransaction
+from dojoflow.models.student import Student
 from dojoflow.services import billing as billing_module
 from dojoflow.services.billing import BillingService
 from tests.helpers.auth import auth_headers, other_academy_headers
@@ -856,8 +858,9 @@ async def test_whatsapp_message_uses_template(
         json={
             'pix_key': 'pix@dojo.com',
             'recipient_name': 'Mestre Web',
+            'pix_key_type': 'email',
             'message_template': (
-                '{nome}|{academia}|{valor}|{meses}|{pix}|{recebedor}'
+                '{nome}|{academia}|{valor}|{meses}|{pix}|{recebedor}|{link}'
             ),
         },
     )
@@ -865,9 +868,58 @@ async def test_whatsapp_message_uses_template(
     body = await _read(client, ctx['student_id'], ctx['headers'])
     _, text = _message(body['whatsapp_url'])
 
+    token = await _pay_token(db_session, ctx['student_id'])
     assert text == (
         'Ana|Academia Web Teste|R$ 200,00|janeiro e fevereiro|'
-        'pix@dojo.com|Mestre Web'
+        f'pix@dojo.com|Mestre Web|{settings.WEB_APP_URL}/pagar/{token}'
+    )
+
+
+async def _pay_token(session: AsyncSession, student_id: str) -> str:
+    return await session.scalar(
+        select(Student.pay_token).where(
+            Student.public_id == uuid.UUID(student_id)
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_message_has_pay_link(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _overdue_student(client, db_session, monkeypatch)
+
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    _, text = _message(body['whatsapp_url'])
+
+    token = await _pay_token(db_session, ctx['student_id'])
+    link = f'{settings.WEB_APP_URL}/pagar/{token}'
+    assert f'Para pagar pelo Pix, é só tocar aqui:\n{link}' in text
+    assert body['pay_url'] == link
+
+
+@pytest.mark.asyncio
+async def test_custom_template_without_link_gets_it_appended(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _overdue_student(client, db_session, monkeypatch)
+    await client.put(
+        '/api/v1/academy/billing-settings',
+        headers=ctx['headers'],
+        json={'message_template': 'Oi, {nome}!'},
+    )
+
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    _, text = _message(body['whatsapp_url'])
+
+    token = await _pay_token(db_session, ctx['student_id'])
+    assert text == (
+        'Oi, Ana!\n\nPara pagar pelo Pix, toque aqui: '
+        f'{settings.WEB_APP_URL}/pagar/{token}'
     )
 
 

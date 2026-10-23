@@ -11,6 +11,7 @@ import { ModalityBeltsPage } from '@/features/belts/pages/ModalityBeltsPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { GraduationListPage } from '@/features/graduations/pages/GraduationListPage'
 import { GraduationListsPage } from '@/features/graduations/pages/GraduationListsPage'
+import { PayPage } from '@/features/pay/PayPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 import { NewStudentPage } from '@/features/students/pages/NewStudentPage'
 import { StudentDetailPage } from '@/features/students/pages/StudentDetailPage'
@@ -25,6 +26,8 @@ export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   // Botão "Entrar" do painel admin.*: abre a academia em modo suporte
   { path: '/suporte', element: <SupportEntryPage /> },
+  // Página pública de pagamento (link da cobrança do WhatsApp, sem login)
+  { path: '/pagar/:token', element: <PayPage /> },
   {
     path: '/app',
     // RequireAuth manda para /login quem não tem sessão
