@@ -15,6 +15,7 @@ from dojoflow.database.transaction import transactional
 from dojoflow.models.academy import Academy
 from dojoflow.models.academy_billing_settings import AcademyBillingSettings
 from dojoflow.models.enrollment import Enrollment
+from dojoflow.models.master import Master
 from dojoflow.models.modality import Modality
 from dojoflow.models.payment import Payment
 from dojoflow.models.payment_allocation import PaymentAllocation
@@ -34,6 +35,10 @@ from dojoflow.schemas.billing import (
 )
 from dojoflow.schemas.billing_settings_api import BillingSettingsApi
 from dojoflow.schemas.dashboard import DueSoonChargeRead, OverdueStudentRead
+from dojoflow.schemas.public_pay import (
+    PublicPaymentItemRead,
+    PublicPaymentRead,
+)
 from dojoflow.services.belt_rules import local_today
 from dojoflow.services.billing_rules import (
     OpenCharge,
@@ -47,7 +52,9 @@ from dojoflow.services.billing_rules import (
     month_name,
     whatsapp_phone,
 )
+from dojoflow.services.pix import pix_copy_paste
 from dojoflow.shared.enums import (
+    AcademyStatus,
     EnrollmentStatus,
     PaymentKind,
     PaymentMethod,
@@ -189,6 +196,22 @@ def whatsapp_url(  # noqa: PLR0913, PLR0917
         text = text.replace(marker, value)
 
     return f'https://wa.me/{whatsapp_phone(contact.phone)}?text={quote(text)}'
+
+
+def _public_label(
+    charge: ChargeRead,
+    year: int,
+    student_first_name: str | None,
+    show_modality: bool,
+) -> str:
+    """Ex.: "Mensalidade · janeiro" ou "Mensalidade de Ana · janeiro"."""
+    of_student = f' de {student_first_name}' if student_first_name else ''
+    if charge.kind is PaymentKind.ENROLLMENT_FEE:
+        label = f'Taxa de matrícula{of_student}'
+    else:
+        month = month_name(charge.reference_month, year)
+        label = f'Mensalidade{of_student} · {month}'
+    return f'{label} · {charge.modality_name}' if show_modality else label
 
 
 def _refresh_paid_status(charge: Payment, paid_on: date | None) -> None:
@@ -844,6 +867,88 @@ class BillingService:
                 select(Academy.name).where(Academy.id == academy_id)
             )
             or ''
+        )
+
+    async def public_payment(
+        self, token: str, today: date | None = None
+    ) -> PublicPaymentRead | None:
+        """Página pública /pagar: o que está vencido e o código Pix.
+
+        None quando o código não existe ou a academia está bloqueada.
+        """
+        row = (
+            await self.db_session.execute(
+                select(Student.id, Student.academy_id, Academy.name)
+                .join(Academy, Academy.id == Student.academy_id)
+                .where(
+                    Student.pay_token == token,
+                    Academy.status == AcademyStatus.ACTIVE,
+                )
+            )
+        ).one_or_none()
+        if row is None:
+            return None
+
+        student_id, academy_id, academy_name = row
+        today = today or local_today()
+        await self.ensure_monthly_charges(academy_id, today)
+        overdue = sorted(
+            (
+                c
+                for c in await self._charges(
+                    academy_id, today, Enrollment.student_id == student_id
+                )
+                if c.status == 'overdue'
+            ),
+            key=lambda c: (c.reference_month, c.kind is PaymentKind.MONTHLY),
+        )
+        contact = (await self._contacts(academy_id, {student_id}))[student_id]
+        recipient = choose_recipient(contact, today)
+        to_responsible = recipient is not None and recipient[1]
+        greeting = recipient[0].name if recipient else contact.name
+        settings = await self.get_settings(academy_id)
+        total = sum((c.open_amount for c in overdue), ZERO)
+
+        pix_code = None
+        if (
+            overdue
+            and settings.pix_key
+            and settings.pix_key_type
+            and settings.pix_city
+        ):
+            pix_code = pix_copy_paste(
+                settings.pix_key,
+                settings.recipient_name or academy_name,
+                settings.pix_city,
+                total,
+            )
+
+        return PublicPaymentRead(
+            academy_name=academy_name,
+            master_name=await self.db_session.scalar(
+                select(Master.name)
+                .where(Master.academy_id == academy_id)
+                .order_by(Master.id)
+                .limit(1)
+            )
+            or '',
+            greeting_name=greeting.split()[0],
+            status='open' if overdue else 'clear',
+            items=[
+                PublicPaymentItemRead(
+                    label=_public_label(
+                        charge,
+                        today.year,
+                        contact.name.split()[0] if to_responsible else None,
+                        len({c.modality_name for c in overdue}) > 1,
+                    ),
+                    amount=charge.open_amount,
+                )
+                for charge in overdue
+            ],
+            total=total.quantize(CENTS),
+            recipient_name=settings.recipient_name or academy_name,
+            pix_code=pix_code,
         )
 
     async def _whatsapp_url_for(
