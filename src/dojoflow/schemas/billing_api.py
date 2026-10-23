@@ -195,3 +195,7 @@ class BulkPaymentApiPayload(BaseModel):
 class BulkPaymentApiRead(BaseModel):
     count: int
     total: Decimal
+
+
+class PayLinkApiRead(BaseModel):
+    pay_url: str

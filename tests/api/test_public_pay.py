@@ -12,7 +12,7 @@ from dojoflow.models.academy import Academy
 from dojoflow.models.student import Student
 from dojoflow.services import billing as billing_module
 from dojoflow.shared.enums import AcademyStatus
-from tests.helpers.auth import SEED, auth_headers
+from tests.helpers.auth import SEED, auth_headers, other_academy_headers
 from tests.helpers.scenario import add_modality, add_responsible, add_student
 
 SETTINGS_URL = '/api/v1/academy/billing-settings'
@@ -233,3 +233,44 @@ async def test_public_pay_rate_limited(client: AsyncClient):
     response = await client.get(_pay_url('x'))
 
     assert response.status_code == HTTPStatus.TOO_MANY_REQUESTS
+
+
+@pytest.mark.asyncio
+async def test_renew_pay_link_invalidates_old(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _overdue_student(client, db_session, monkeypatch)
+    old = ctx['token']
+
+    response = await client.post(
+        f'/api/v1/students/{ctx["student_id"]}/billing/pay-link',
+        headers=ctx['headers'],
+    )
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    new_token = response.json()['pay_url'].rsplit('/', 1)[1]
+    assert new_token != old
+    old_page = await client.get(_pay_url(old))
+    assert old_page.status_code == HTTPStatus.NOT_FOUND
+    new_page = await client.get(_pay_url(new_token))
+    assert new_page.status_code == HTTPStatus.OK
+
+
+@pytest.mark.asyncio
+async def test_renew_pay_link_other_academy_404(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _overdue_student(client, db_session, monkeypatch)
+    other_headers = await other_academy_headers(db_session)
+
+    response = await client.post(
+        f'/api/v1/students/{ctx["student_id"]}/billing/pay-link',
+        headers=other_headers,
+    )
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert await _token(db_session, ctx['student_id']) == ctx['token']

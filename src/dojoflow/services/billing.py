@@ -21,7 +21,7 @@ from dojoflow.models.payment import Payment
 from dojoflow.models.payment_allocation import PaymentAllocation
 from dojoflow.models.payment_transaction import PaymentTransaction
 from dojoflow.models.responsible import Responsible
-from dojoflow.models.student import Student
+from dojoflow.models.student import Student, new_pay_token
 from dojoflow.models.student_responsible import StudentResponsible
 from dojoflow.schemas.billing import (
     AllocationPreview,
@@ -60,7 +60,7 @@ from dojoflow.shared.enums import (
     PaymentMethod,
     PaymentStatus,
 )
-from dojoflow.shared.exceptions import ConflictError
+from dojoflow.shared.exceptions import ConflictError, NotFoundError
 from dojoflow.shared.text import name_sort_key
 
 CENTS = Decimal('0.01')
@@ -868,6 +868,21 @@ class BillingService:
             )
             or ''
         )
+
+    @transactional
+    async def renew_pay_token(self, academy_id: int, student_id: int) -> str:
+        """Troca o código do link de pagamento; o antigo para de valer."""
+        token = new_pay_token()
+        updated = await self.db_session.scalar(
+            update(Student)
+            .where(Student.academy_id == academy_id, Student.id == student_id)
+            .values(pay_token=token)
+            .returning(Student.id)
+        )
+        if updated is None:
+            raise NotFoundError('Student not found.', code='STUDENT_NOT_FOUND')
+
+        return pay_url(token)
 
     async def public_payment(
         self, token: str, today: date | None = None
