@@ -1,6 +1,7 @@
 import { MessageCircle } from 'lucide-react'
 import { useState } from 'react'
 
+import { InfoTip } from '@/components/InfoTip'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -68,28 +69,40 @@ export function WhatsAppButton({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cobrança · {studentName}</DialogTitle>
+            <DialogTitle>Cobrar {studentName}</DialogTitle>
+            {/* "Para…" só quando vai para outra pessoa (o responsável);
+                para o próprio aluno, o nome já está no título */}
             <DialogDescription>
-              Para: {responsibleName ? `${responsibleName} (responsável) · ` : ''}
-              {formatPhone(phone)}
+              {responsibleName
+                ? `Para ${responsibleName} (responsável) · ${formatPhone(phone)}`
+                : formatPhone(phone)}
             </DialogDescription>
           </DialogHeader>
 
-          <WhatsAppMessage text={text} />
-          <p className="text-xs text-muted-foreground">
-            Dá para mudar o texto no WhatsApp antes de enviar. O texto padrão
-            fica em Configurações → Cobrança.
-          </p>
+          <div className="space-y-1.5">
+            <WhatsAppMessage text={text} />
+            {/* Logo abaixo do balão, à direita (como a hora no WhatsApp) */}
+            <p className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
+              Pode editar no WhatsApp
+              <InfoTip label="Sobre editar a mensagem">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Dá para mudar o texto no WhatsApp antes de enviar. O texto
+                  padrão fica em Configurações → Cobrança.
+                </p>
+              </InfoTip>
+            </p>
+          </div>
 
-          <div className="flex justify-end gap-2">
+          {/* Dois botões do mesmo tamanho, na largura toda */}
+          <div className="grid grid-cols-2 gap-2">
             <Button
-              variant="ghost"
-              className="rounded-full"
+              variant="outline"
+              className="h-10 rounded-full"
               onClick={() => setOpen(false)}
             >
               Cancelar
             </Button>
-            <Button asChild className="rounded-full">
+            <Button asChild className="h-10 rounded-full">
               <a
                 href={url}
                 target="_blank"

@@ -1,11 +1,12 @@
-// Balão com o texto da mensagem, como ela vai aparecer no WhatsApp
-// (quebras de linha preservadas; *texto* sai em negrito, como lá)
+// Mensagem como ela chega no WhatsApp: balão verde de mensagem enviada,
+// no fundo bege da conversa (cores do WhatsApp de propósito, não do tema).
+// Quebras de linha preservadas; *texto* sai em negrito, como lá.
 export function WhatsAppMessage({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl bg-muted p-3">
+    <div className="rounded-2xl bg-[#efe7dc] p-3">
       <WhatsAppText
         text={text}
-        className="w-fit max-w-full rounded-2xl rounded-tl-sm bg-card px-3 py-2 shadow-sm"
+        className="ml-auto w-fit max-w-[92%] rounded-xl rounded-tr-sm bg-[#dcf8c6] px-3 py-2 leading-relaxed text-neutral-900 shadow-sm"
       />
     </div>
   )
