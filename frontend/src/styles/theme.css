@@ -414,86 +414,86 @@
   --sidebar-ring: #3d8fa3;
 }
 
-/* Washi: papel de arroz, preto de tinta e vermelho do sol nascente
+/* Washi: creme suave, barra lateral preta e destaque laranja queimado
    (escolhido em 23/10/2026; o grafite continua acima, para voltar) */
 [data-theme='washi'] {
   color-scheme: light;
-  --app-bg-from: #e7dfd0;
-  --app-bg-to: #ece5d8;
+  --app-bg-from: #e9e5dc;
+  --app-bg-to: #eeeae2;
 
-  --background: #efe8dc;
+  --background: #f2efe8;
   --foreground: #1b1b1b;
-  --card: #f5f0e6;
+  --card: #f7f5f0;
   --card-foreground: #1b1b1b;
-  --popover: #fffdf8;
+  --popover: #fffefb;
   --popover-foreground: #1b1b1b;
-  --muted: #ece4d6;
-  --muted-foreground: #5c554a;
-  --border: #d8ccb7;
-  --input: #cdbfa7;
-  --ring: #b3261e;
+  --muted: #eeeae2;
+  --muted-foreground: #5c5850;
+  --border: #ddd7cb;
+  --input: #d2cbbd;
+  --ring: #c2410c;
 
   --primary: #1b1b1b;
   --primary-foreground: #fffdf8;
-  --secondary: #ece4d6;
+  --secondary: #eeeae2;
   --secondary-foreground: #1b1b1b;
-  --accent: #e9dfcf;
-  --accent-foreground: #b3261e;
+  --accent: #ece6db;
+  --accent-foreground: #c2410c;
   --destructive: #c81e1e;
 
   --brand-from: #1b1b1b;
-  --brand-to: #5c1a14;
+  --brand-to: #7a2e0e;
   --brand-foreground: #fffdf8;
 
-  --chip-active: #f3dcd6;
-  --chip-active-border: #e3a99f;
-  --chip-active-foreground: #9b1f18;
+  --chip-active: #f8e3d6;
+  --chip-active-border: #eeb898;
+  --chip-active-foreground: #9a3412;
 
   --tooltip: #1b1b1b;
   --tooltip-foreground: #fffdf8;
 
-  --chart-1: #b3261e;
-  --chart-2: #d9775f;
+  --chart-1: #c2410c;
+  --chart-2: #e08a5c;
   --chart-3: #2f6b4f;
   --chart-4: #a16207;
   --chart-5: #5c554a;
 
-  /* Ativa em azul-índigo (ai-iro): o vermelho fica só para destaque */
+  /* Ativa em azul-índigo (ai-iro): o laranja fica só para destaque */
   --status-active: #2d4a6b;
   --status-active-soft: #e3e8ee;
   --status-exempt: #2f6b4f;
   --status-exempt-soft: #e2ede6;
   --status-pending: #b7860b;
   --status-pending-soft: #f5ecd5;
-  --status-inactive: #a39b8c;
-  --status-inactive-soft: #ebe4d7;
-  --status-inactive-foreground: #5c554a;
+  --status-inactive: #a39e93;
+  --status-inactive-soft: #ece8df;
+  --status-inactive-foreground: #5c5850;
 
   --status-critical: #c81e1e;
   --status-critical-soft: #f8e3df;
-  --status-warning: #c2410c;
-  --status-warning-soft: #f8e7dc;
+  --status-warning: #b7791f;
+  --status-warning-soft: #f7ecd6;
 
-  --avatar-1: #f3dcd6;
-  --avatar-1-foreground: #9b1f18;
-  --avatar-2: #e6dccb;
-  --avatar-2-foreground: #4a443a;
-  --avatar-3: #e6dccb;
-  --avatar-3-foreground: #4a443a;
-  --avatar-4: #e6dccb;
-  --avatar-4-foreground: #4a443a;
-  --avatar-5: #e6dccb;
-  --avatar-5-foreground: #4a443a;
+  --avatar-1: #f8e3d6;
+  --avatar-1-foreground: #9a3412;
+  --avatar-2: #e8e3d8;
+  --avatar-2-foreground: #4a463e;
+  --avatar-3: #e8e3d8;
+  --avatar-3-foreground: #4a463e;
+  --avatar-4: #e8e3d8;
+  --avatar-4-foreground: #4a463e;
+  --avatar-5: #e8e3d8;
+  --avatar-5-foreground: #4a463e;
 
   /* Barra lateral preta (tinta) */
   --sidebar: #1b1b1b;
   --sidebar-foreground: #cfc6b6;
-  --sidebar-primary: #b3261e;
+  --sidebar-primary: #c2410c;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #2c2a27;
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: #3a3733;
-  --sidebar-ring: #b3261e;
+  --sidebar-ring: #c2410c;
 }
 
 /* Escuro do washi: por enquanto igual ao escuro do grafite */
