@@ -231,6 +231,35 @@ async def test_update_basic_data(
 
 
 @pytest.mark.asyncio
+async def test_update_sex(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    # A tela de edição manda o sexo junto com o nome
+    headers = await auth_headers(client)
+    modality_id = await _enable_modality(client, db_session, headers, 'Jiu')
+    created = await client.post(
+        '/api/v1/students',
+        headers=headers,
+        json=_create_payload(modality_id),
+    )
+    student_id = created.json()['id']
+
+    patched = await client.patch(
+        f'/api/v1/students/{student_id}',
+        headers=headers,
+        json={'name': 'Ana Atualizada', 'sex': 'female'},
+    )
+    detail = await client.get(
+        f'/api/v1/students/{student_id}',
+        headers=headers,
+    )
+
+    assert patched.status_code == HTTPStatus.NO_CONTENT, patched.text
+    assert detail.json()['student']['sex'] == 'female'
+
+
+@pytest.mark.asyncio
 async def test_students_require_auth(client: AsyncClient) -> None:
     response = await client.get(f'/api/v1/students/{uuid.uuid4()}')
 

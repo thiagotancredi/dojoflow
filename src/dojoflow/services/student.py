@@ -885,9 +885,12 @@ class StudentService:
             'outro': StudentSex.OTHER,
         }
 
-        sex = str(context_data['sex']).strip().lower()
+        sex = context_data['sex']
+        # Vindo do site já chega convertido; str() daria "StudentSex.FEMALE"
+        if isinstance(sex, StudentSex):
+            return sex
 
-        return sex_mapping[sex]
+        return sex_mapping[str(sex).strip().lower()]
 
     @staticmethod
     def _build_context_from_create_request(
