@@ -29,7 +29,7 @@ import { isValidationError, showApiError } from '@/lib/api/errors'
 import { useMutation } from '@/lib/hooks/useMutation'
 
 // Modalidades com sequência padrão no backend (services/belt_presets.py)
-const PRESET_MODALITIES = new Set(['taekwondo', 'kickboxing'])
+const PRESET_MODALITIES = new Set(['taekwondo', 'kickboxing', 'karatê'])
 
 // Configurações → Modalidades → Faixas (tela 1 da spec das faixas)
 export function ModalityBeltsPage() {

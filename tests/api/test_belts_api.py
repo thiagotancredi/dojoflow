@@ -298,6 +298,36 @@ async def test_kickboxing_preset(
 
 
 @pytest.mark.asyncio
+async def test_karate_preset(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    headers = await auth_headers(client)
+    karate = await enable_modality(client, db_session, headers, 'Karatê')
+
+    response = await client.post(
+        f'{_belts_url(karate)}/preset', headers=headers
+    )
+
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    assert [
+        (belt['name'], belt['min_time_amount'], belt['min_time_unit'])
+        for belt in response.json()
+    ] == [
+        ('Branca', 3, 'months'),
+        ('Cinza', 3, 'months'),
+        ('Azul', 3, 'months'),
+        ('Amarela', 6, 'months'),
+        ('Vermelha', 12, 'months'),
+        ('Laranja', 12, 'months'),
+        ('Verde', 18, 'months'),
+        ('Roxa', 18, 'months'),
+        ('Marrom', 24, 'months'),
+        ('Preta', None, None),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_belts_require_enabled_modality(
     client: AsyncClient,
     db_session: AsyncSession,

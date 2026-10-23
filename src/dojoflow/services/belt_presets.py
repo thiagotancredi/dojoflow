@@ -9,6 +9,7 @@ GREEN = '#16a34a'
 BLUE = '#1d4ed8'
 RED = '#dc2626'
 BROWN = '#372822'
+PURPLE = '#7c3aed'
 BLACK = '#111827'
 
 # Tempo dos dans (1º ao 8º), em anos, pela regra do Kukkiwon; 9º Dan sem tempo
@@ -84,8 +85,23 @@ KICKBOXING_PRESET: tuple[BeltPayload, ...] = (
     *BLACK_BELTS,
 )
 
+# Tabela de carências enviada pelo Thiago (23/10/2026); a preta não tem tempo
+KARATE_PRESET: tuple[BeltPayload, ...] = (
+    _months('Branca', WHITE, 3),
+    _months('Cinza', GRAY, 3),
+    _months('Azul', BLUE, 3),
+    _months('Amarela', YELLOW, 6),
+    _months('Vermelha', RED, 12),
+    _months('Laranja', ORANGE, 12),
+    _months('Verde', GREEN, 18),
+    _months('Roxa', PURPLE, 18),
+    _months('Marrom', BROWN, 24),
+    BeltPayload(name='Preta', primary_color=BLACK),
+)
+
 # Sequências padrão sugeridas, pelo nome da modalidade (tudo editável depois)
 BELT_PRESETS: dict[str, tuple[BeltPayload, ...]] = {
     'Taekwondo': TAEKWONDO_PRESET,
     'Kickboxing': KICKBOXING_PRESET,
+    'Karatê': KARATE_PRESET,
 }
