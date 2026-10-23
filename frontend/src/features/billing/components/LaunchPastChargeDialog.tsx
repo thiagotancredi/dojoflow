@@ -3,6 +3,7 @@ import { Controller, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import { DateField, MonthField } from '@/components/DatePicker'
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import {
@@ -222,15 +223,22 @@ function LaunchForm({
           htmlFor="launch-month"
           error={errors.month?.message}
         >
-          <Input
-            id="launch-month"
-            type="month"
-            max={lastMonth}
-            className="rounded-xl"
-            {...register('month', {
-              onChange: (event: { target: { value: string } }) =>
-                suggest(getValues('enrollment_id'), event.target.value),
-            })}
+          {/* Controller: o calendário não é um <input>, então o formulário
+              recebe o valor por onChange (e não pelo register) */}
+          <Controller
+            control={control}
+            name="month"
+            render={({ field }) => (
+              <MonthField
+                id="launch-month"
+                max={lastMonth}
+                value={field.value}
+                onChange={(value) => {
+                  field.onChange(value)
+                  suggest(getValues('enrollment_id'), value)
+                }}
+              />
+            )}
           />
         </FormField>
         <FormField
@@ -251,11 +259,16 @@ function LaunchForm({
           htmlFor="launch-due"
           error={errors.due_date?.message}
         >
-          <Input
-            id="launch-due"
-            type="date"
-            className="rounded-xl"
-            {...register('due_date')}
+          <Controller
+            control={control}
+            name="due_date"
+            render={({ field }) => (
+              <DateField
+                id="launch-due"
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
           />
         </FormField>
       </div>

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { ArrowLeft, MessageCircle, Phone } from 'lucide-react'
 import { Link, useLocation, useOutletContext, useParams } from 'react-router'
 
@@ -9,6 +10,12 @@ import { AddressTab } from '@/features/students/components/tabs/AddressTab'
 import { BasicDataTab } from '@/features/students/components/tabs/BasicDataTab'
 import { EnrollmentsTab } from '@/features/students/components/tabs/EnrollmentsTab'
 import { ResponsiblesTab } from '@/features/students/components/tabs/ResponsiblesTab'
+import {
+  STUDENT_SECTIONS,
+  SectionMenuProvider,
+  type StudentSection,
+} from '@/features/students/components/tabs/sections'
+import { TabHeader } from '@/features/students/components/tabs/TabParts'
 import { useStudent } from '@/features/students/hooks'
 import { formatPhone } from '@/lib/format'
 import { callHref, whatsappHref } from '@/lib/phone'
@@ -66,7 +73,9 @@ export function StudentDetailPage() {
   const { student } = data
 
   return (
-    <article className="space-y-6 rounded-3xl bg-card p-5 md:p-6">
+    // @container/ficha: as abas decidem o formato pela largura da ficha
+    // (não da tela); no tablet a ficha fica estreita ao lado da lista
+    <article className="@container/ficha space-y-6 rounded-3xl bg-card p-5 md:p-6">
       {/* "Voltar" só no celular, onde a lista está escondida */}
       <Link
         to={backToList}
@@ -111,11 +120,41 @@ export function StudentDetailPage() {
       </div>
 
       {/* key: ao trocar de aluno, as abas voltam ao estado inicial */}
-      <Tabs key={student.id} defaultValue={initialTab(state)}>
-        {/* 5 abas não cabem no celular: a barra rola para o lado, sem
-            mostrar barra de rolagem (nem as setinhas do Windows) */}
-        <TabsList className="h-auto max-w-full gap-1 overflow-x-auto overflow-y-hidden rounded-full p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {TABS.map(([value, label]) => (
+      <StudentSections
+        key={student.id}
+        student={data}
+        initial={initialTab(state)}
+        onChanged={onChanged}
+      />
+    </article>
+  )
+}
+
+type StudentData = NonNullable<ReturnType<typeof useStudent>['data']>
+
+// Abas da ficha. Ficha larga: barra de abas. Ficha estreita (celular,
+// tablet): a barra some e o título de cada aba vira o menu de seções
+function StudentSections({
+  student,
+  initial,
+  onChanged,
+}: {
+  student: StudentData
+  initial: StudentSection
+  onChanged: () => void
+}) {
+  // Aba aberta num estado nosso (e não só dentro do <Tabs>), para o menu
+  // do título também conseguir trocar de aba
+  const [section, setSection] = useState<StudentSection>(initial)
+
+  return (
+    <SectionMenuProvider value={{ value: section, onChange: setSection }}>
+      <Tabs
+        value={section}
+        onValueChange={(value) => setSection(value as StudentSection)}
+      >
+        <TabsList className="h-auto max-w-full justify-start gap-1 rounded-full p-1 @max-xl/ficha:hidden">
+          {STUDENT_SECTIONS.map(({ value, label }) => (
             <TabsTrigger
               key={value}
               value={value}
@@ -126,38 +165,38 @@ export function StudentDetailPage() {
           ))}
         </TabsList>
 
-        <TabsContent value="enrollments" className="pt-4">
-          <EnrollmentsTab student={data} onChanged={onChanged} />
+        {/* pt-0 na ficha estreita: sem a barra de abas, o título da aba
+            já fica logo abaixo do cabeçalho do aluno */}
+        <TabsContent value="enrollments" className="pt-4 @max-xl/ficha:pt-0">
+          <EnrollmentsTab student={student} onChanged={onChanged} />
         </TabsContent>
-        <TabsContent value="billing" className="pt-4">
-          <StudentBillingTab student={data} />
+        <TabsContent
+          value="billing"
+          className="space-y-4 pt-4 @max-xl/ficha:pt-0"
+        >
+          {/* Mensalidades não tem título no computador; na ficha estreita
+              precisa dele para mostrar o menu */}
+          <TabHeader title="Mensalidades" narrowOnly />
+          <StudentBillingTab student={student} />
         </TabsContent>
-        <TabsContent value="data" className="pt-4">
-          <BasicDataTab student={data} onChanged={onChanged} />
+        <TabsContent value="data" className="pt-4 @max-xl/ficha:pt-0">
+          <BasicDataTab student={student} onChanged={onChanged} />
         </TabsContent>
-        <TabsContent value="address" className="pt-4">
-          <AddressTab student={data} onChanged={onChanged} />
+        <TabsContent value="address" className="pt-4 @max-xl/ficha:pt-0">
+          <AddressTab student={student} onChanged={onChanged} />
         </TabsContent>
-        <TabsContent value="responsibles" className="pt-4">
-          <ResponsiblesTab student={data} onChanged={onChanged} />
+        <TabsContent value="responsibles" className="pt-4 @max-xl/ficha:pt-0">
+          <ResponsiblesTab student={student} onChanged={onChanged} />
         </TabsContent>
       </Tabs>
-    </article>
+    </SectionMenuProvider>
   )
 }
-
-const TABS = [
-  ['enrollments', 'Matrículas'],
-  ['billing', 'Mensalidades'],
-  ['data', 'Dados'],
-  ['address', 'Endereço'],
-  ['responsibles', 'Responsáveis'],
-] as const
 
 // Aba que abre primeiro: quem vem de uma tela de cobrança pede
 // "Mensalidades" (navigate/Link com state { tab: 'billing' }); o resto abre
 // em "Matrículas"
-function initialTab(state: unknown) {
+function initialTab(state: unknown): StudentSection {
   const tab =
     typeof state === 'object' && state !== null && 'tab' in state
       ? state.tab

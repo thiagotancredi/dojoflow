@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { DateField } from '@/components/DatePicker'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -31,7 +32,6 @@ import { useGraduationList } from '@/features/belts/hooks'
 import { shortTimeSince } from '@/features/belts/rules'
 import { EligibilityDot } from '@/features/graduations/components/EligibilityDot'
 import { messageFor, showApiError } from '@/lib/api/errors'
-import { formatDate } from '@/lib/format'
 
 // Detalhe da lista de graduação: quem está nela + quem pode entrar.
 // "Apto" e tempo são medidos na data do exame (mudar a data recalcula tudo).
@@ -348,17 +348,16 @@ function ListHeader({
           {summary.modality.emoji} {summary.modality.name} · exame em
         </span>
         {/* Mudar a data recalcula "apto" e tempo de todos */}
-        <Input
-          type="date"
+        {/* O calendário já mostra "23/10/2026"; escolheu, salvou */}
+        <DateField
           aria-label="Data do exame"
           value={examDate}
-          onChange={(event) => setExamDate(event.target.value)}
-          onBlur={() => {
-            if (examDate && examDate !== summary.exam_date) onExamDate(examDate)
+          onChange={(date) => {
+            setExamDate(date)
+            if (date !== summary.exam_date) onExamDate(date)
           }}
-          className="h-8 w-40 rounded-xl"
+          className="w-40"
         />
-        <span className="text-xs">({formatDate(summary.exam_date)})</span>
       </div>
     </header>
   )

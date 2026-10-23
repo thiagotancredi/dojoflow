@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { DateField } from '@/components/DatePicker'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BeltPicker } from '@/features/belts/components/BeltPicker'
 import { EnrollmentBeltBlock } from '@/features/belts/components/EnrollmentBeltBlock'
@@ -255,13 +255,7 @@ function NewEnrollmentForm({
             <Label htmlFor="belt_since" className="text-xs text-muted-foreground">
               Desde
             </Label>
-            <Input
-              id="belt_since"
-              type="date"
-              value={since}
-              onChange={(event) => setSince(event.target.value)}
-              className="rounded-xl"
-            />
+            <DateField id="belt_since" value={since} onChange={setSince} />
           </div>
         </div>
       ) : (

@@ -1,19 +1,42 @@
 import type { ReactNode } from 'react'
 
+import { SectionMenu } from '@/features/students/components/tabs/SectionMenu'
+import { useSectionMenu } from '@/features/students/components/tabs/sections'
+import { cn } from '@/lib/utils'
+
 // Peças comuns das abas da ficha: título com ações à direita e cartões
 // com um rótulo pequeno em cima
 
 export function TabHeader({
   title,
   children,
+  narrowOnly = false,
 }: {
   title: string
   // Botões do canto direito (Editar, Remover…)
   children?: ReactNode
+  // Só aparece na ficha estreita (aba sem título próprio no computador)
+  narrowOnly?: boolean
 }) {
+  const menu = useSectionMenu()
+
+  // "@xl/ficha": a ficha (container "ficha") tem 36rem ou mais. Abaixo
+  // disso (celular, tablet) o título vira o menu de seções ("@max-xl")
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <h3 className="font-semibold">{title}</h3>
+    <div
+      className={cn(
+        'flex flex-wrap items-center justify-between gap-2',
+        narrowOnly && menu && '@xl/ficha:hidden',
+      )}
+    >
+      {menu ? (
+        <>
+          <h3 className="font-semibold @max-xl/ficha:hidden">{title}</h3>
+          <SectionMenu className="@xl/ficha:hidden" />
+        </>
+      ) : (
+        <h3 className="font-semibold">{title}</h3>
+      )}
       {children && <div className="flex flex-wrap gap-1">{children}</div>}
     </div>
   )

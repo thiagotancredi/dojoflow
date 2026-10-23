@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { DateField } from '@/components/DatePicker'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -9,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -90,13 +90,7 @@ export function BulkPaymentDialog({
             <Label htmlFor="bulk-paid-on" className="text-xs text-muted-foreground">
               Data do pagamento
             </Label>
-            <Input
-              id="bulk-paid-on"
-              type="date"
-              className="rounded-xl"
-              value={paidOn}
-              onChange={(event) => setPaidOn(event.target.value)}
-            />
+            <DateField id="bulk-paid-on" value={paidOn} onChange={setPaidOn} />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Forma</Label>

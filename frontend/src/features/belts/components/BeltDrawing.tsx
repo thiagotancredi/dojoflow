@@ -2,6 +2,8 @@
 // retângulo de cantos retos na cor principal, listra central opcional,
 // marcas (graus/dan) contadas a partir da ponta, ponta colorida opcional.
 
+import { cn } from '@/lib/utils'
+
 // Os mesmos campos da faixa na API (BeltApiRead)
 export type BeltLook = {
   name: string
@@ -18,9 +20,15 @@ type BeltDrawingProps = {
   belt: BeltLook
   width?: number
   height?: number
+  className?: string
 }
 
-export function BeltDrawing({ belt, width = 180, height = 28 }: BeltDrawingProps) {
+export function BeltDrawing({
+  belt,
+  width = 180,
+  height = 28,
+  className,
+}: BeltDrawingProps) {
   // Faixa branca ganha borda para não sumir no fundo claro
   const edge = belt.primary_color === WHITE ? '#cbd5e1' : 'rgba(0,0,0,.25)'
   const gap = Math.max(5, width * 0.03)
@@ -35,8 +43,13 @@ export function BeltDrawing({ belt, width = 180, height = 28 }: BeltDrawingProps
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label={`Faixa ${belt.name}`}
-      // No escuro, um contorno claro para a faixa branca e a preta não sumirem
-      className="shrink-0 rounded-[3px] dark:ring-1 dark:ring-white/25"
+      // No escuro, um contorno claro para a faixa branca e a preta não sumirem.
+      // max-w-full + h-auto: em espaço apertado (celular) a faixa encolhe
+      // inteira, sem sair do cartão e sem deformar
+      className={cn(
+        'h-auto max-w-full shrink-0 rounded-[3px] dark:ring-1 dark:ring-white/25',
+        className,
+      )}
     >
       <title>{belt.name}</title>
       <rect
