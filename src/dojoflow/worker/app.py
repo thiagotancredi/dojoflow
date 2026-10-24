@@ -26,6 +26,9 @@ celery_app.conf.update(
     task_reject_on_worker_lost=True,
     worker_prefetch_multiplier=1,
     broker_connection_retry_on_startup=True,
+    # Tarefa aguardando nova tentativa (até 1 h) fica sem confirmação no
+    # Redis; o prazo dele precisa ser maior, senão ela é entregue de novo
+    broker_transport_options={'visibility_timeout': 4 * 3600},
     beat_schedule={
         # Dia 1º: gera às 00:05 e confere às 02:05, 04:05 e 06:05 (cria só
         # o que faltar)

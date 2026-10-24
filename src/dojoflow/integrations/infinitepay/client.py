@@ -109,7 +109,12 @@ class InfinitePayClient:
             '/links', body, headers={'X-Api-Key': api_key}
         )
 
-        if response.status_code == HTTPStatus.FORBIDDEN:
+        # Só o 403 da própria InfinitePay ({"message": "Forbidden"}) é chave
+        # recusada; outro 403 (firewall, CDN) é falha passageira
+        if (
+            response.status_code == HTTPStatus.FORBIDDEN
+            and _json(response).get('message') == 'Forbidden'
+        ):
             raise InfinitePayKeyRejected('InfinitePay rejected the API key.')
         if response.status_code == HTTPStatus.NOT_FOUND and (
             _json(response).get('error') == 'external_checkout_not_enabled'

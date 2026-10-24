@@ -32,8 +32,8 @@ const CONFIRM_TIMEOUT_MS = 30000
 export function PayPage() {
   const { token } = useParams()
   const payment = usePublicPayment(token)
-  const confirming = useReturnFromCheckout(token, payment.refetch)
   const stillOpen = payment.data?.status !== 'clear'
+  const confirming = useReturnFromCheckout(token, payment.refetch, !stillOpen)
   useLightMode()
 
   return (
@@ -44,6 +44,9 @@ export function PayPage() {
           data={payment.data}
           confirming={confirming.active && stillOpen}
           justPaid={confirming.started && !stillOpen}
+          // Voltou do checkout, o tempo acabou e a baixa não apareceu
+          notConfirmedYet={confirming.started && !confirming.active && stillOpen}
+          onCheckoutError={payment.refetch}
         />
       ) : payment.isLoading ? (
         <Message>Carregando…</Message>
@@ -82,7 +85,12 @@ function useLightMode() {
 // order_nsu, transaction_nsu, slug (e receipt_url). Manda isso ao servidor
 // uma vez, limpa o endereço e recarrega a página até a baixa aparecer
 // (ou até o tempo acabar: aí volta à tela normal).
-function useReturnFromCheckout(token: string | undefined, reload: () => void) {
+function useReturnFromCheckout(
+  token: string | undefined,
+  reload: () => void,
+  // A baixa já apareceu: para de conferir
+  cleared: boolean,
+) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [deadline, setDeadline] = useState<number | null>(null)
   const [started, setStarted] = useState(false)
@@ -120,13 +128,17 @@ function useReturnFromCheckout(token: string | undefined, reload: () => void) {
     else reload()
   })
 
+  // Conferir só enquanto a baixa não entrou (cada consulta conta no limite
+  // de acessos da página pública)
+  const polling = deadline !== null && !cleared
+
   useEffect(() => {
-    if (deadline === null) return
+    if (!polling) return
     const timer = setInterval(tick, CONFIRM_POLL_MS)
     return () => clearInterval(timer)
-  }, [deadline])
+  }, [polling])
 
-  return { active: deadline !== null, started }
+  return { active: polling, started }
 }
 
 function PaymentView({
@@ -134,6 +146,8 @@ function PaymentView({
   data,
   confirming,
   justPaid,
+  notConfirmedYet,
+  onCheckoutError,
 }: {
   token: string
   data: PublicPayment
@@ -141,6 +155,10 @@ function PaymentView({
   confirming: boolean
   // Voltou do checkout e a baixa já entrou
   justPaid: boolean
+  // Voltou do checkout e a confirmação não chegou a tempo
+  notConfirmedYet: boolean
+  // O checkout falhou: a página busca de novo (pode ter mudado para Pix)
+  onCheckoutError: () => void
 }) {
   const count = data.items.length
 
@@ -229,7 +247,22 @@ function PaymentView({
                 Confirmando seu pagamento…
               </p>
             ) : data.checkout_enabled ? (
-              <CheckoutButton token={token} count={count} />
+              <>
+                {notConfirmedYet && (
+                  <p
+                    role="status"
+                    className="rounded-xl bg-muted px-3 py-2 text-center text-sm"
+                  >
+                    Ainda não recebemos a confirmação. Se você já pagou, não
+                    precisa pagar de novo: a academia vai ver o pagamento.
+                  </p>
+                )}
+                <CheckoutButton
+                  token={token}
+                  count={count}
+                  onError={onCheckoutError}
+                />
+              </>
             ) : data.pix_code ? (
               <CopyPixCode code={data.pix_code} total={data.total} />
             ) : (
@@ -245,7 +278,15 @@ function PaymentView({
 }
 
 // Baixa automática ligada: um caminho só, o checkout da InfinitePay
-function CheckoutButton({ token, count }: { token: string; count: number }) {
+function CheckoutButton({
+  token,
+  count,
+  onError,
+}: {
+  token: string
+  count: number
+  onError: () => void
+}) {
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -259,6 +300,9 @@ function CheckoutButton({ token, count }: { token: string; count: number }) {
     } catch (caught) {
       setError(messageFor(caught))
       setIsPending(false)
+      // A academia pode ter desligado a InfinitePay (a página volta ao Pix)
+      // ou o mestre pode ter dado baixa à mão (tudo em dia)
+      onError()
     }
   }
 

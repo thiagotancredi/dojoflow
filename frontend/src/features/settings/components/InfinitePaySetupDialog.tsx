@@ -150,6 +150,8 @@ function SetupSteps({
               id="infinitepay-handle"
               placeholder="$suatag"
               autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
               autoCapitalize="none"
               spellCheck={false}
               maxLength={61}
@@ -165,9 +167,15 @@ function SetupSteps({
             htmlFor="infinitepay-key"
             error={errors.api_key?.message}
           >
+            {/* Não é senha: "one-time-code" e os data-* evitam que o
+                navegador (ou 1Password/LastPass) cole aqui a senha salva
+                do Katsuflow, que iria para a InfinitePay */}
             <PasswordInput
               id="infinitepay-key"
-              autoComplete="off"
+              autoComplete="one-time-code"
+              data-1p-ignore
+              data-lpignore="true"
+              data-form-type="other"
               spellCheck={false}
               maxLength={200}
               className="rounded-xl"

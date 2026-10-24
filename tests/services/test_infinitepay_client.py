@@ -211,3 +211,13 @@ async def test_payment_check_network_error_raises_unavailable():
         await _client(handler).payment_check(
             handle='katsuflow', order_nsu='p', transaction_nsu='t', slug='s'
         )
+
+
+@pytest.mark.asyncio
+async def test_create_link_other_403_is_unavailable_not_key_rejected():
+    # Um 403 de firewall/CDN não pode desligar a academia como chave recusada
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text='<html>Access denied</html>')
+
+    with pytest.raises(InfinitePayUnavailable):
+        await _create(_client(handler))
