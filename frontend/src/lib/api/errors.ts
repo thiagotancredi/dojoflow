@@ -59,6 +59,14 @@ export const ERROR_MESSAGES: Record<string, string> = {
     'Link de suporte inválido ou expirado. Clique em Entrar de novo no painel.',
   SUPPORT_MODE: 'Indisponível no modo suporte.',
   SUPPORT_SESSION_INVALID: 'Sessão de suporte encerrada.',
+  INFINITEPAY_KEY_REJECTED:
+    'A chave de API não foi aceita. Crie uma chave nova no app da InfinitePay (Checkout → Configurações → API Keys) e cole aqui.',
+  INFINITEPAY_CHECKOUT_DISABLED:
+    "A InfinitePay ainda não liberou o checkout para essa tag. Confira se a tag está certa e, no app da InfinitePay, desligue e ligue de novo 'Habilitar Checkout Integrado'.",
+  INFINITEPAY_UNAVAILABLE:
+    'Não foi possível falar com a InfinitePay agora. Tente de novo.',
+  INFINITEPAY_DISABLED: 'O pagamento pela InfinitePay está desligado.',
+  REVIEW_NOT_FOUND: 'Esse aviso já foi resolvido. Recarregue a página.',
   NOT_FOUND: 'Não encontrado.',
   CONFLICT: 'Esse registro conflita com outro já existente.',
 }

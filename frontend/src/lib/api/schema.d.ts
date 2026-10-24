@@ -599,6 +599,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/students/{student_id}/billing/reviews/{review_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Billing Review
+         * @description Pagamento da InfinitePay "a conferir": marcar como resolvido.
+         */
+        post: operations["resolve_billing_review_api_v1_students__student_id__billing_reviews__review_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/academy/billing-settings": {
         parameters: {
             query?: never;
@@ -612,6 +632,28 @@ export interface paths {
         put: operations["save_billing_settings_api_v1_academy_billing_settings_put"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academy/infinitepay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Infinitepay */
+        get: operations["read_infinitepay_api_v1_academy_infinitepay_get"];
+        /**
+         * Connect Infinitepay
+         * @description Testar e ligar (também serve para trocar a chave).
+         */
+        put: operations["connect_infinitepay_api_v1_academy_infinitepay_put"];
+        post?: never;
+        /** Disconnect Infinitepay */
+        delete: operations["disconnect_infinitepay_api_v1_academy_infinitepay_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -877,6 +919,68 @@ export interface paths {
         get: operations["read_public_payment_api_v1_public_pay__token__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/pay/{token}/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Public Checkout
+         * @description "Pagar mensalidade": devolve o checkout da InfinitePay.
+         */
+        post: operations["create_public_checkout_api_v1_public_pay__token__checkout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/pay/{token}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Public Payment
+         * @description O aluno voltou do checkout: o worker confere e dá a baixa (cobre o
+         *     aviso que se perdeu). A página acompanha pelo GET /pay/{token}.
+         */
+        post: operations["confirm_public_payment_api_v1_public_pay__token__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/webhooks/infinitepay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Infinitepay Webhook
+         * @description Aviso da InfinitePay: só enfileira e responde na hora (o aviso não
+         *     tem assinatura; o worker confere no payment_check antes da baixa).
+         */
+        post: operations["infinitepay_webhook_api_v1_public_webhooks_infinitepay_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1313,6 +1417,26 @@ export interface components {
              */
             status: "paid" | "partial" | "overdue" | "upcoming" | "waived";
         };
+        /**
+         * CheckoutReviewApiRead
+         * @description Pagamento da InfinitePay "a conferir" (o valor em aberto mudou).
+         */
+        CheckoutReviewApiRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Amount */
+            amount: string;
+            /**
+             * Paid At
+             * Format: date
+             */
+            paid_at: string;
+            /** Receipt Url */
+            receipt_url: string | null;
+        };
         /** CreatePaymentApiPayload */
         CreatePaymentApiPayload: {
             /** Amount */
@@ -1575,6 +1699,44 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * InfinitePayConnectApi
+         * @description Testar e ligar: InfiniteTag (com ou sem $) e a chave de API.
+         */
+        InfinitePayConnectApi: {
+            /** Handle */
+            handle: string;
+            /** Api Key */
+            api_key: string;
+        };
+        /**
+         * InfinitePayStatusApi
+         * @description Situação da baixa automática (a chave nunca volta, só o final).
+         */
+        InfinitePayStatusApi: {
+            /** Enabled */
+            enabled: boolean;
+            /** Handle */
+            handle: string | null;
+            /** Tested At */
+            tested_at: string | null;
+            /** Key Last4 */
+            key_last4: string | null;
+        };
+        /**
+         * InfinitePayWebhookApi
+         * @description Aviso de pagamento da InfinitePay (só o que a conferência usa).
+         */
+        InfinitePayWebhookApi: {
+            /** Order Nsu */
+            order_nsu: string;
+            /** Transaction Nsu */
+            transaction_nsu: string;
+            /** Invoice Slug */
+            invoice_slug: string;
+            /** Receipt Url */
+            receipt_url?: string | null;
+        };
         /** LaunchChargeApiPayload */
         LaunchChargeApiPayload: {
             /**
@@ -1713,6 +1875,28 @@ export interface components {
             /** Days Late */
             days_late: number;
         };
+        /**
+         * PayConfirmApi
+         * @description Volta do aluno do checkout (a InfinitePay acrescenta ao endereço).
+         */
+        PayConfirmApi: {
+            /** Order Nsu */
+            order_nsu: string;
+            /** Transaction Nsu */
+            transaction_nsu: string;
+            /** Slug */
+            slug: string;
+            /** Receipt Url */
+            receipt_url?: string | null;
+        };
+        /** PayConfirmRead */
+        PayConfirmRead: {
+            /**
+             * Status
+             * @constant
+             */
+            status: "processing";
+        };
         /** PayLinkApiRead */
         PayLinkApiRead: {
             /** Pay Url */
@@ -1737,6 +1921,9 @@ export interface components {
             notes: string | null;
             /** Allocations */
             allocations: components["schemas"]["AllocationApiRead"][];
+            source: components["schemas"]["PaymentSource"];
+            /** Receipt Url */
+            receipt_url: string | null;
         };
         /**
          * PaymentKind
@@ -1758,6 +1945,12 @@ export interface components {
             /** Allocations */
             allocations: components["schemas"]["AllocationPreviewApiRead"][];
         };
+        /**
+         * PaymentSource
+         * @description Quem lançou a baixa.
+         * @enum {string}
+         */
+        PaymentSource: "manual" | "infinitepay";
         /** PendingBeltEnrollmentApiRead */
         PendingBeltEnrollmentApiRead: {
             /**
@@ -1795,6 +1988,14 @@ export interface components {
          * @enum {string}
          */
         PixKeyType: "cpf" | "cnpj" | "phone" | "email" | "random";
+        /**
+         * PublicCheckoutRead
+         * @description Endereço do checkout da InfinitePay para onde o aluno vai.
+         */
+        PublicCheckoutRead: {
+            /** Url */
+            url: string;
+        };
         /** PublicPaymentItemRead */
         PublicPaymentItemRead: {
             /** Label */
@@ -1826,6 +2027,11 @@ export interface components {
             recipient_name: string;
             /** Pix Code */
             pix_code: string | null;
+            /**
+             * Checkout Enabled
+             * @default false
+             */
+            checkout_enabled: boolean;
         };
         /** RecentEnrollmentRead */
         RecentEnrollmentRead: {
@@ -1952,6 +2158,8 @@ export interface components {
             charges: components["schemas"]["ChargeApiRead"][];
             /** Payments */
             payments: components["schemas"]["PaymentApiRead"][];
+            /** Reviews */
+            reviews: components["schemas"]["CheckoutReviewApiRead"][];
         };
         /** StudentCreateApiRequest */
         StudentCreateApiRequest: {
@@ -2085,6 +2293,15 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WebhookAckRead */
+        WebhookAckRead: {
+            /**
+             * Received
+             * @default true
+             * @constant
+             */
+            received: true;
         };
     };
     responses: never;
@@ -3411,6 +3628,36 @@ export interface operations {
             };
         };
     };
+    resolve_billing_review_api_v1_students__student_id__billing_reviews__review_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                review_id: string;
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_billing_settings_api_v1_academy_billing_settings_get: {
         parameters: {
             query?: never;
@@ -3460,6 +3707,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_infinitepay_api_v1_academy_infinitepay_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InfinitePayStatusApi"];
+                };
+            };
+        };
+    };
+    connect_infinitepay_api_v1_academy_infinitepay_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InfinitePayConnectApi"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InfinitePayStatusApi"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disconnect_infinitepay_api_v1_academy_infinitepay_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InfinitePayStatusApi"];
                 };
             };
         };
@@ -4060,6 +4380,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicPaymentRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_public_checkout_api_v1_public_pay__token__checkout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicCheckoutRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_public_payment_api_v1_public_pay__token__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayConfirmApi"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayConfirmRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    infinitepay_webhook_api_v1_public_webhooks_infinitepay_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InfinitePayWebhookApi"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookAckRead"];
                 };
             };
             /** @description Validation Error */
