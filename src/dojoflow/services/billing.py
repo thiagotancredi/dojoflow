@@ -15,6 +15,7 @@ from dojoflow.database.transaction import transactional
 from dojoflow.models.academy import Academy
 from dojoflow.models.academy_billing_settings import AcademyBillingSettings
 from dojoflow.models.enrollment import Enrollment
+from dojoflow.models.infinitepay_checkout import InfinitePayCheckout
 from dojoflow.models.master import Master
 from dojoflow.models.modality import Modality
 from dojoflow.models.payment import Payment
@@ -55,9 +56,11 @@ from dojoflow.services.billing_rules import (
 from dojoflow.services.pix import pix_copy_paste
 from dojoflow.shared.enums import (
     AcademyStatus,
+    CheckoutStatus,
     EnrollmentStatus,
     PaymentKind,
     PaymentMethod,
+    PaymentSource,
     PaymentStatus,
 )
 from dojoflow.shared.exceptions import ConflictError, NotFoundError
@@ -740,8 +743,14 @@ class BillingService:  # noqa: PLR0904
         paid_on: date,
         method: PaymentMethod | None,
         notes: str | None,
+        *,
+        source: PaymentSource = PaymentSource.MANUAL,
     ) -> PaymentRead:
-        """Baixa do aluno, abatendo da cobrança mais antiga à mais nova."""
+        """Baixa do aluno, abatendo da cobrança mais antiga à mais nova.
+
+        Baixa manual cancela (do lado do Katsuflow) os links de checkout
+        abertos do aluno: a página /pagar não os reaproveita mais.
+        """
         today = local_today()
         locked = await self._lock_student_charges(academy_id, student_id)
         plan = await self._plan_allocations(
@@ -755,6 +764,7 @@ class BillingService:  # noqa: PLR0904
             gross_amount=amount,
             received_at=paid_on,
             notes=notes,
+            source=source,
         )
         self.db_session.add(transaction)
         await self.db_session.flush()
@@ -771,6 +781,17 @@ class BillingService:  # noqa: PLR0904
             row = locked[charge.id]
             row.amount_paid += part
             _refresh_paid_status(row, paid_on)
+
+        if source is PaymentSource.MANUAL:
+            await self.db_session.execute(
+                update(InfinitePayCheckout)
+                .where(
+                    InfinitePayCheckout.academy_id == academy_id,
+                    InfinitePayCheckout.student_id == student_id,
+                    InfinitePayCheckout.status == CheckoutStatus.OPEN,
+                )
+                .values(status=CheckoutStatus.CANCELED)
+            )
 
         await self.db_session.flush()
         (payment,) = await self._payments(
@@ -801,6 +822,16 @@ class BillingService:  # noqa: PLR0904
             charge.amount_paid -= allocation.allocated_amount
             _refresh_paid_status(charge, None)
 
+        # Baixa automática desfeita: o link continua pago (o dinheiro está
+        # na InfinitePay), só deixa de apontar para a baixa
+        await self.db_session.execute(
+            update(InfinitePayCheckout)
+            .where(
+                InfinitePayCheckout.academy_id == academy_id,
+                InfinitePayCheckout.payment_transaction_id == payment_id,
+            )
+            .values(payment_transaction_id=None)
+        )
         await self.db_session.execute(
             delete(PaymentAllocation).where(
                 PaymentAllocation.payment_transaction_id == payment_id

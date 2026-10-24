@@ -10,8 +10,13 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dojoflow.integrations.infinitepay.client import (
+    InfinitePayClient,
+    InfinitePayUnavailable,
+)
 from dojoflow.services.belt_rules import local_today
 from dojoflow.services.billing import BillingService
+from dojoflow.services.infinitepay import InfinitePayService
 from dojoflow.worker.app import celery_app
 from dojoflow.worker.bridge import run_async
 
@@ -33,3 +38,35 @@ def generate_monthly_charges() -> int:
     )
     logger.info('%s mensalidade(s) criada(s) para %s.', created, today)
     return created
+
+
+@celery_app.task(
+    name='dojoflow.settle_infinitepay_payment',
+    autoretry_for=(InfinitePayUnavailable,),
+    retry_backoff=True,
+    max_retries=10,
+)
+def settle_infinitepay_payment(
+    order_nsu: str,
+    transaction_nsu: str,
+    slug: str,
+    receipt_url: str | None = None,
+    student_id: int | None = None,
+) -> str | None:
+    """Confere o pagamento na InfinitePay e dá a baixa (uma vez só).
+
+    InfinitePay fora do ar: tenta de novo mais tarde, com espera crescente.
+    """
+    status = run_async(
+        lambda session: InfinitePayService(
+            session, InfinitePayClient()
+        ).settle(
+            order_nsu,
+            transaction_nsu,
+            slug,
+            receipt_url=receipt_url,
+            student_id=student_id,
+        )
+    )
+    logger.info('InfinitePay settlement finished: %s.', status)
+    return status.value if status else None

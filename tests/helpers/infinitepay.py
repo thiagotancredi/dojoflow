@@ -108,3 +108,28 @@ async def enable_infinitepay(
         )
     )
     await session.commit()
+
+
+def payment_paid(
+    amount_cents: int = 20000,
+    method: str = 'pix',
+    paid_cents: int | None = None,
+) -> Handler:
+    """payment_check confirma o pagamento."""
+    return lambda request: httpx.Response(
+        200,
+        json={
+            'success': True,
+            'paid': True,
+            'amount': amount_cents,
+            'paid_amount': paid_cents
+            if paid_cents is not None
+            else amount_cents,
+            'capture_method': method,
+            'installments': 1,
+        },
+    )
+
+
+def payment_not_found() -> Handler:
+    return lambda request: httpx.Response(200, json={'success': False})

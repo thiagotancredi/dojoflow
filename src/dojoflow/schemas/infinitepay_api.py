@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class InfinitePayStatusApi(BaseModel):
@@ -30,3 +31,27 @@ class InfinitePayConnectApi(BaseModel):
     @classmethod
     def _strip_key(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value
+
+
+class InfinitePayWebhookApi(BaseModel):
+    """Aviso de pagamento da InfinitePay (só o que a conferência usa)."""
+
+    model_config = ConfigDict(extra='ignore')
+
+    order_nsu: str = Field(min_length=1, max_length=64)
+    transaction_nsu: str = Field(min_length=1, max_length=64)
+    invoice_slug: str = Field(min_length=1, max_length=64)
+    receipt_url: str | None = Field(default=None, max_length=500)
+
+
+class PayConfirmApi(BaseModel):
+    """Volta do aluno do checkout (a InfinitePay acrescenta ao endereço)."""
+
+    order_nsu: str = Field(min_length=1, max_length=64)
+    transaction_nsu: str = Field(min_length=1, max_length=64)
+    slug: str = Field(min_length=1, max_length=64)
+    receipt_url: str | None = Field(default=None, max_length=500)
+
+
+class PayConfirmRead(BaseModel):
+    status: Literal['processing']

@@ -22,6 +22,7 @@ from dojoflow.integrations.infinitepay.client import (
 from dojoflow.integrations.infinitepay.schemas import (
     CheckoutCustomer,
     CheckoutItem,
+    PaymentCheck,
 )
 from dojoflow.models.academy_billing_settings import AcademyBillingSettings
 from dojoflow.models.infinitepay_checkout import InfinitePayCheckout
@@ -29,7 +30,11 @@ from dojoflow.schemas.infinitepay_api import InfinitePayStatusApi
 from dojoflow.services import billing as billing_module
 from dojoflow.services.billing import BillingService, choose_recipient
 from dojoflow.services.billing_rules import whatsapp_phone
-from dojoflow.shared.enums import CheckoutStatus
+from dojoflow.shared.enums import (
+    CheckoutStatus,
+    PaymentMethod,
+    PaymentSource,
+)
 from dojoflow.shared.exceptions import ConflictError, NotFoundError
 
 logger = logging.getLogger(__name__)
@@ -52,6 +57,11 @@ TEST_LINK_PRICE = Decimal('1.00')
 # Toques repetidos em "Pagar mensalidade" reaproveitam o mesmo link
 # (o Pix do checkout vale 72 h; 24 h deixa folga)
 LINK_REUSE_WINDOW = timedelta(hours=24)
+
+CAPTURE_METHODS = {
+    'pix': PaymentMethod.PIX,
+    'credit_card': PaymentMethod.CREDIT_CARD,
+}
 
 
 def webhook_url() -> str:
@@ -270,3 +280,125 @@ class InfinitePayService:
     @transactional
     async def _add_checkout(self, checkout: InfinitePayCheckout) -> None:
         self.db_session.add(checkout)
+
+    @transactional
+    async def settle(  # noqa: PLR0913
+        self,
+        order_nsu: str,
+        transaction_nsu: str,
+        slug: str,
+        *,
+        receipt_url: str | None = None,
+        student_id: int | None = None,
+    ) -> CheckoutStatus | None:
+        """Aviso (ou volta do aluno) → confere na InfinitePay → baixa.
+
+        Roda no worker. Nada de baixa sem ``paid: true`` do payment_check.
+        Uma vez só por pagamento: o link fica travado (FOR UPDATE) até o
+        fim, e um segundo aviso igual só devolve a situação.
+        student_id: dono do link /pagar de onde o aluno voltou; um pedido
+        de outro aluno é ignorado. None = aviso da InfinitePay.
+        """
+        checkout = await self._lock_checkout(order_nsu, student_id)
+        if checkout is None:
+            return None
+        if checkout.transaction_nsu is not None:
+            # Aviso repetido devolve a situação; outro pagamento do mesmo
+            # link (não deveria acontecer) é ignorado
+            same = checkout.transaction_nsu == transaction_nsu
+            if not same:
+                logger.warning(
+                    'InfinitePay checkout %s already settled by another '
+                    'transaction; new one ignored.',
+                    checkout.id,
+                )
+            return checkout.status if same else None
+
+        check = await self._confirmed_payment(checkout, transaction_nsu, slug)
+        if check is None:
+            return None
+
+        today = billing_module.local_today()
+        checkout.transaction_nsu = transaction_nsu
+        checkout.invoice_slug = slug
+        checkout.receipt_url = receipt_url
+        checkout.capture_method = check.capture_method
+        checkout.paid_amount = check.paid_amount or check.amount
+        checkout.installments = check.installments
+        checkout.paid_at = datetime.now(UTC)
+
+        billing = BillingService(self.db_session)
+        owed = sum(
+            (
+                charge.open_amount
+                for charge in await billing.overdue_for_student(
+                    checkout.academy_id, checkout.student_id, today
+                )
+            ),
+            Decimal(0),
+        )
+        # Link cancelado (baixa manual no meio do caminho) ou valor que já
+        # não é o devido: nada é lançado sozinho, o mestre confere
+        if (
+            checkout.status is not CheckoutStatus.OPEN
+            or owed != checkout.amount
+        ):
+            checkout.status = CheckoutStatus.REVIEW
+            await self.db_session.flush()
+            return checkout.status
+
+        payment = await billing.create_payment(
+            checkout.academy_id,
+            checkout.student_id,
+            checkout.amount,
+            today,
+            CAPTURE_METHODS.get(
+                check.capture_method or '', PaymentMethod.OTHER
+            ),
+            'InfinitePay',
+            source=PaymentSource.INFINITEPAY,
+        )
+        checkout.payment_transaction_id = payment.id
+        checkout.status = CheckoutStatus.PAID
+        await self.db_session.flush()
+        return checkout.status
+
+    async def _lock_checkout(
+        self, order_nsu: str, student_id: int | None
+    ) -> InfinitePayCheckout | None:
+        checkout = await self.db_session.scalar(
+            select(InfinitePayCheckout)
+            .where(InfinitePayCheckout.order_nsu == order_nsu)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if checkout is None:
+            logger.info('InfinitePay notice for unknown order ignored.')
+            return None
+        if student_id is not None and checkout.student_id != student_id:
+            logger.warning('InfinitePay confirm for another student ignored.')
+            return None
+        return checkout
+
+    async def _confirmed_payment(
+        self, checkout: InfinitePayCheckout, transaction_nsu: str, slug: str
+    ) -> PaymentCheck | None:
+        """payment_check com a tag do link; pago e com o valor cheio, ou
+        None. InfinitePay fora do ar: a exceção sobe (o worker tenta de
+        novo)."""
+        check = await self.client.payment_check(
+            handle=checkout.handle,
+            order_nsu=checkout.order_nsu,
+            transaction_nsu=transaction_nsu,
+            slug=slug,
+        )
+        if not (check.success and check.paid):
+            return None
+        paid_amount = check.paid_amount or check.amount
+        if paid_amount is None or paid_amount < checkout.amount:
+            logger.warning(
+                'InfinitePay checkout %s paid less than the link amount.',
+                checkout.id,
+            )
+            return None
+        return check
