@@ -1,6 +1,8 @@
-"""Disparo diário: cria as mensalidades do mês de todas as academias.
+"""Comando manual de emergência: cria as mensalidades que faltam.
 
-Uso: poetry run python -m dojoflow.jobs.generate_charges
+Quem gera normalmente é o worker (dia 1º e ao ligar; ver
+dojoflow.worker.tasks). Use só se o worker estiver fora do ar:
+    poetry run python -m dojoflow.jobs.generate_charges
 """
 
 import asyncio

@@ -12,7 +12,11 @@ from dojoflow.models.academy import Academy
 from dojoflow.models.payment_transaction import PaymentTransaction
 from dojoflow.services import billing as billing_module
 from tests.helpers.auth import auth_headers, other_academy_headers
-from tests.helpers.scenario import add_modality, add_student
+from tests.helpers.scenario import (
+    add_modality,
+    add_student,
+    generate_charges,
+)
 
 URL = '/api/v1/billing/bulk-payments'
 TODAY = date(2027, 3, 2)
@@ -39,6 +43,8 @@ async def _student(
         billing_start_month='2027-02-01',
         academy_id=academy_id,
     )
+    # O worker já gerou fevereiro e março
+    await generate_charges(db_session, TODAY)
     return student_id
 
 

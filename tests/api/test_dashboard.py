@@ -11,7 +11,11 @@ from tests.helpers.auth import (
     create_modality,
     other_academy_headers,
 )
-from tests.helpers.scenario import add_modality, add_student
+from tests.helpers.scenario import (
+    add_modality,
+    add_student,
+    generate_charges,
+)
 
 ACTIVE_STUDENTS = 3
 TOTAL_ENROLLMENTS = 4
@@ -148,6 +152,7 @@ async def test_dashboard_overdue_and_due_soon(
     monkeypatch.setattr(
         billing_module, 'local_today', lambda: date(2027, 2, 20)
     )
+    await generate_charges(db_session, date(2027, 2, 20))
 
     body = (
         await client.get('/api/v1/dashboard/summary', headers=headers)

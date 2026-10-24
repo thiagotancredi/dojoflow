@@ -23,11 +23,16 @@ from tests.helpers.scenario import (
     add_modality,
     add_responsible,
     add_student,
+    generate_charges,
 )
 
 
-def _freeze_today(monkeypatch: pytest.MonkeyPatch, today: date) -> None:
+async def _freeze_today(
+    monkeypatch: pytest.MonkeyPatch, session: AsyncSession, today: date
+) -> None:
+    """Hoje passa a ser `today`, e o worker já gerou as mensalidades."""
     monkeypatch.setattr(billing_module, 'local_today', lambda: today)
+    await generate_charges(session, today)
 
 
 def _url(student_id: str) -> str:
@@ -57,7 +62,7 @@ async def test_generation_is_idempotent(
         due_day=15,
         billing_start_month='2027-01-01',
     )
-    _freeze_today(monkeypatch, date(2027, 3, 2))
+    await _freeze_today(monkeypatch, db_session, date(2027, 3, 2))
 
     await _read(client, student_id, headers)
     body = await _read(client, student_id, headers)
@@ -104,13 +109,13 @@ async def test_first_monthly_charge_is_next_month(
         billing_start_month='2026-11-01',
     )
 
-    _freeze_today(monkeypatch, date(2026, 10, 20))
+    await _freeze_today(monkeypatch, db_session, date(2026, 10, 20))
     body = await _read(client, student_id, headers)
     assert body['charges'] == []
     assert body['open_total'] == '0.00'
     assert not body['open_months']
 
-    _freeze_today(monkeypatch, date(2026, 11, 1))
+    await _freeze_today(monkeypatch, db_session, date(2026, 11, 1))
     body = await _read(client, student_id, headers)
     assert len(body['charges']) == 1
     november = body['charges'][0]
@@ -145,7 +150,7 @@ async def test_inactive_or_exempt_enrollment_generates_nothing(
         billing_start_month='2027-01-01',
         **kwargs,
     )
-    _freeze_today(monkeypatch, date(2027, 3, 2))
+    await _freeze_today(monkeypatch, db_session, date(2027, 3, 2))
 
     body = await _read(client, student_id, headers)
 
@@ -219,7 +224,7 @@ async def _billing_student(
         due_day=15,
         billing_start_month='2027-03-01',
     )
-    _freeze_today(monkeypatch, date(2027, 3, 2))
+    await _freeze_today(monkeypatch, db_session, date(2027, 3, 2))
     body = await _read(client, student_id, headers)
 
     return {
@@ -476,7 +481,7 @@ async def _two_months_student(
         due_day=15,
         billing_start_month='2027-01-01',
     )
-    _freeze_today(monkeypatch, date(2027, 2, 20))
+    await _freeze_today(monkeypatch, db_session, date(2027, 2, 20))
     body = await _read(client, student_id, headers)
     feb, jan = body['charges']
 
@@ -700,7 +705,7 @@ async def test_new_student_gets_fee_now_and_first_monthly_next_month(
     # Cadastro pela API em 20/10/2026 com vencimento dia 10
     headers = await auth_headers(client)
     taekwondo = await add_modality(db_session, 'Taekwondo')
-    _freeze_today(monkeypatch, date(2026, 10, 20))
+    await _freeze_today(monkeypatch, db_session, date(2026, 10, 20))
     created = await client.post(
         '/api/v1/students',
         headers=headers,
@@ -724,7 +729,7 @@ async def test_new_student_gets_fee_now_and_first_monthly_next_month(
         ('enrollment_fee', '2026-10-20')
     ]
 
-    _freeze_today(monkeypatch, date(2026, 11, 1))
+    await _freeze_today(monkeypatch, db_session, date(2026, 11, 1))
     body = await _read(client, student_id, headers)
     assert [(c['kind'], c['due_date']) for c in body['charges']] == [
         ('monthly', '2026-11-10'),
@@ -755,7 +760,7 @@ async def _overdue_student(  # noqa: PLR0913
         phone=phone,
         birth_date=birth_date,
     )
-    _freeze_today(monkeypatch, date(2027, 2, 20))
+    await _freeze_today(monkeypatch, db_session, date(2027, 2, 20))
     return {'headers': headers, 'student_id': student_id}
 
 
@@ -773,11 +778,11 @@ async def test_whatsapp_url_only_for_overdue(
     ctx = await _overdue_student(client, db_session, monkeypatch)
 
     # 10/01: janeiro ainda a vencer → sem link
-    _freeze_today(monkeypatch, date(2027, 1, 10))
+    await _freeze_today(monkeypatch, db_session, date(2027, 1, 10))
     body = await _read(client, ctx['student_id'], ctx['headers'])
     assert body['whatsapp_url'] is None
 
-    _freeze_today(monkeypatch, date(2027, 2, 20))
+    await _freeze_today(monkeypatch, db_session, date(2027, 2, 20))
     body = await _read(client, ctx['student_id'], ctx['headers'])
     assert body['whatsapp_url'].startswith('https://wa.me/5562999990001?text=')
 
@@ -989,7 +994,7 @@ async def test_overview_counts_and_filters(
         due_day=10,
         billing_start_month='2027-02-01',
     )
-    await _read(client, carla, headers)
+    await generate_charges(db_session, date(2027, 2, 20))
     paid = await _pay(client, {'headers': headers, 'url': _url(carla)}, '90')
     assert paid.status_code == HTTPStatus.CREATED, paid.text
 
@@ -1092,7 +1097,7 @@ async def test_overview_lists_students_alphabetically_ignoring_accents(
             due_day=5,
             billing_start_month=start,
         )
-    _freeze_today(monkeypatch, date(2027, 2, 20))
+    await _freeze_today(monkeypatch, db_session, date(2027, 2, 20))
 
     for filter_name in ('overdue', 'all'):
         response = await client.get(

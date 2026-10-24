@@ -255,8 +255,9 @@ class BillingService:
     ) -> int:
         """Cria as mensalidades que faltam até o mês de hoje.
 
-        academy_id=None: todas as academias (disparo diário). Pode rodar
-        quantas vezes quiser: um mês que já existe nunca é criado de novo.
+        academy_id=None: todas as academias (o worker, no dia 1º e ao
+        ligar). Pode rodar quantas vezes quiser: um mês que já existe nunca
+        é criado de novo. As telas não geram: mostram o que existe.
         """
         this_month = today.replace(day=1)
 
@@ -327,7 +328,7 @@ class BillingService:
         if not values:
             return 0
 
-        # Duas gerações ao mesmo tempo (disparo diário + tela aberta):
+        # Duas gerações ao mesmo tempo (agenda + conferência ao ligar):
         # a constraint única barra a segunda, sem erro
         created = await self.db_session.scalars(
             insert(Payment)
@@ -445,8 +446,6 @@ class BillingService:
         today: date | None = None,
     ) -> StudentBillingRead:
         today = today or local_today()
-        await self.ensure_monthly_charges(academy_id, today)
-
         charges = await self._charges(
             academy_id, today, Enrollment.student_id == student_id
         )
@@ -720,9 +719,6 @@ class BillingService:
     ) -> Decimal:
         """Baixa em lote: um pagamento por aluno, numa transação só (se um
         falhar, nenhum entra). Cada um segue a regra da baixa individual."""
-        # As mensalidades do mês nascem quando alguém abre as telas; garante
-        # que existam antes de abater
-        await self.ensure_monthly_charges(academy_id, local_today())
         total = ZERO
 
         for student_id, amount in items:
@@ -931,7 +927,6 @@ class BillingService:
 
         student_id, academy_id, academy_name = row
         today = today or local_today()
-        await self.ensure_monthly_charges(academy_id, today)
         overdue = sorted(
             (
                 c
@@ -1015,7 +1010,6 @@ class BillingService:
         self, academy_id: int, month: date, today: date
     ) -> list[ChargeRead]:
         """Tudo em aberto (qualquer mês) e tudo do mês escolhido."""
-        await self.ensure_monthly_charges(academy_id, today)
         return await self._charges(
             academy_id,
             today,
