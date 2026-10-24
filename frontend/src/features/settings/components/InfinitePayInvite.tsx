@@ -1,5 +1,5 @@
-import { CircleCheck, Zap } from 'lucide-react'
-import { useState } from 'react'
+import { Check, Zap } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -30,7 +30,12 @@ export function InfinitePayInvite() {
   // continua funcionando
   if (!status.data) return null
 
-  const { enabled, handle, tested_at: testedAt } = status.data
+  const {
+    enabled,
+    handle,
+    tested_at: testedAt,
+    key_last4: keyLast4,
+  } = status.data
 
   async function turnOff() {
     try {
@@ -43,22 +48,36 @@ export function InfinitePayInvite() {
   }
 
   return (
-    <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
+    <div
+      className={
+        enabled
+          ? // Ligada: verde-claro com a faixa verde-musgo à esquerda (opção
+            // "C2 + etiquetas" escolhida pelo Thiago em 24/10)
+            'rounded-2xl border border-chip-active-border border-l-[6px] border-l-sidebar-primary bg-chip-active p-4'
+          : 'rounded-2xl border border-primary/30 bg-primary/5 p-4'
+      }
+    >
       {enabled ? (
         // No celular, os botões vão para baixo do texto
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <p className="flex min-w-0 flex-1 items-start gap-2 text-sm">
-            <CircleCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-            <span>
-              <strong>Baixa automática ligada</strong> · ${handle}
-              {testedAt && (
-                <span className="text-muted-foreground">
-                  {' '}
-                  · testada em {formatDay(testedAt)}
-                </span>
-              )}
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-[14px] bg-sidebar-primary text-primary-foreground">
+              <Check className="size-6" strokeWidth={3} />
             </span>
-          </p>
+            <div className="min-w-0 space-y-1.5">
+              <p className="text-base leading-tight font-bold text-chip-active-foreground">
+                Baixa automática ligada
+              </p>
+              <p className="text-xs text-chip-active-foreground/85">
+                Pagamentos pela InfinitePay entram sozinhos.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <Tag strong>${handle}</Tag>
+                {keyLast4 && <Tag strong>chave ••••{keyLast4}</Tag>}
+                {testedAt && <Tag>testada em {formatDay(testedAt)}</Tag>}
+              </div>
+            </div>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
@@ -116,5 +135,20 @@ export function InfinitePayInvite() {
         onConfirm={turnOff}
       />
     </div>
+  )
+}
+
+// Etiqueta com um detalhe da conexão (tag, final da chave, data do teste)
+function Tag({ children, strong }: { children: ReactNode; strong?: boolean }) {
+  return (
+    <span
+      className={
+        strong
+          ? 'rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold'
+          : 'rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground'
+      }
+    >
+      {children}
+    </span>
   )
 }
