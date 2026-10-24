@@ -111,3 +111,22 @@ class PixKeyType(str, enum.Enum):
     PHONE = 'phone'
     EMAIL = 'email'
     RANDOM = 'random'
+
+
+class PaymentSource(str, enum.Enum):
+    """Quem lançou a baixa."""
+
+    MANUAL = 'manual'
+    INFINITEPAY = 'infinitepay'
+
+
+class CheckoutStatus(str, enum.Enum):
+    """Situação de um link de checkout da InfinitePay."""
+
+    OPEN = 'open'
+    PAID = 'paid'
+    # Baixa manual no meio do caminho: o Katsuflow não reaproveita mais
+    CANCELED = 'canceled'
+    # Pago, mas o valor em aberto mudou: o mestre confere
+    REVIEW = 'review'
+    RESOLVED = 'resolved'

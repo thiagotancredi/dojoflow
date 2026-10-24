@@ -1,7 +1,13 @@
-from sqlalchemy import ForeignKey
+from datetime import datetime
+
+from sqlalchemy import Boolean, ForeignKey, false
 from sqlalchemy.orm import Mapped, mapped_column
 
-from dojoflow.database.helper_mapped_columns import enum_column, str_column
+from dojoflow.database.helper_mapped_columns import (
+    datetime_column,
+    enum_column,
+    str_column,
+)
 from dojoflow.models.base_model import BaseModel
 from dojoflow.shared.enums import PixKeyType
 
@@ -29,4 +35,19 @@ class AcademyBillingSettings(BaseModel):
     message_template: Mapped[str | None] = str_column(
         length=1000,
         nullable=True,
+    )
+
+    # Baixa automática pela InfinitePay (opcional)
+    infinitepay_handle: Mapped[str | None] = str_column(
+        length=60, nullable=True
+    )
+    # Cifrada (core.crypto); nunca volta pela API
+    infinitepay_api_key: Mapped[str | None] = str_column(
+        length=500, nullable=True
+    )
+    infinitepay_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    infinitepay_tested_at: Mapped[datetime | None] = datetime_column(
+        nullable=True
     )

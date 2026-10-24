@@ -1,7 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy.orm import Mapped
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.orm import Mapped, mapped_column
 
 from dojoflow.database.helper_mapped_columns import (
     date_column,
@@ -11,7 +12,7 @@ from dojoflow.database.helper_mapped_columns import (
     str_column,
 )
 from dojoflow.models.base_model import BaseModel
-from dojoflow.shared.enums import PaymentMethod
+from dojoflow.shared.enums import PaymentMethod, PaymentSource
 
 
 class PaymentTransaction(BaseModel):
@@ -34,4 +35,16 @@ class PaymentTransaction(BaseModel):
     notes: Mapped[str | None] = str_column(
         length=255,
         nullable=True,
+    )
+
+    # Manual (o mestre) ou automática (InfinitePay)
+    source: Mapped[PaymentSource] = mapped_column(
+        SQLEnum(
+            PaymentSource,
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
+            native_enum=False,
+        ),
+        default=PaymentSource.MANUAL,
+        server_default=PaymentSource.MANUAL.value,
+        nullable=False,
     )
