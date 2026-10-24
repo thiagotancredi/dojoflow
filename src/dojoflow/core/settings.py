@@ -24,6 +24,9 @@ class Settings(BaseSettings):
         'postgresql+psycopg://postgres:password@localhost:5432/dojoflow'
     )
 
+    # Fila do worker (Celery). Local: o Redis do compose.yml (porta 6380)
+    REDIS_URL: str = 'redis://localhost:6380/0'
+
     JWT_SECRET: str = DEFAULT_JWT_SECRET
     JWT_ALGORITHM: str = 'HS256'
     JWT_ACCESS_TTL_MINUTES: int = 30
