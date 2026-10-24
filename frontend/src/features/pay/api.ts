@@ -2,6 +2,7 @@ import { api, type Schemas, unwrap } from '@/lib/api/client'
 import { useResource } from '@/lib/hooks/useResource'
 
 export type PublicPayment = Schemas['PublicPaymentRead']
+export type PayConfirm = Schemas['PayConfirmApi']
 
 // Página pública /pagar/:token (sem login: o código do link é o segredo)
 export function getPublicPayment(token: string, signal?: AbortSignal) {
@@ -16,6 +17,27 @@ export function getPublicPayment(token: string, signal?: AbortSignal) {
 export function usePublicPayment(token: string | undefined) {
   return useResource(token ? `public-pay:${token}` : null, (signal) =>
     getPublicPayment(token ?? '', signal),
+  )
+}
+
+// "Pagar mensalidade": o endereço do checkout da InfinitePay com tudo o
+// que está em aberto
+export function createCheckout(token: string) {
+  return unwrap(
+    api.POST('/api/v1/public/pay/{token}/checkout', {
+      params: { path: { token } },
+    }),
+  )
+}
+
+// Volta do checkout: manda os dados que a InfinitePay acrescentou ao
+// endereço; o servidor confere e dá a baixa (a página acompanha pelo GET)
+export function confirmPayment(token: string, body: PayConfirm) {
+  return unwrap(
+    api.POST('/api/v1/public/pay/{token}/confirm', {
+      params: { path: { token } },
+      body,
+    }),
   )
 }
 

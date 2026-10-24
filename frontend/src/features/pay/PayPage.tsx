@@ -1,28 +1,50 @@
-import { Check, CircleCheck, Copy } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router'
+import { Check, CircleCheck, Copy, Loader2, ShieldCheck } from 'lucide-react'
+import {
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from 'react'
+import { useParams, useSearchParams } from 'react-router'
 
 import logo from '@/assets/brand/logo-light.png'
 import { Button } from '@/components/ui/button'
 import { applyMode, currentMode } from '@/app/theme'
 import {
+  confirmPayment,
+  createCheckout,
   isInvalidLink,
+  type PayConfirm,
   type PublicPayment,
   usePublicPayment,
 } from '@/features/pay/api'
+import { messageFor } from '@/lib/api/errors'
 import { formatMoney } from '@/lib/money'
 
-// Página que o aluno abre pelo link da cobrança do WhatsApp:
-// o que está vencido e o botão que copia o código Pix (copia e cola)
+// Volta do checkout: confere a cada 2 s, por até 30 s
+const CONFIRM_POLL_MS = 2000
+const CONFIRM_TIMEOUT_MS = 30000
+
+// Página que o aluno abre pelo link da cobrança do WhatsApp: o que está
+// vencido e como pagar — o código Pix (copia e cola) ou, com a baixa
+// automática ligada, o botão que leva ao checkout da InfinitePay
 export function PayPage() {
   const { token } = useParams()
   const payment = usePublicPayment(token)
+  const confirming = useReturnFromCheckout(token, payment.refetch)
+  const stillOpen = payment.data?.status !== 'clear'
   useLightMode()
 
   return (
     <div className="min-h-svh bg-background pb-6 text-foreground">
       {payment.data ? (
-          <PaymentView data={payment.data} />
+        <PaymentView
+          token={token ?? ''}
+          data={payment.data}
+          confirming={confirming.active && stillOpen}
+          justPaid={confirming.started && !stillOpen}
+        />
       ) : payment.isLoading ? (
         <Message>Carregando…</Message>
       ) : isInvalidLink(payment.error) ? (
@@ -56,7 +78,70 @@ function useLightMode() {
   }, [])
 }
 
-function PaymentView({ data }: { data: PublicPayment }) {
+// O aluno voltou do checkout: a InfinitePay acrescenta ao endereço
+// order_nsu, transaction_nsu, slug (e receipt_url). Manda isso ao servidor
+// uma vez, limpa o endereço e recarrega a página até a baixa aparecer
+// (ou até o tempo acabar: aí volta à tela normal).
+function useReturnFromCheckout(token: string | undefined, reload: () => void) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [deadline, setDeadline] = useState<number | null>(null)
+  const [started, setStarted] = useState(false)
+  // Guarda contra mandar duas vezes (o React de dev roda efeitos 2x)
+  const sent = useRef(false)
+
+  const orderNsu = searchParams.get('order_nsu')
+  const transactionNsu = searchParams.get('transaction_nsu')
+  const slug = searchParams.get('slug')
+  const receiptUrl = searchParams.get('receipt_url')
+
+  useEffect(() => {
+    if (!token || !orderNsu || !transactionNsu || !slug || sent.current) {
+      return
+    }
+    sent.current = true
+    const body: PayConfirm = {
+      order_nsu: orderNsu,
+      transaction_nsu: transactionNsu,
+      slug,
+      receipt_url: receiptUrl,
+    }
+    // Endereço limpo: recarregar a página não manda de novo
+    setSearchParams({}, { replace: true })
+    setStarted(true)
+    setDeadline(Date.now() + CONFIRM_TIMEOUT_MS)
+    // Se falhar, o aviso da InfinitePay ainda dá a baixa; a página só
+    // continua conferindo até o tempo acabar
+    confirmPayment(token, body).catch(() => {})
+  }, [token, orderNsu, transactionNsu, slug, receiptUrl, setSearchParams])
+
+  // useEffectEvent: o intervalo sempre chama o "reload" mais recente
+  const tick = useEffectEvent(() => {
+    if (deadline !== null && Date.now() > deadline) setDeadline(null)
+    else reload()
+  })
+
+  useEffect(() => {
+    if (deadline === null) return
+    const timer = setInterval(tick, CONFIRM_POLL_MS)
+    return () => clearInterval(timer)
+  }, [deadline])
+
+  return { active: deadline !== null, started }
+}
+
+function PaymentView({
+  token,
+  data,
+  confirming,
+  justPaid,
+}: {
+  token: string
+  data: PublicPayment
+  // Voltou do checkout e a baixa ainda não apareceu
+  confirming: boolean
+  // Voltou do checkout e a baixa já entrou
+  justPaid: boolean
+}) {
   const count = data.items.length
 
   return (
@@ -79,9 +164,13 @@ function PaymentView({ data }: { data: PublicPayment }) {
             <p className="mt-2 text-[11px] font-bold tracking-wide text-muted-foreground uppercase">
               Olá, {data.greeting_name}
             </p>
-            <p className="mt-1 text-lg font-bold">Tudo em dia!</p>
+            <p className="mt-1 text-lg font-bold">
+              {justPaid ? 'Pagamento recebido!' : 'Tudo em dia!'}
+            </p>
             <p className="text-sm text-muted-foreground">
-              Nenhuma mensalidade pendente.
+              {justPaid
+                ? 'Obrigado! Sua mensalidade está em dia.'
+                : 'Nenhuma mensalidade pendente.'}
             </p>
           </section>
         ) : (
@@ -123,13 +212,25 @@ function PaymentView({ data }: { data: PublicPayment }) {
                 <div>
                   <p className="text-sm font-semibold">{data.recipient_name}</p>
                   <p className="text-xs text-muted-foreground">
-                    Recebe pelo Pix
+                    {data.checkout_enabled
+                      ? 'Recebe pela InfinitePay (Pix ou cartão)'
+                      : 'Recebe pelo Pix'}
                   </p>
                 </div>
               </div>
             </Card>
 
-            {data.pix_code ? (
+            {confirming ? (
+              <p
+                role="status"
+                className="flex items-center justify-center gap-2 py-4 text-sm font-semibold"
+              >
+                <Loader2 className="size-4 animate-spin" />
+                Confirmando seu pagamento…
+              </p>
+            ) : data.checkout_enabled ? (
+              <CheckoutButton token={token} count={count} />
+            ) : data.pix_code ? (
               <CopyPixCode code={data.pix_code} total={data.total} />
             ) : (
               <p className="py-2 text-center text-sm text-muted-foreground">
@@ -140,6 +241,48 @@ function PaymentView({ data }: { data: PublicPayment }) {
         )}
       </div>
     </main>
+  )
+}
+
+// Baixa automática ligada: um caminho só, o checkout da InfinitePay
+function CheckoutButton({ token, count }: { token: string; count: number }) {
+  const [isPending, setIsPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function goToCheckout() {
+    setIsPending(true)
+    setError(null)
+    try {
+      const { url } = await createCheckout(token)
+      // Sai do Katsuflow para a página segura da InfinitePay
+      window.location.assign(url)
+    } catch (caught) {
+      setError(messageFor(caught))
+      setIsPending(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2 pt-2">
+      <Button
+        size="lg"
+        className="h-12 w-full rounded-full text-base font-bold"
+        disabled={isPending}
+        onClick={goToCheckout}
+      >
+        {isPending ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
+        {count > 1 ? 'Pagar mensalidades' : 'Pagar mensalidade'}
+      </Button>
+      {error && (
+        <p role="alert" className="text-center text-sm text-destructive">
+          {error}
+        </p>
+      )}
+      <p className="text-center text-xs text-muted-foreground">
+        Você vai para a página segura da InfinitePay. Lá você escolhe Pix ou
+        cartão e confirma com um código que chega no seu WhatsApp.
+      </p>
+    </div>
   )
 }
 
