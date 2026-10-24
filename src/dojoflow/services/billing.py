@@ -132,6 +132,7 @@ class DashboardBilling:
 class Contact:
     name: str
     phone: str | None
+    email: str | None = None
 
 
 @dataclass(frozen=True)
@@ -142,6 +143,7 @@ class StudentContact:
     birth_date: date | None
     responsibles: tuple[Contact, ...]
     pay_token: str
+    email: str | None = None
 
 
 def choose_recipient(
@@ -152,7 +154,7 @@ def choose_recipient(
     Menor de 18 com responsável com telefone: o primeiro responsável.
     Senão o próprio aluno; sem telefone dele, um responsável.
     """
-    own = [(Contact(student.name, student.phone), False)]
+    own = [(Contact(student.name, student.phone, student.email), False)]
     responsibles = [(contact, True) for contact in student.responsibles]
     is_minor = (
         student.birth_date is not None
@@ -243,7 +245,7 @@ def _refresh_paid_status(charge: Payment, paid_on: date | None) -> None:
     charge.paid_at = None
 
 
-class BillingService:
+class BillingService:  # noqa: PLR0904
     def __init__(self, db_session: AsyncSession) -> None:
         self.db_session = db_session
 
@@ -811,7 +813,7 @@ class BillingService:
             )
         )
 
-    async def _contacts(
+    async def contacts(
         self, academy_id: int, student_ids: set[int]
     ) -> dict[int, StudentContact]:
         if not student_ids:
@@ -826,6 +828,7 @@ class BillingService:
                     Student.phone,
                     Student.birth_date,
                     Student.pay_token,
+                    Student.email,
                 ).where(
                     Student.academy_id == academy_id,
                     Student.id.in_(student_ids),
@@ -838,6 +841,7 @@ class BillingService:
                     StudentResponsible.student_id,
                     Responsible.name,
                     Responsible.phone,
+                    Responsible.email,
                 )
                 .join(
                     Responsible,
@@ -854,7 +858,7 @@ class BillingService:
         responsibles: dict[int, list[Contact]] = {}
         for link in links:
             responsibles.setdefault(link.student_id, []).append(
-                Contact(link.name, link.phone)
+                Contact(link.name, link.phone, link.email)
             )
 
         return {
@@ -865,6 +869,7 @@ class BillingService:
                 birth_date=row.birth_date,
                 responsibles=tuple(responsibles.get(row.id, [])),
                 pay_token=row.pay_token,
+                email=row.email,
             )
             for row in students
         }
@@ -927,26 +932,20 @@ class BillingService:
 
         student_id, academy_id, academy_name = row
         today = today or local_today()
-        overdue = sorted(
-            (
-                c
-                for c in await self._charges(
-                    academy_id, today, Enrollment.student_id == student_id
-                )
-                if c.status == 'overdue'
-            ),
-            key=lambda c: (c.reference_month, c.kind is PaymentKind.MONTHLY),
-        )
-        contact = (await self._contacts(academy_id, {student_id}))[student_id]
+        overdue = await self.overdue_for_student(academy_id, student_id, today)
+        contact = (await self.contacts(academy_id, {student_id}))[student_id]
         recipient = choose_recipient(contact, today)
         to_responsible = recipient is not None and recipient[1]
         greeting = recipient[0].name if recipient else contact.name
         settings = await self.get_settings(academy_id)
         total = sum((c.open_amount for c in overdue), ZERO)
 
+        checkout_enabled = await self.checkout_enabled(academy_id)
+
         pix_code = None
         if (
             overdue
+            and not checkout_enabled
             and settings.pix_key
             and settings.pix_key_type
             and settings.pix_city
@@ -984,7 +983,52 @@ class BillingService:
             total=total.quantize(CENTS),
             recipient_name=settings.recipient_name or academy_name,
             pix_code=pix_code,
+            checkout_enabled=checkout_enabled,
         )
+
+    async def pay_token_owner(self, token: str) -> tuple[int, int] | None:
+        """(academy_id, student_id) do dono do link /pagar; None quando o
+        código não existe ou a academia está bloqueada."""
+        row = (
+            await self.db_session.execute(
+                select(Student.academy_id, Student.id)
+                .join(Academy, Academy.id == Student.academy_id)
+                .where(
+                    Student.pay_token == token,
+                    Academy.status == AcademyStatus.ACTIVE,
+                )
+            )
+        ).one_or_none()
+        return (row.academy_id, row.id) if row else None
+
+    async def overdue_for_student(
+        self, academy_id: int, student_id: int, today: date
+    ) -> list[ChargeRead]:
+        """O que o aluno deve hoje (vencido), do mais antigo ao mais novo:
+        é o que a página /pagar mostra e o que o checkout cobra."""
+        return sorted(
+            (
+                c
+                for c in await self._charges(
+                    academy_id, today, Enrollment.student_id == student_id
+                )
+                if c.status == 'overdue'
+            ),
+            key=lambda c: (c.reference_month, c.kind is PaymentKind.MONTHLY),
+        )
+
+    async def checkout_enabled(self, academy_id: int) -> bool:
+        """Baixa automática ligada (tag e chave salvas e testadas)."""
+        row = (
+            await self.db_session.execute(
+                select(
+                    AcademyBillingSettings.infinitepay_enabled,
+                    AcademyBillingSettings.infinitepay_handle,
+                    AcademyBillingSettings.infinitepay_api_key,
+                ).where(AcademyBillingSettings.academy_id == academy_id)
+            )
+        ).one_or_none()
+        return bool(row and row[0] and row[1] and row[2])
 
     async def _whatsapp_url_for(
         self,
@@ -997,7 +1041,7 @@ class BillingService:
         if not overdue:
             return None
 
-        contacts = await self._contacts(academy_id, {student_id})
+        contacts = await self.contacts(academy_id, {student_id})
         return whatsapp_url(
             contacts[student_id],
             overdue,
@@ -1059,7 +1103,7 @@ class BillingService:
         for charge in scope:
             by_student.setdefault(charge.student_id, []).append(charge)
 
-        contacts = await self._contacts(academy_id, set(by_student))
+        contacts = await self.contacts(academy_id, set(by_student))
         # "Em aberto" é sempre o que o aluno deve (todos os meses); o filtro
         # só decide quais alunos aparecem
         owed: dict[int, Decimal] = {}
@@ -1151,7 +1195,7 @@ class BillingService:
             ),
             key=lambda c: (c.due_date, c.id),
         )
-        contacts = await self._contacts(
+        contacts = await self.contacts(
             academy_id, {c.student_id for c in [*overdue, *due_soon]}
         )
 

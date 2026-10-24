@@ -3,8 +3,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, status
 
 from dojoflow.api.dependencies.billing import BillingServiceDep
+from dojoflow.api.dependencies.infinitepay import InfinitePayServiceDep
 from dojoflow.api.dependencies.rate_limit import public_pay_limiter
-from dojoflow.schemas.public_pay import PublicPaymentRead
+from dojoflow.schemas.public_pay import PublicCheckoutRead, PublicPaymentRead
 from dojoflow.shared.exceptions import NotFoundError
 
 # Rotas sem login: quem tem o link abre (o código é o segredo)
@@ -26,3 +27,18 @@ async def read_public_payment(
         raise NotFoundError('Payment link not found.', code='PAY_LINK_INVALID')
 
     return payment
+
+
+@router.post(
+    path='/pay/{token}/checkout',
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(public_pay_limiter)],
+)
+async def create_public_checkout(
+    token: Annotated[str, Path(max_length=64)],
+    infinitepay_service_dep: InfinitePayServiceDep,
+) -> PublicCheckoutRead:
+    """ "Pagar mensalidade": devolve o checkout da InfinitePay."""
+    return PublicCheckoutRead(
+        url=await infinitepay_service_dep.checkout_for_token(token)
+    )

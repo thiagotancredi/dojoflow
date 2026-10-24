@@ -3,12 +3,18 @@
 import json
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 
 import httpx
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.api.dependencies.infinitepay import get_infinitepay_client
+from dojoflow.core.crypto import encrypt_secret
 from dojoflow.integrations.infinitepay.client import InfinitePayClient
 from dojoflow.main import app
+from dojoflow.models.academy_billing_settings import AcademyBillingSettings
+from tests.helpers.auth import SEED
 
 Handler = Callable[[httpx.Request], httpx.Response]
 
@@ -71,3 +77,34 @@ def fake_infinitepay(
         yield fake
     finally:
         app.dependency_overrides.pop(get_infinitepay_client, None)
+
+
+API_KEY = 'inchk_live_SUPERSECRETkey9876'
+
+
+async def enable_infinitepay(
+    session: AsyncSession,
+    academy_id: int | None = None,
+    handle: str = 'katsuflow',
+    enabled: bool = True,
+) -> None:
+    """Academia com a baixa automática ligada (direto no banco)."""
+    await session.execute(
+        insert(AcademyBillingSettings)
+        .values(
+            academy_id=academy_id or SEED.academy_id,
+            infinitepay_handle=handle,
+            infinitepay_api_key=encrypt_secret(API_KEY),
+            infinitepay_enabled=enabled,
+            infinitepay_tested_at=datetime.now(UTC),
+        )
+        .on_conflict_do_update(
+            index_elements=[AcademyBillingSettings.academy_id],
+            set_={
+                'infinitepay_handle': handle,
+                'infinitepay_api_key': encrypt_secret(API_KEY),
+                'infinitepay_enabled': enabled,
+            },
+        )
+    )
+    await session.commit()

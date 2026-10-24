@@ -1,7 +1,9 @@
 """Regras da baixa automática pela InfinitePay."""
 
+import logging
+import secrets
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -9,6 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.core.crypto import decrypt_secret, encrypt_secret
+from dojoflow.core.settings import settings as app_settings
 from dojoflow.database.transaction import transactional
 from dojoflow.integrations.infinitepay.client import (
     InfinitePayCheckoutDisabled,
@@ -16,10 +19,20 @@ from dojoflow.integrations.infinitepay.client import (
     InfinitePayKeyRejected,
     InfinitePayUnavailable,
 )
-from dojoflow.integrations.infinitepay.schemas import CheckoutItem
+from dojoflow.integrations.infinitepay.schemas import (
+    CheckoutCustomer,
+    CheckoutItem,
+)
 from dojoflow.models.academy_billing_settings import AcademyBillingSettings
+from dojoflow.models.infinitepay_checkout import InfinitePayCheckout
 from dojoflow.schemas.infinitepay_api import InfinitePayStatusApi
-from dojoflow.shared.exceptions import ConflictError
+from dojoflow.services import billing as billing_module
+from dojoflow.services.billing import BillingService, choose_recipient
+from dojoflow.services.billing_rules import whatsapp_phone
+from dojoflow.shared.enums import CheckoutStatus
+from dojoflow.shared.exceptions import ConflictError, NotFoundError
+
+logger = logging.getLogger(__name__)
 
 KEY_REJECTED_MESSAGE = (
     'A chave de API não foi aceita. Crie uma chave nova no app da '
@@ -36,6 +49,34 @@ UNAVAILABLE_MESSAGE = (
 
 TEST_LINK_DESCRIPTION = 'Teste de conexão Katsuflow'
 TEST_LINK_PRICE = Decimal('1.00')
+# Toques repetidos em "Pagar mensalidade" reaproveitam o mesmo link
+# (o Pix do checkout vale 72 h; 24 h deixa folga)
+LINK_REUSE_WINDOW = timedelta(hours=24)
+
+
+def webhook_url() -> str:
+    return (
+        f'{app_settings.WEB_APP_URL}{app_settings.API_V1_PREFIX}'
+        '/public/webhooks/infinitepay'
+    )
+
+
+def _customer(
+    contact: billing_module.StudentContact, today: date
+) -> CheckoutCustomer:
+    """Quem paga: a mesma regra do WhatsApp (menor → responsável)."""
+    recipient = choose_recipient(contact, today)
+    person = (
+        recipient[0]
+        if recipient
+        else billing_module.Contact(contact.name, None, contact.email)
+    )
+    phone = whatsapp_phone(person.phone)
+    return CheckoutCustomer(
+        name=' '.join(person.name.split()),
+        phone_number=f'+{phone}' if phone else None,
+        email=person.email or None,
+    )
 
 
 def infinitepay_error(error: Exception) -> ConflictError:
@@ -134,3 +175,98 @@ class InfinitePayService:
                 set_={**values, 'updated_at': func.now()},
             )
         )
+
+    async def checkout_for_token(
+        self, token: str, today: date | None = None
+    ) -> str:
+        """URL do checkout com tudo o que o aluno deve hoje.
+
+        Reaproveita o link aberto do aluno com o mesmo valor (criado há
+        menos de 24 h); senão cria um novo na InfinitePay.
+        """
+        billing = BillingService(self.db_session)
+        owner = await billing.pay_token_owner(token)
+        if owner is None:
+            raise NotFoundError(
+                'Payment link not found.', code='PAY_LINK_INVALID'
+            )
+        academy_id, student_id = owner
+
+        settings = await self._settings(academy_id)
+        if not await billing.checkout_enabled(academy_id):
+            raise ConflictError(
+                'A baixa automática não está ligada nesta academia.',
+                code='INFINITEPAY_DISABLED',
+            )
+
+        today = today or billing_module.local_today()
+        page = await billing.public_payment(token, today)
+        if page is None or page.status == 'clear':
+            raise ConflictError(
+                'Este aluno não tem nada em aberto.', code='NOTHING_TO_PAY'
+            )
+
+        reusable = await self.db_session.scalar(
+            select(InfinitePayCheckout.url)
+            .where(
+                InfinitePayCheckout.academy_id == academy_id,
+                InfinitePayCheckout.student_id == student_id,
+                InfinitePayCheckout.status == CheckoutStatus.OPEN,
+                InfinitePayCheckout.amount == page.total,
+                InfinitePayCheckout.created_at
+                > func.now() - LINK_REUSE_WINDOW,
+            )
+            .order_by(InfinitePayCheckout.id.desc())
+            .limit(1)
+        )
+        if reusable:
+            return reusable
+
+        contacts = await billing.contacts(academy_id, {student_id})
+        order_nsu = secrets.token_urlsafe(24)
+        try:
+            url = await self.client.create_link(
+                decrypt_secret(settings.infinitepay_api_key),
+                order_nsu=order_nsu,
+                items=[
+                    CheckoutItem(
+                        description=item.label, quantity=1, price=item.amount
+                    )
+                    for item in page.items
+                ],
+                customer=_customer(contacts[student_id], today),
+                redirect_url=f'{app_settings.WEB_APP_URL}/pagar/{token}',
+                webhook_url=webhook_url(),
+            )
+        except (
+            InfinitePayKeyRejected,
+            InfinitePayCheckoutDisabled,
+            InfinitePayUnavailable,
+        ) as error:
+            # Para o aluno, qualquer falha é "tente de novo"; o motivo fica
+            # no log (sem a chave) para o suporte
+            logger.warning(
+                'InfinitePay checkout failed for academy %s: %s',
+                academy_id,
+                type(error).__name__,
+            )
+            raise ConflictError(
+                UNAVAILABLE_MESSAGE, code='INFINITEPAY_UNAVAILABLE'
+            ) from None
+
+        await self._add_checkout(
+            InfinitePayCheckout(
+                academy_id=academy_id,
+                student_id=student_id,
+                handle=settings.infinitepay_handle,
+                order_nsu=order_nsu,
+                amount=page.total,
+                url=url,
+                status=CheckoutStatus.OPEN,
+            )
+        )
+        return url
+
+    @transactional
+    async def _add_checkout(self, checkout: InfinitePayCheckout) -> None:
+        self.db_session.add(checkout)
