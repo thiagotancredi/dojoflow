@@ -1,5 +1,6 @@
 [default.extend-words]
 atual = "atual"
+converte = "converte"
 erro = "erro"
 erros = "erros"
 informe = "informe"

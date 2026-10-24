@@ -8,6 +8,7 @@ testes chamam o núcleo direto.
 import logging
 from datetime import date
 
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.integrations.infinitepay.client import (
@@ -42,9 +43,14 @@ def generate_monthly_charges() -> int:
 
 @celery_app.task(
     name='dojoflow.settle_infinitepay_payment',
-    autoretry_for=(InfinitePayUnavailable,),
+    # InfinitePay ou banco fora do ar (ou deadlock): tenta de novo
+    autoretry_for=(InfinitePayUnavailable, DBAPIError),
+    # 1 s, 2 s, 4 s… até 1 h entre tentativas, por cerca de 20 h: o aviso
+    # já teve resposta 200, então a InfinitePay não manda de novo
     retry_backoff=True,
-    max_retries=10,
+    retry_backoff_max=3600,
+    retry_jitter=False,
+    max_retries=30,
 )
 def settle_infinitepay_payment(
     order_nsu: str,

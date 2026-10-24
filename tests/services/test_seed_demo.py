@@ -7,11 +7,14 @@ from dojoflow.commands.seed_demo import (
     TKD,
     check_target,
     ensure_modalities,
+    reset,
     seed,
 )
 from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.belt import Belt
+from dojoflow.models.infinitepay_checkout import InfinitePayCheckout
 from dojoflow.models.modality import Modality
+from dojoflow.models.payment_transaction import PaymentTransaction
 from dojoflow.models.student import Student
 from tests.helpers.auth import SEED
 
@@ -85,3 +88,39 @@ async def test_seed_runs_on_academy_without_modalities(
     )
     assert created > 0
     assert students == created
+
+
+@pytest.mark.asyncio
+async def test_reset_removes_infinitepay_checkouts(db_session: AsyncSession):
+    # A academia de demonstração usou o checkout: o reset não pode travar
+    await _catalog(db_session)
+    created = await seed(db_session, SEED.academy_id, {})
+    await db_session.commit()
+    transaction = await db_session.scalar(
+        select(PaymentTransaction).where(
+            PaymentTransaction.academy_id == SEED.academy_id
+        )
+    )
+    db_session.add(
+        InfinitePayCheckout(
+            academy_id=SEED.academy_id,
+            student_id=transaction.student_id,
+            handle='katsuflow',
+            order_nsu='demo-order',
+            amount=transaction.gross_amount,
+            url='https://checkout.infinitepay.io/x',
+            payment_transaction_id=transaction.id,
+        )
+    )
+    await db_session.commit()
+
+    removed = await reset(db_session, SEED.academy_id)
+    await db_session.commit()
+
+    assert removed == created
+    assert (
+        await db_session.scalar(
+            select(func.count()).select_from(InfinitePayCheckout)
+        )
+        == 0
+    )

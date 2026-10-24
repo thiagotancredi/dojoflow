@@ -668,7 +668,7 @@ class BillingService:  # noqa: PLR0904
         await self.db_session.flush()
         return await self._charge(academy_id, charge_id, local_today())
 
-    async def _lock_student_charges(
+    async def lock_student_charges(
         self, academy_id: int, student_id: int
     ) -> dict[int, Payment]:
         # Duas baixas ao mesmo tempo para o mesmo aluno: a segunda espera a
@@ -785,7 +785,7 @@ class BillingService:  # noqa: PLR0904
         abertos do aluno: a página /pagar não os reaproveita mais.
         """
         today = local_today()
-        locked = await self._lock_student_charges(academy_id, student_id)
+        locked = await self.lock_student_charges(academy_id, student_id)
         plan = await self._plan_allocations(
             academy_id, student_id, amount, today
         )
@@ -840,7 +840,7 @@ class BillingService:  # noqa: PLR0904
         payment_id: int,
     ) -> None:
         """Desfaz a baixa: cada cobrança volta ao saldo de antes dela."""
-        locked = await self._lock_student_charges(academy_id, student_id)
+        locked = await self.lock_student_charges(academy_id, student_id)
         allocations = (
             await self.db_session.scalars(
                 select(PaymentAllocation).where(

@@ -255,3 +255,16 @@ async def test_infinitepay_settings_require_login(client: AsyncClient):
     response = await client.get(URL)
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+@pytest.mark.asyncio
+async def test_connect_sends_handle_in_test_link(client: AsyncClient):
+    # A tag vai no link de teste: a InfinitePay recusa tag inexistente
+    headers = await auth_headers(client)
+
+    with fake_infinitepay() as fake:
+        await client.put(
+            URL, headers=headers, json={**CONNECT, 'handle': '$KatsuFlow'}
+        )
+
+    assert fake.bodies('/links')[0]['handle'] == 'katsuflow'

@@ -555,3 +555,100 @@ async def test_settle_counts_only_payments_of_that_student(
         select(func.count()).select_from(PaymentTransaction)
     )
     assert count == 1
+
+
+@pytest.mark.parametrize(
+    'receipt',
+    [
+        'https://evil.example.com/recibo',
+        'javascript:alert(1)',
+        'http://recibo.infinitepay.io/abc',
+        'https://infinitepay.io.evil.com/x',
+    ],
+)
+@pytest.mark.asyncio
+async def test_webhook_drops_foreign_receipt_url(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, receipt: str
+):
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        tasks.settle_infinitepay_payment, 'delay', lambda **k: calls.append(k)
+    )
+
+    await client.post(
+        '/api/v1/public/webhooks/infinitepay',
+        json={
+            'order_nsu': ORDER,
+            'transaction_nsu': TX,
+            'invoice_slug': SLUG,
+            'receipt_url': receipt,
+        },
+    )
+
+    assert calls[0]['receipt_url'] is None
+
+
+@pytest.mark.asyncio
+async def test_confirm_drops_foreign_receipt_url(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _scenario(db_session, monkeypatch)
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        tasks.settle_infinitepay_payment, 'delay', lambda **k: calls.append(k)
+    )
+
+    await client.post(
+        f'/api/v1/public/pay/{ctx["token"]}/confirm',
+        json={
+            'order_nsu': ORDER,
+            'transaction_nsu': TX,
+            'slug': SLUG,
+            'receipt_url': 'https://phishing.example/recibo',
+        },
+    )
+
+    assert calls[0]['receipt_url'] is None
+
+
+@pytest.mark.asyncio
+async def test_two_links_paid_at_the_same_time_one_pays_one_reviews(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    # Dois links do mesmo aluno, mesmo valor, pagos juntos: um vira baixa e
+    # o outro "a conferir" (nunca some, nunca paga duas vezes)
+    ctx = await _scenario(db_session, monkeypatch)
+    db_session.add(
+        InfinitePayCheckout(
+            academy_id=SEED.academy_id,
+            student_id=ctx['student_id'],
+            handle='katsuflow',
+            order_nsu='order-second',
+            amount=Decimal('200.00'),
+            url='https://checkout.infinitepay.io/katsuflow/y',
+        )
+    )
+    await db_session.commit()
+    engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def settle(order: str, tx: str) -> CheckoutStatus | None:
+        async with sessions() as session:
+            return await _settle(
+                session,
+                FakeInfinitePay(payment_paid()),
+                order_nsu=order,
+                transaction_nsu=tx,
+            )
+
+    try:
+        results = await asyncio.gather(
+            settle(ORDER, 'tx-a'), settle('order-second', 'tx-b')
+        )
+    finally:
+        await engine.dispose()
+
+    assert sorted(r.value for r in results) == ['paid', 'review']
+    assert len(await _transactions(db_session)) == 1

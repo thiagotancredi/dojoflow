@@ -152,6 +152,7 @@ class InfinitePayService:
                 customer=None,
                 redirect_url=None,
                 webhook_url=None,
+                handle=handle,
             )
         except (
             InfinitePayKeyRejected,
@@ -247,6 +248,7 @@ class InfinitePayService:
                 customer=_customer(contacts[student_id], today),
                 redirect_url=f'{app_settings.WEB_APP_URL}/pagar/{token}',
                 webhook_url=webhook_url(),
+                handle=settings.infinitepay_handle,
             )
         except (
             InfinitePayKeyRejected,
@@ -260,6 +262,11 @@ class InfinitePayService:
                 academy_id,
                 type(error).__name__,
             )
+            # Chave apagada ou checkout desligado lá: desliga aqui também,
+            # para a página voltar ao Pix copia e cola (e o mestre ver na
+            # tela de Configurações que precisa ligar de novo)
+            if not isinstance(error, InfinitePayUnavailable):
+                await self._save(academy_id, infinitepay_enabled=False)
             raise ConflictError(
                 UNAVAILABLE_MESSAGE, code='INFINITEPAY_UNAVAILABLE'
             ) from None
@@ -318,6 +325,22 @@ class InfinitePayService:
         student_id: dono do link /pagar de onde o aluno voltou; um pedido
         de outro aluno é ignorado. None = aviso da InfinitePay.
         """
+        owner = (
+            await self.db_session.execute(
+                select(
+                    InfinitePayCheckout.academy_id,
+                    InfinitePayCheckout.student_id,
+                ).where(InfinitePayCheckout.order_nsu == order_nsu)
+            )
+        ).one_or_none()
+        if owner is None:
+            logger.info('InfinitePay notice for unknown order ignored.')
+            return None
+        # Mesma ordem de travas da baixa manual (cobranças do aluno, depois
+        # o link): sem deadlock, e dois links do mesmo aluno pagos juntos
+        # são conferidos um de cada vez
+        billing = BillingService(self.db_session)
+        await billing.lock_student_charges(owner.academy_id, owner.student_id)
         checkout = await self._lock_checkout(order_nsu, student_id)
         if checkout is None:
             return None
@@ -346,7 +369,6 @@ class InfinitePayService:
         checkout.installments = check.installments
         checkout.paid_at = datetime.now(UTC)
 
-        billing = BillingService(self.db_session)
         owed = sum(
             (
                 charge.open_amount
@@ -412,6 +434,10 @@ class InfinitePayService:
             slug=slug,
         )
         if not (check.success and check.paid):
+            # Tag errada também cai aqui: deixa rastro para o suporte
+            logger.warning(
+                'InfinitePay payment_check denied checkout %s.', checkout.id
+            )
             return None
         paid_amount = check.paid_amount or check.amount
         if paid_amount is None or paid_amount < checkout.amount:

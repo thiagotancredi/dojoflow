@@ -17,6 +17,7 @@ from dojoflow.shared.enums import CheckoutStatus
 from tests.helpers.auth import SEED, auth_headers
 from tests.helpers.infinitepay import (
     API_KEY,
+    checkout_disabled,
     enable_infinitepay,
     fake_infinitepay,
     key_rejected,
@@ -366,3 +367,71 @@ async def test_checkout_unknown_token_404(client: AsyncClient):
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.json()['code'] == 'PAY_LINK_INVALID'
     assert fake.requests == []
+
+
+@pytest.mark.asyncio
+async def test_checkout_sends_handle(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _student(db_session, monkeypatch)
+    await enable_infinitepay(db_session)
+
+    with fake_infinitepay() as fake:
+        await client.post(_checkout_url(ctx['token']))
+
+    assert fake.bodies('/links')[0]['handle'] == 'katsuflow'
+
+
+@pytest.mark.parametrize('failure', [key_rejected, checkout_disabled])
+@pytest.mark.asyncio
+async def test_checkout_refused_turns_integration_off(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    failure,
+):
+    # Chave apagada ou checkout desligado na InfinitePay: a página volta ao
+    # Pix copia e cola em vez de deixar o aluno sem como pagar
+    ctx = await _student(db_session, monkeypatch)
+    await client.put(
+        '/api/v1/academy/billing-settings',
+        headers=await auth_headers(client),
+        json={
+            'pix_key': 'dojo@exemplo.com',
+            'pix_key_type': 'email',
+            'pix_city': 'Goiânia',
+        },
+    )
+    await enable_infinitepay(db_session)
+
+    with fake_infinitepay(failure()):
+        response = await client.post(_checkout_url(ctx['token']))
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    page = (await client.get(f'/api/v1/public/pay/{ctx["token"]}')).json()
+    assert page['checkout_enabled'] is False
+    assert page['pix_code'] is not None
+    status = await client.get(
+        '/api/v1/academy/infinitepay', headers=await auth_headers(client)
+    )
+    assert status.json()['enabled'] is False
+
+
+@pytest.mark.asyncio
+async def test_checkout_network_failure_keeps_integration_on(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from tests.helpers.infinitepay import unreachable  # noqa: PLC0415
+
+    ctx = await _student(db_session, monkeypatch)
+    await enable_infinitepay(db_session)
+
+    with fake_infinitepay(unreachable()):
+        await client.post(_checkout_url(ctx['token']))
+
+    page = (await client.get(f'/api/v1/public/pay/{ctx["token"]}')).json()
+    assert page['checkout_enabled'] is True

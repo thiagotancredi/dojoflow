@@ -27,6 +27,9 @@ services:
   redis:
     image: redis:8-alpine
     restart: unless-stopped
+    # Grava a fila em disco: avisos da InfinitePay ainda não processados
+    # sobrevivem a um reinício
+    command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
     healthcheck:

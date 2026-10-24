@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -33,6 +34,17 @@ class InfinitePayConnectApi(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
+def _infinitepay_receipt(value: str | None) -> str | None:
+    """Recibo vem de quem chamou a rota (sem login): só fica se for um
+    endereço https da própria InfinitePay; senão é descartado."""
+    if not value:
+        return None
+    parts = urlsplit(value)
+    host = (parts.hostname or '').lower()
+    trusted = host == 'infinitepay.io' or host.endswith('.infinitepay.io')
+    return value if parts.scheme == 'https' and trusted else None
+
+
 class InfinitePayWebhookApi(BaseModel):
     """Aviso de pagamento da InfinitePay (só o que a conferência usa)."""
 
@@ -43,6 +55,11 @@ class InfinitePayWebhookApi(BaseModel):
     invoice_slug: str = Field(min_length=1, max_length=64)
     receipt_url: str | None = Field(default=None, max_length=500)
 
+    @field_validator('receipt_url')
+    @classmethod
+    def _trusted_receipt(cls, value: str | None) -> str | None:
+        return _infinitepay_receipt(value)
+
 
 class PayConfirmApi(BaseModel):
     """Volta do aluno do checkout (a InfinitePay acrescenta ao endereço)."""
@@ -51,6 +68,11 @@ class PayConfirmApi(BaseModel):
     transaction_nsu: str = Field(min_length=1, max_length=64)
     slug: str = Field(min_length=1, max_length=64)
     receipt_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator('receipt_url')
+    @classmethod
+    def _trusted_receipt(cls, value: str | None) -> str | None:
+        return _infinitepay_receipt(value)
 
 
 class PayConfirmRead(BaseModel):

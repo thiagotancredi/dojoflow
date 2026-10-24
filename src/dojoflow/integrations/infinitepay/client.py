@@ -78,8 +78,13 @@ class InfinitePayClient:
         customer: CheckoutCustomer | None,
         redirect_url: str | None,
         webhook_url: str | None,
+        handle: str | None = None,
     ) -> str:
-        """Cria o link de checkout e devolve a URL dele."""
+        """Cria o link de checkout e devolve a URL dele.
+
+        handle: a InfiniteTag; vai junto para a InfinitePay recusar uma tag
+        que não é da conta (o payment_check depois usa essa tag).
+        """
         body: dict[str, Any] = {
             'order_nsu': order_nsu,
             'items': [
@@ -91,6 +96,8 @@ class InfinitePayClient:
                 for item in items
             ],
         }
+        if handle:
+            body['handle'] = handle
         if customer is not None:
             body['customer'] = customer.model_dump(exclude_none=True)
         if redirect_url:
