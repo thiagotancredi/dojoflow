@@ -55,3 +55,7 @@ class PayConfirmApi(BaseModel):
 
 class PayConfirmRead(BaseModel):
     status: Literal['processing']
+
+
+class WebhookAckRead(BaseModel):
+    received: Literal[True] = True

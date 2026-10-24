@@ -12,6 +12,7 @@ from dojoflow.schemas.infinitepay_api import (
     InfinitePayWebhookApi,
     PayConfirmApi,
     PayConfirmRead,
+    WebhookAckRead,
 )
 from dojoflow.schemas.public_pay import PublicCheckoutRead, PublicPaymentRead
 from dojoflow.shared.exceptions import NotFoundError
@@ -84,7 +85,7 @@ async def confirm_public_payment(
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(webhook_limiter)],
 )
-async def infinitepay_webhook(data: InfinitePayWebhookApi) -> None:
+async def infinitepay_webhook(data: InfinitePayWebhookApi) -> WebhookAckRead:
     """Aviso da InfinitePay: só enfileira e responde na hora (o aviso não
     tem assinatura; o worker confere no payment_check antes da baixa)."""
     tasks.settle_infinitepay_payment.delay(
@@ -93,3 +94,4 @@ async def infinitepay_webhook(data: InfinitePayWebhookApi) -> None:
         slug=data.invoice_slug,
         receipt_url=data.receipt_url,
     )
+    return WebhookAckRead()

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from urllib.parse import quote
@@ -30,6 +30,7 @@ from dojoflow.schemas.billing import (
     BillingOverviewItemRead,
     BillingOverviewRead,
     ChargeRead,
+    CheckoutReviewRead,
     OverviewFilter,
     PaymentRead,
     StudentBillingRead,
@@ -40,7 +41,7 @@ from dojoflow.schemas.public_pay import (
     PublicPaymentItemRead,
     PublicPaymentRead,
 )
-from dojoflow.services.belt_rules import local_today
+from dojoflow.services.belt_rules import ACADEMY_TIMEZONE, local_today
 from dojoflow.services.billing_rules import (
     OpenCharge,
     age_on,
@@ -246,6 +247,11 @@ def _refresh_paid_status(charge: Payment, paid_on: date | None) -> None:
         else PaymentStatus.PENDING
     )
     charge.paid_at = None
+
+
+def local_date(moment: datetime) -> date:
+    """Data em Brasília de um instante gravado em UTC."""
+    return moment.astimezone(ACADEMY_TIMEZONE).date()
 
 
 class BillingService:  # noqa: PLR0904
@@ -476,7 +482,34 @@ class BillingService:  # noqa: PLR0904
             payments=await self._payments(
                 academy_id, today, PaymentTransaction.student_id == student_id
             ),
+            reviews=await self._reviews(academy_id, student_id),
         )
+
+    async def _reviews(
+        self, academy_id: int, student_id: int
+    ) -> list[CheckoutReviewRead]:
+        """Pagamentos da InfinitePay "a conferir", do mais novo ao mais
+        antigo."""
+        rows = (
+            await self.db_session.scalars(
+                select(InfinitePayCheckout)
+                .where(
+                    InfinitePayCheckout.academy_id == academy_id,
+                    InfinitePayCheckout.student_id == student_id,
+                    InfinitePayCheckout.status == CheckoutStatus.REVIEW,
+                )
+                .order_by(InfinitePayCheckout.paid_at.desc())
+            )
+        ).all()
+        return [
+            CheckoutReviewRead(
+                public_id=row.public_id,
+                amount=row.paid_amount or row.amount,
+                paid_at=local_date(row.paid_at or row.updated_at),
+                receipt_url=row.receipt_url,
+            )
+            for row in rows
+        ]
 
     async def _charges(
         self,
@@ -1308,6 +1341,21 @@ class BillingService:  # noqa: PLR0904
             )
         ).all()
 
+        receipts = dict(
+            (
+                await self.db_session.execute(
+                    select(
+                        InfinitePayCheckout.payment_transaction_id,
+                        InfinitePayCheckout.receipt_url,
+                    ).where(
+                        InfinitePayCheckout.payment_transaction_id.in_([
+                            t.id for t in transactions
+                        ])
+                    )
+                )
+            ).all()
+        )
+
         allocations: dict[int, list[AllocationRead]] = {}
         for row in allocation_rows:
             allocations.setdefault(row.payment_transaction_id, []).append(
@@ -1329,6 +1377,8 @@ class BillingService:  # noqa: PLR0904
                 method=transaction.payment_method,
                 notes=transaction.notes,
                 allocations=allocations.get(transaction.id, []),
+                source=transaction.source,
+                receipt_url=receipts.get(transaction.id),
             )
             for transaction in transactions
         ]

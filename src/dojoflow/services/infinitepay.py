@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -276,6 +276,25 @@ class InfinitePayService:
             )
         )
         return url
+
+    @transactional
+    async def resolve_review(
+        self, academy_id: int, student_id: int, review_public_id: uuid.UUID
+    ) -> None:
+        """O mestre conferiu o pagamento "a conferir": some da ficha."""
+        resolved = await self.db_session.scalar(
+            update(InfinitePayCheckout)
+            .where(
+                InfinitePayCheckout.academy_id == academy_id,
+                InfinitePayCheckout.student_id == student_id,
+                InfinitePayCheckout.public_id == review_public_id,
+                InfinitePayCheckout.status == CheckoutStatus.REVIEW,
+            )
+            .values(status=CheckoutStatus.RESOLVED)
+            .returning(InfinitePayCheckout.id)
+        )
+        if resolved is None:
+            raise NotFoundError('Review not found.', code='REVIEW_NOT_FOUND')
 
     @transactional
     async def _add_checkout(self, checkout: InfinitePayCheckout) -> None:
