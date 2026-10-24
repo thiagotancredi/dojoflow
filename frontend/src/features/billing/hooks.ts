@@ -6,6 +6,7 @@ import {
   getStudentBilling,
   launchPastCharge,
   renewPayLink,
+  resolveReview,
   saveBillingSettings,
   unwaiveCharge,
   updateCharge,
@@ -80,6 +81,10 @@ export function useDeletePayment(studentId: string) {
   return useMutation((paymentId: string) =>
     deletePayment(studentId, paymentId),
   )
+}
+
+export function useResolveReview(studentId: string) {
+  return useMutation((reviewId: string) => resolveReview(studentId, reviewId))
 }
 
 export function useSaveBillingSettings() {

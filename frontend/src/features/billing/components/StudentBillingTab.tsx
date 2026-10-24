@@ -4,15 +4,17 @@ import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
-import type { Charge, Payment } from '@/features/billing/api'
+import type { Charge, CheckoutReview, Payment } from '@/features/billing/api'
 import { ChargeStatement } from '@/features/billing/components/ChargeStatement'
 import { EditChargeDialog } from '@/features/billing/components/EditChargeDialog'
+import { CheckoutReviews } from '@/features/billing/components/InfinitePayBits'
 import { LaunchPastChargeDialog } from '@/features/billing/components/LaunchPastChargeDialog'
 import { PaymentDialog } from '@/features/billing/components/PaymentDialog'
 import { WhatsAppButton } from '@/features/billing/components/WhatsAppButton'
 import {
   useDeletePayment,
   useRenewPayLink,
+  useResolveReview,
   useSetChargeWaived,
   useStudentBilling,
 } from '@/features/billing/hooks'
@@ -34,6 +36,7 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
   const waive = useSetChargeWaived(studentId)
   const removePayment = useDeletePayment(studentId)
   const renewLink = useRenewPayLink(studentId)
+  const resolveReview = useResolveReview(studentId)
   const [renewing, setRenewing] = useState(false)
 
   if (isLoading && !data) {
@@ -107,8 +110,23 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
     }
   }
 
+  async function markResolved(review: CheckoutReview) {
+    try {
+      await resolveReview.mutate(review.id)
+      toast.success('Marcado como resolvido')
+      refetch()
+    } catch (caught) {
+      showApiError(caught)
+    }
+  }
+
   return (
     <div className="space-y-7">
+      <CheckoutReviews
+        reviews={data.reviews}
+        busy={resolveReview.isPending}
+        onResolve={(review) => void markResolved(review)}
+      />
       {/* Topo: quanto deve (esquerda) e como cobrar (direita); no celular,
           um cartão embaixo do outro */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1.25fr]">
