@@ -1084,18 +1084,18 @@ class BillingService:  # noqa: PLR0904
 
         student_id, academy_id, academy_name = row
         today = today or local_today()
-        overdue = await self.payable_for_student(academy_id, student_id, today)
+        payable = await self.payable_for_student(academy_id, student_id, today)
         contact = (await self.contacts(academy_id, {student_id}))[student_id]
         recipient = choose_recipient(contact, today)
         to_responsible = recipient is not None and recipient[1]
         greeting = recipient[0].name if recipient else contact.name
         settings = await self.get_settings(academy_id)
-        total = sum((c.open_amount for c in overdue), ZERO)
+        total = sum((c.open_amount for c in payable), ZERO)
 
         checkout_enabled = await self.checkout_enabled(academy_id)
 
         pix_code = None
-        if overdue and not checkout_enabled and has_pix(settings):
+        if payable and not checkout_enabled and has_pix(settings):
             pix_code = pix_copy_paste(
                 settings.pix_key,
                 settings.recipient_name or academy_name,
@@ -1107,18 +1107,18 @@ class BillingService:  # noqa: PLR0904
             academy_name=academy_name,
             master_name=(await self.academy_master(academy_id))[0],
             greeting_name=' '.join(greeting.split()),
-            status='open' if overdue else 'clear',
+            status='open' if payable else 'clear',
             items=[
                 PublicPaymentItemRead(
                     label=_public_label(
                         charge,
                         today.year,
                         contact.name.split()[0] if to_responsible else None,
-                        len({c.modality_name for c in overdue}) > 1,
+                        len({c.modality_name for c in payable}) > 1,
                     ),
                     amount=charge.open_amount,
                 )
-                for charge in overdue
+                for charge in payable
             ],
             total=total.quantize(CENTS),
             recipient_name=settings.recipient_name or academy_name,

@@ -113,7 +113,8 @@ def send_monthly_billing_emails() -> int:
     name='dojoflow.send_billing_email',
     # SES fora do ar ou no limite, ou banco fora do ar: tenta de novo
     autoretry_for=(EmailUnavailable, DBAPIError),
-    # 1 s, 2 s, 4 s… até 1 h entre tentativas (cerca de 2 h no total)
+    # 12 tentativas: 1 s, 2 s, 4 s… até 2048 s entre elas (cerca de 68 min
+    # no total)
     retry_backoff=True,
     retry_backoff_max=3600,
     retry_jitter=False,
@@ -138,7 +139,8 @@ def send_billing_email(student_id: int, day: str) -> str | None:
     name='dojoflow.send_password_reset_email',
     # SES fora do ar ou no limite, ou banco fora do ar: tenta de novo
     autoretry_for=(EmailUnavailable, DBAPIError),
-    # 1 s, 2 s, 4 s… até 1 h entre tentativas (cerca de 2 h no total)
+    # 12 tentativas: 1 s, 2 s, 4 s… até 2048 s entre elas (cerca de 68 min
+    # no total)
     retry_backoff=True,
     retry_backoff_max=3600,
     retry_jitter=False,
