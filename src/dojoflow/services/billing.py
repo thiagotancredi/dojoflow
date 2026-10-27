@@ -117,6 +117,29 @@ def open_label(charges: list[ChargeRead], current_year: int) -> str:
     return join_names([ENROLLMENT_FEE_LABEL, *names] if has_fee else names)
 
 
+def payable_charges(
+    charges: list[ChargeRead], today: date
+) -> list[ChargeRead]:
+    """O que dá para pagar hoje, do mais antigo ao mais novo: tudo em aberto
+    que vence até o fim do mês de hoje (o vencido mais a do mês).
+
+    É o total da /pagar, do checkout e do {valor} do WhatsApp.
+    """
+    month_end = date(
+        today.year,
+        today.month,
+        calendar.monthrange(today.year, today.month)[1],
+    )
+    return sorted(
+        (
+            c
+            for c in charges
+            if c.status not in CLOSED_STATUSES and c.due_date <= month_end
+        ),
+        key=lambda c: (c.reference_month, c.kind is PaymentKind.MONTHLY),
+    )
+
+
 ADULT_AGE = 18
 DUE_SOON_DAYS = 7
 DASHBOARD_LIMIT = 5
@@ -215,25 +238,30 @@ class MessageSender:
 
 def whatsapp_url(  # noqa: PLR0913, PLR0917
     student: StudentContact,
-    overdue_charges: list[ChargeRead],
+    charges: list[ChargeRead],
     settings: BillingSettingsApi,
     sender: MessageSender,
     today: date,
 ) -> str | None:
-    """Link wa.me com a mensagem de cobrança; None sem atraso ou telefone."""
+    """Link wa.me com a mensagem de cobrança; None sem atraso ou telefone.
+
+    ``charges``: as cobranças do aluno já carregadas (com todas as em
+    aberto). O link só aparece com algo vencido; o {valor} e os {meses}
+    são o mesmo total da /pagar (vencido mais a do mês).
+    """
     recipient = choose_recipient(student, today)
 
-    if not overdue_charges or recipient is None:
+    if recipient is None or not any(c.status == 'overdue' for c in charges):
         return None
 
     contact, _ = recipient
-    overdue_total = sum((c.open_amount for c in overdue_charges), ZERO)
+    payable = payable_charges(charges, today)
     values = {
         '{nome}': contact.name.split()[0],
         '{mestre}': sender.master,
         '{academia}': sender.academy,
-        '{valor}': format_brl(overdue_total),
-        '{meses}': open_label(overdue_charges, today.year),
+        '{valor}': format_brl(sum((c.open_amount for c in payable), ZERO)),
+        '{meses}': open_label(payable, today.year),
         '{pix}': settings.pix_key or '',
         '{recebedor}': settings.recipient_name or sender.academy,
         '{link}': pay_url(student.pay_token),
@@ -1131,20 +1159,11 @@ class BillingService:  # noqa: PLR0904
         """O que o aluno pode pagar hoje, do mais antigo ao mais novo: o
         vencido mais a cobrança em aberto que vence até o fim do mês de hoje.
         É o que a página /pagar mostra e o que o checkout cobra e confere."""
-        month_end = date(
-            today.year,
-            today.month,
-            calendar.monthrange(today.year, today.month)[1],
-        )
-        return sorted(
-            (
-                c
-                for c in await self._charges(
-                    academy_id, today, Enrollment.student_id == student_id
-                )
-                if c.status not in CLOSED_STATUSES and c.due_date <= month_end
+        return payable_charges(
+            await self._charges(
+                academy_id, today, Enrollment.student_id == student_id
             ),
-            key=lambda c: (c.reference_month, c.kind is PaymentKind.MONTHLY),
+            today,
         )
 
     async def checkout_enabled(self, academy_id: int) -> bool:
@@ -1167,14 +1186,13 @@ class BillingService:  # noqa: PLR0904
         charges: list[ChargeRead],
         today: date,
     ) -> str | None:
-        overdue = [c for c in charges if c.status == 'overdue']
-        if not overdue:
+        if not any(c.status == 'overdue' for c in charges):
             return None
 
         contacts = await self.contacts(academy_id, {student_id})
         return whatsapp_url(
             contacts[student_id],
-            overdue,
+            charges,
             await self.get_settings(academy_id),
             await self._sender(academy_id),
             today,
@@ -1232,6 +1250,10 @@ class BillingService:  # noqa: PLR0904
         by_student: dict[int, list[ChargeRead]] = {}
         for charge in scope:
             by_student.setdefault(charge.student_id, []).append(charge)
+        # Todas as carregadas, por aluno (o total do WhatsApp sai daqui)
+        loaded_by_student: dict[int, list[ChargeRead]] = {}
+        for charge in charges:
+            loaded_by_student.setdefault(charge.student_id, []).append(charge)
 
         contacts = await self.contacts(academy_id, set(by_student))
         # "Em aberto" é sempre o que o aluno deve (todos os meses); o filtro
@@ -1252,8 +1274,9 @@ class BillingService:  # noqa: PLR0904
             if normalized and normalized not in contact.name.casefold():
                 continue
 
+            student_loaded = loaded_by_student[student_id]
             student_overdue = [
-                c for c in overdue if c.student_id == student_id
+                c for c in student_loaded if c.status == 'overdue'
             ]
             recipient = choose_recipient(contact, today)
             items.append(
@@ -1275,7 +1298,7 @@ class BillingService:  # noqa: PLR0904
                         else None
                     ),
                     whatsapp_url=whatsapp_url(
-                        contact, student_overdue, settings, sender, today
+                        contact, student_loaded, settings, sender, today
                     ),
                 )
             )

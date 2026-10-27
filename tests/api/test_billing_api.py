@@ -967,6 +967,83 @@ async def test_custom_template_without_link_gets_it_appended(
     )
 
 
+async def _september_and_october_student(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    start: str = '2026-09-01',
+) -> dict:
+    """R$ 150 por mês, vence dia 20; hoje 15/10/2026."""
+    headers = await auth_headers(client)
+    modality_id = await add_modality(db_session, 'Judô')
+    student_id, _ = await add_student(
+        db_session,
+        modality_id,
+        name='Ana Lima',
+        monthly_fee='150',
+        due_day=20,
+        billing_start_month=start,
+        phone='(62) 99999-0001',
+        birth_date='1990-05-01',
+    )
+    await _freeze_today(monkeypatch, db_session, date(2026, 10, 15))
+    await client.put(
+        '/api/v1/academy/billing-settings',
+        headers=headers,
+        json={'message_template': '{valor}|{meses}|{link}'},
+    )
+    return {'headers': headers, 'student_id': student_id}
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_amount_matches_pay_page_total(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # Setembro vencido (R$ 150) + outubro vence dia 20 (R$ 150)
+    ctx = await _september_and_october_student(client, db_session, monkeypatch)
+    token = await _pay_token(db_session, ctx['student_id'])
+    expected = (
+        f'R$ 300,00|setembro e outubro|{settings.WEB_APP_URL}/pagar/{token}'
+    )
+
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    overview = await client.get(
+        '/api/v1/billing/overview', headers=ctx['headers']
+    )
+    pay_page = await client.get(f'/api/v1/public/pay/{token}')
+
+    assert _message(body['whatsapp_url'])[1] == expected
+    (item,) = overview.json()['items']
+    assert _message(item['whatsapp_url'])[1] == expected
+    assert pay_page.json()['total'] == '300.00'
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_still_needs_something_overdue(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # Só outubro, que vence dia 20: nada vencido, sem link
+    ctx = await _september_and_october_student(
+        client, db_session, monkeypatch, start='2026-10-01'
+    )
+
+    body = await _read(client, ctx['student_id'], ctx['headers'])
+    overview = await client.get(
+        '/api/v1/billing/overview',
+        headers=ctx['headers'],
+        params={'filter': 'all'},
+    )
+
+    assert body['whatsapp_url'] is None
+    (item,) = overview.json()['items']
+    assert item['whatsapp_url'] is None
+
+
 @pytest.mark.asyncio
 async def test_overview_counts_and_filters(
     client: AsyncClient,
