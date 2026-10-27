@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from urllib.parse import quote
@@ -15,6 +15,7 @@ from dojoflow.database.transaction import transactional
 from dojoflow.models.academy import Academy
 from dojoflow.models.academy_billing_settings import AcademyBillingSettings
 from dojoflow.models.enrollment import Enrollment
+from dojoflow.models.infinitepay_checkout import InfinitePayCheckout
 from dojoflow.models.master import Master
 from dojoflow.models.modality import Modality
 from dojoflow.models.payment import Payment
@@ -29,6 +30,7 @@ from dojoflow.schemas.billing import (
     BillingOverviewItemRead,
     BillingOverviewRead,
     ChargeRead,
+    CheckoutReviewRead,
     OverviewFilter,
     PaymentRead,
     StudentBillingRead,
@@ -39,7 +41,7 @@ from dojoflow.schemas.public_pay import (
     PublicPaymentItemRead,
     PublicPaymentRead,
 )
-from dojoflow.services.belt_rules import local_today
+from dojoflow.services.belt_rules import ACADEMY_TIMEZONE, local_today
 from dojoflow.services.billing_rules import (
     OpenCharge,
     age_on,
@@ -55,9 +57,11 @@ from dojoflow.services.billing_rules import (
 from dojoflow.services.pix import pix_copy_paste
 from dojoflow.shared.enums import (
     AcademyStatus,
+    CheckoutStatus,
     EnrollmentStatus,
     PaymentKind,
     PaymentMethod,
+    PaymentSource,
     PaymentStatus,
 )
 from dojoflow.shared.exceptions import ConflictError, NotFoundError
@@ -132,6 +136,7 @@ class DashboardBilling:
 class Contact:
     name: str
     phone: str | None
+    email: str | None = None
 
 
 @dataclass(frozen=True)
@@ -142,6 +147,7 @@ class StudentContact:
     birth_date: date | None
     responsibles: tuple[Contact, ...]
     pay_token: str
+    email: str | None = None
 
 
 def choose_recipient(
@@ -152,7 +158,7 @@ def choose_recipient(
     Menor de 18 com responsável com telefone: o primeiro responsável.
     Senão o próprio aluno; sem telefone dele, um responsável.
     """
-    own = [(Contact(student.name, student.phone), False)]
+    own = [(Contact(student.name, student.phone, student.email), False)]
     responsibles = [(contact, True) for contact in student.responsibles]
     is_minor = (
         student.birth_date is not None
@@ -243,7 +249,12 @@ def _refresh_paid_status(charge: Payment, paid_on: date | None) -> None:
     charge.paid_at = None
 
 
-class BillingService:
+def local_date(moment: datetime) -> date:
+    """Data em Brasília de um instante gravado em UTC."""
+    return moment.astimezone(ACADEMY_TIMEZONE).date()
+
+
+class BillingService:  # noqa: PLR0904
     def __init__(self, db_session: AsyncSession) -> None:
         self.db_session = db_session
 
@@ -255,8 +266,9 @@ class BillingService:
     ) -> int:
         """Cria as mensalidades que faltam até o mês de hoje.
 
-        academy_id=None: todas as academias (disparo diário). Pode rodar
-        quantas vezes quiser: um mês que já existe nunca é criado de novo.
+        academy_id=None: todas as academias (o worker, no dia 1º e ao
+        ligar). Pode rodar quantas vezes quiser: um mês que já existe nunca
+        é criado de novo. As telas não geram: mostram o que existe.
         """
         this_month = today.replace(day=1)
 
@@ -327,7 +339,7 @@ class BillingService:
         if not values:
             return 0
 
-        # Duas gerações ao mesmo tempo (disparo diário + tela aberta):
+        # Duas gerações ao mesmo tempo (agenda + conferência ao ligar):
         # a constraint única barra a segunda, sem erro
         created = await self.db_session.scalars(
             insert(Payment)
@@ -445,8 +457,6 @@ class BillingService:
         today: date | None = None,
     ) -> StudentBillingRead:
         today = today or local_today()
-        await self.ensure_monthly_charges(academy_id, today)
-
         charges = await self._charges(
             academy_id, today, Enrollment.student_id == student_id
         )
@@ -472,7 +482,34 @@ class BillingService:
             payments=await self._payments(
                 academy_id, today, PaymentTransaction.student_id == student_id
             ),
+            reviews=await self._reviews(academy_id, student_id),
         )
+
+    async def _reviews(
+        self, academy_id: int, student_id: int
+    ) -> list[CheckoutReviewRead]:
+        """Pagamentos da InfinitePay "a conferir", do mais novo ao mais
+        antigo."""
+        rows = (
+            await self.db_session.scalars(
+                select(InfinitePayCheckout)
+                .where(
+                    InfinitePayCheckout.academy_id == academy_id,
+                    InfinitePayCheckout.student_id == student_id,
+                    InfinitePayCheckout.status == CheckoutStatus.REVIEW,
+                )
+                .order_by(InfinitePayCheckout.paid_at.desc())
+            )
+        ).all()
+        return [
+            CheckoutReviewRead(
+                public_id=row.public_id,
+                amount=row.paid_amount or row.amount,
+                paid_at=local_date(row.paid_at or row.updated_at),
+                receipt_url=row.receipt_url,
+            )
+            for row in rows
+        ]
 
     async def _charges(
         self,
@@ -631,7 +668,7 @@ class BillingService:
         await self.db_session.flush()
         return await self._charge(academy_id, charge_id, local_today())
 
-    async def _lock_student_charges(
+    async def lock_student_charges(
         self, academy_id: int, student_id: int
     ) -> dict[int, Payment]:
         # Duas baixas ao mesmo tempo para o mesmo aluno: a segunda espera a
@@ -720,9 +757,6 @@ class BillingService:
     ) -> Decimal:
         """Baixa em lote: um pagamento por aluno, numa transação só (se um
         falhar, nenhum entra). Cada um segue a regra da baixa individual."""
-        # As mensalidades do mês nascem quando alguém abre as telas; garante
-        # que existam antes de abater
-        await self.ensure_monthly_charges(academy_id, local_today())
         total = ZERO
 
         for student_id, amount in items:
@@ -742,10 +776,16 @@ class BillingService:
         paid_on: date,
         method: PaymentMethod | None,
         notes: str | None,
+        *,
+        source: PaymentSource = PaymentSource.MANUAL,
     ) -> PaymentRead:
-        """Baixa do aluno, abatendo da cobrança mais antiga à mais nova."""
+        """Baixa do aluno, abatendo da cobrança mais antiga à mais nova.
+
+        Baixa manual cancela (do lado do Katsuflow) os links de checkout
+        abertos do aluno: a página /pagar não os reaproveita mais.
+        """
         today = local_today()
-        locked = await self._lock_student_charges(academy_id, student_id)
+        locked = await self.lock_student_charges(academy_id, student_id)
         plan = await self._plan_allocations(
             academy_id, student_id, amount, today
         )
@@ -757,6 +797,7 @@ class BillingService:
             gross_amount=amount,
             received_at=paid_on,
             notes=notes,
+            source=source,
         )
         self.db_session.add(transaction)
         await self.db_session.flush()
@@ -774,6 +815,9 @@ class BillingService:
             row.amount_paid += part
             _refresh_paid_status(row, paid_on)
 
+        if source is PaymentSource.MANUAL:
+            await self._cancel_open_checkouts(academy_id, student_id)
+
         await self.db_session.flush()
         (payment,) = await self._payments(
             academy_id, today, PaymentTransaction.id == transaction.id
@@ -788,7 +832,7 @@ class BillingService:
         payment_id: int,
     ) -> None:
         """Desfaz a baixa: cada cobrança volta ao saldo de antes dela."""
-        locked = await self._lock_student_charges(academy_id, student_id)
+        locked = await self.lock_student_charges(academy_id, student_id)
         allocations = (
             await self.db_session.scalars(
                 select(PaymentAllocation).where(
@@ -803,6 +847,16 @@ class BillingService:
             charge.amount_paid -= allocation.allocated_amount
             _refresh_paid_status(charge, None)
 
+        # Baixa automática desfeita: o link continua pago (o dinheiro está
+        # na InfinitePay), só deixa de apontar para a baixa
+        await self.db_session.execute(
+            update(InfinitePayCheckout)
+            .where(
+                InfinitePayCheckout.academy_id == academy_id,
+                InfinitePayCheckout.payment_transaction_id == payment_id,
+            )
+            .values(payment_transaction_id=None)
+        )
         await self.db_session.execute(
             delete(PaymentAllocation).where(
                 PaymentAllocation.payment_transaction_id == payment_id
@@ -815,7 +869,7 @@ class BillingService:
             )
         )
 
-    async def _contacts(
+    async def contacts(
         self, academy_id: int, student_ids: set[int]
     ) -> dict[int, StudentContact]:
         if not student_ids:
@@ -830,6 +884,7 @@ class BillingService:
                     Student.phone,
                     Student.birth_date,
                     Student.pay_token,
+                    Student.email,
                 ).where(
                     Student.academy_id == academy_id,
                     Student.id.in_(student_ids),
@@ -842,6 +897,7 @@ class BillingService:
                     StudentResponsible.student_id,
                     Responsible.name,
                     Responsible.phone,
+                    Responsible.email,
                 )
                 .join(
                     Responsible,
@@ -858,7 +914,7 @@ class BillingService:
         responsibles: dict[int, list[Contact]] = {}
         for link in links:
             responsibles.setdefault(link.student_id, []).append(
-                Contact(link.name, link.phone)
+                Contact(link.name, link.phone, link.email)
             )
 
         return {
@@ -869,6 +925,7 @@ class BillingService:
                 birth_date=row.birth_date,
                 responsibles=tuple(responsibles.get(row.id, [])),
                 pay_token=row.pay_token,
+                email=row.email,
             )
             for row in students
         }
@@ -907,7 +964,24 @@ class BillingService:
         if updated is None:
             raise NotFoundError('Student not found.', code='STUDENT_NOT_FOUND')
 
+        # O checkout aberto volta para o link antigo depois de pago (e cairia
+        # em "Link inválido"): o próximo "Pagar" cria outro
+        await self._cancel_open_checkouts(academy_id, student_id)
         return pay_url(token)
+
+    async def _cancel_open_checkouts(
+        self, academy_id: int, student_id: int
+    ) -> None:
+        """Faz o Katsuflow parar de reaproveitar os links abertos do aluno."""
+        await self.db_session.execute(
+            update(InfinitePayCheckout)
+            .where(
+                InfinitePayCheckout.academy_id == academy_id,
+                InfinitePayCheckout.student_id == student_id,
+                InfinitePayCheckout.status == CheckoutStatus.OPEN,
+            )
+            .values(status=CheckoutStatus.CANCELED)
+        )
 
     async def public_payment(
         self, token: str, today: date | None = None
@@ -931,27 +1005,20 @@ class BillingService:
 
         student_id, academy_id, academy_name = row
         today = today or local_today()
-        await self.ensure_monthly_charges(academy_id, today)
-        overdue = sorted(
-            (
-                c
-                for c in await self._charges(
-                    academy_id, today, Enrollment.student_id == student_id
-                )
-                if c.status == 'overdue'
-            ),
-            key=lambda c: (c.reference_month, c.kind is PaymentKind.MONTHLY),
-        )
-        contact = (await self._contacts(academy_id, {student_id}))[student_id]
+        overdue = await self.overdue_for_student(academy_id, student_id, today)
+        contact = (await self.contacts(academy_id, {student_id}))[student_id]
         recipient = choose_recipient(contact, today)
         to_responsible = recipient is not None and recipient[1]
         greeting = recipient[0].name if recipient else contact.name
         settings = await self.get_settings(academy_id)
         total = sum((c.open_amount for c in overdue), ZERO)
 
+        checkout_enabled = await self.checkout_enabled(academy_id)
+
         pix_code = None
         if (
             overdue
+            and not checkout_enabled
             and settings.pix_key
             and settings.pix_key_type
             and settings.pix_city
@@ -989,7 +1056,52 @@ class BillingService:
             total=total.quantize(CENTS),
             recipient_name=settings.recipient_name or academy_name,
             pix_code=pix_code,
+            checkout_enabled=checkout_enabled,
         )
+
+    async def pay_token_owner(self, token: str) -> tuple[int, int] | None:
+        """(academy_id, student_id) do dono do link /pagar; None quando o
+        código não existe ou a academia está bloqueada."""
+        row = (
+            await self.db_session.execute(
+                select(Student.academy_id, Student.id)
+                .join(Academy, Academy.id == Student.academy_id)
+                .where(
+                    Student.pay_token == token,
+                    Academy.status == AcademyStatus.ACTIVE,
+                )
+            )
+        ).one_or_none()
+        return (row.academy_id, row.id) if row else None
+
+    async def overdue_for_student(
+        self, academy_id: int, student_id: int, today: date
+    ) -> list[ChargeRead]:
+        """O que o aluno deve hoje (vencido), do mais antigo ao mais novo:
+        é o que a página /pagar mostra e o que o checkout cobra."""
+        return sorted(
+            (
+                c
+                for c in await self._charges(
+                    academy_id, today, Enrollment.student_id == student_id
+                )
+                if c.status == 'overdue'
+            ),
+            key=lambda c: (c.reference_month, c.kind is PaymentKind.MONTHLY),
+        )
+
+    async def checkout_enabled(self, academy_id: int) -> bool:
+        """Baixa automática ligada (tag e chave salvas e testadas)."""
+        row = (
+            await self.db_session.execute(
+                select(
+                    AcademyBillingSettings.infinitepay_enabled,
+                    AcademyBillingSettings.infinitepay_handle,
+                    AcademyBillingSettings.infinitepay_api_key,
+                ).where(AcademyBillingSettings.academy_id == academy_id)
+            )
+        ).one_or_none()
+        return bool(row and row[0] and row[1] and row[2])
 
     async def _whatsapp_url_for(
         self,
@@ -1002,7 +1114,7 @@ class BillingService:
         if not overdue:
             return None
 
-        contacts = await self._contacts(academy_id, {student_id})
+        contacts = await self.contacts(academy_id, {student_id})
         return whatsapp_url(
             contacts[student_id],
             overdue,
@@ -1015,7 +1127,6 @@ class BillingService:
         self, academy_id: int, month: date, today: date
     ) -> list[ChargeRead]:
         """Tudo em aberto (qualquer mês) e tudo do mês escolhido."""
-        await self.ensure_monthly_charges(academy_id, today)
         return await self._charges(
             academy_id,
             today,
@@ -1065,7 +1176,7 @@ class BillingService:
         for charge in scope:
             by_student.setdefault(charge.student_id, []).append(charge)
 
-        contacts = await self._contacts(academy_id, set(by_student))
+        contacts = await self.contacts(academy_id, set(by_student))
         # "Em aberto" é sempre o que o aluno deve (todos os meses); o filtro
         # só decide quais alunos aparecem
         owed: dict[int, Decimal] = {}
@@ -1157,7 +1268,7 @@ class BillingService:
             ),
             key=lambda c: (c.due_date, c.id),
         )
-        contacts = await self._contacts(
+        contacts = await self.contacts(
             academy_id, {c.student_id for c in [*overdue, *due_soon]}
         )
 
@@ -1239,6 +1350,21 @@ class BillingService:
             )
         ).all()
 
+        receipts = dict(
+            (
+                await self.db_session.execute(
+                    select(
+                        InfinitePayCheckout.payment_transaction_id,
+                        InfinitePayCheckout.receipt_url,
+                    ).where(
+                        InfinitePayCheckout.payment_transaction_id.in_([
+                            t.id for t in transactions
+                        ])
+                    )
+                )
+            ).all()
+        )
+
         allocations: dict[int, list[AllocationRead]] = {}
         for row in allocation_rows:
             allocations.setdefault(row.payment_transaction_id, []).append(
@@ -1260,6 +1386,8 @@ class BillingService:
                 method=transaction.payment_method,
                 notes=transaction.notes,
                 allocations=allocations.get(transaction.id, []),
+                source=transaction.source,
+                receipt_url=receipts.get(transaction.id),
             )
             for transaction in transactions
         ]

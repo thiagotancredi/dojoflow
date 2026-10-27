@@ -27,6 +27,7 @@ from dojoflow.shared.enums import (
     EnrollmentStatus,
     StudentResponsibleRelationship,
 )
+from dojoflow.worker.tasks import generate_monthly_charges_job
 from tests.helpers.auth import SEED
 
 
@@ -197,3 +198,8 @@ async def add_responsible(
         )
     )
     await session.commit()
+
+
+async def generate_charges(session: AsyncSession, today: date) -> int:
+    """Faz o papel do worker: cria as mensalidades que faltam até hoje."""
+    return await generate_monthly_charges_job(session, today)

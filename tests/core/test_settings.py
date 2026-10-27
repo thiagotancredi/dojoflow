@@ -18,6 +18,7 @@ def test_prod_accepts_custom_jwt_secret() -> None:
         _env_file=None,
         ENVIRONMENT='prod',
         JWT_SECRET='a-real-secret-with-enough-length-32',
+        INFINITEPAY_SECRET_KEY='x' * 43 + '=',
     )
 
     assert settings.cookie_secure is True

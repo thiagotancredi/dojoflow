@@ -1,6 +1,7 @@
 # Produção (servidor). Lê as variáveis do arquivo .env ao lado deste
 # (modelo em deploy/env.prod.example). Só o Caddy (web) fica exposto,
-# nas portas 80 e 443; banco e API ficam na rede interna do Docker.
+# nas portas 80 e 443; banco, Redis, API e worker ficam na rede interna
+# do Docker.
 #
 #   docker compose -f compose.prod.yml up -d --build
 #   docker compose -f compose.prod.yml run --rm api alembic upgrade head
@@ -23,6 +24,20 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    # Grava a fila em disco: avisos da InfinitePay ainda não processados
+    # sobrevivem a um reinício
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: .
@@ -31,8 +46,36 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://dojoflow:${POSTGRES_PASSWORD}@db:5432/dojoflow
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Gera as mensalidades e dá as baixas da InfinitePay. Uma réplica só:
+  # o agendador (beat) roda embutido neste processo.
+  worker:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    # O beat guarda a agenda em /tmp (a pasta /app é só leitura para o
+    # usuário da imagem)
+    command: >-
+      celery -A dojoflow.worker.app worker -B --loglevel=INFO
+      --schedule /tmp/celerybeat-schedule
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://dojoflow:${POSTGRES_PASSWORD}@db:5432/dojoflow
+      REDIS_URL: redis://redis:6379/0
+    # A checagem da imagem é a da API (porta 8000), que o worker não abre
+    healthcheck:
+      disable: true
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   web:
@@ -54,5 +97,6 @@ services:
 
 volumes:
   db_data:
+  redis_data:
   caddy_data:
   caddy_config:

@@ -21,6 +21,7 @@ from dojoflow.api.routes.graduation_lists import (
     router as graduation_lists_router,
 )
 from dojoflow.api.routes.health import router as health_router
+from dojoflow.api.routes.infinitepay import router as infinitepay_router
 from dojoflow.api.routes.modalities import router as modalities_router
 from dojoflow.api.routes.public_pay import router as public_pay_router
 from dojoflow.api.routes.students import router as students_router
@@ -54,6 +55,7 @@ app.include_router(students_router, prefix=settings.API_V1_PREFIX)
 app.include_router(enrollment_belts_router, prefix=settings.API_V1_PREFIX)
 app.include_router(billing_router, prefix=settings.API_V1_PREFIX)
 app.include_router(billing_settings_router, prefix=settings.API_V1_PREFIX)
+app.include_router(infinitepay_router, prefix=settings.API_V1_PREFIX)
 app.include_router(billing_overview_router, prefix=settings.API_V1_PREFIX)
 app.include_router(dashboard_router, prefix=settings.API_V1_PREFIX)
 app.include_router(graduation_lists_router, prefix=settings.API_V1_PREFIX)

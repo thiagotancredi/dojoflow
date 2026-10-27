@@ -13,7 +13,12 @@ from dojoflow.models.student import Student
 from dojoflow.services import billing as billing_module
 from dojoflow.shared.enums import AcademyStatus
 from tests.helpers.auth import SEED, auth_headers, other_academy_headers
-from tests.helpers.scenario import add_modality, add_responsible, add_student
+from tests.helpers.scenario import (
+    add_modality,
+    add_responsible,
+    add_student,
+    generate_charges,
+)
 
 SETTINGS_URL = '/api/v1/academy/billing-settings'
 PIX_SETTINGS = {
@@ -29,8 +34,12 @@ def _fresh_limiter() -> None:
     public_pay_limiter.reset()
 
 
-def _freeze_today(monkeypatch: pytest.MonkeyPatch, today: date) -> None:
+async def _freeze_today(
+    monkeypatch: pytest.MonkeyPatch, session: AsyncSession, today: date
+) -> None:
+    """Hoje passa a ser `today`, e o worker já gerou as mensalidades."""
     monkeypatch.setattr(billing_module, 'local_today', lambda: today)
+    await generate_charges(session, today)
 
 
 def _pay_url(token: str) -> str:
@@ -71,7 +80,7 @@ async def _overdue_student(
         phone='62999990001',
         birth_date=birth_date,
     )
-    _freeze_today(monkeypatch, date(2027, 2, 20))
+    await _freeze_today(monkeypatch, db_session, date(2027, 2, 20))
     return {
         'headers': headers,
         'student_id': student_id,
@@ -115,7 +124,9 @@ async def test_public_pay_open(
         'total',
         'recipient_name',
         'pix_code',
+        'checkout_enabled',
     }
+    assert body['checkout_enabled'] is False
 
 
 @pytest.mark.asyncio

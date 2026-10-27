@@ -11,6 +11,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { Charge, Payment } from '@/features/billing/api'
 import { ChargeStatusChip } from '@/features/billing/components/ChargeStatusChip'
+import {
+  AutomaticBadge,
+  ReceiptLink,
+} from '@/features/billing/components/InfinitePayBits'
 import { formatMonth } from '@/features/billing/labels'
 import { chargeTitle, paymentsByCharge } from '@/features/billing/statement'
 import type { ChargePayment } from '@/features/billing/statement'
@@ -119,6 +123,10 @@ export function ChargeStatement(props: StatementProps) {
                 <Missing charge={charge} />
               </Cell>
             </dl>
+            {/* No celular a coluna "Pago em" não aparece: o selo vem aqui */}
+            {byCharge.get(charge.id)?.[0] && (
+              <AutomaticInfo payment={byCharge.get(charge.id)![0].payment} />
+            )}
           </li>
         ))}
       </ul>
@@ -178,13 +186,28 @@ function Missing({ charge }: { charge: Charge }) {
   )
 }
 
-// Data do pagamento mais recente desta cobrança
+// Data do pagamento mais recente desta cobrança; baixa automática ganha o
+// selo da InfinitePay e o recibo
 function PaidOn({ payments }: { payments: ChargePayment[] }) {
   const [last] = payments
-  return last ? (
-    <>{formatDate(last.payment.paid_on)}</>
-  ) : (
-    <span className="text-muted-foreground">—</span>
+  if (!last) return <span className="text-muted-foreground">—</span>
+
+  return (
+    <span className="flex flex-col items-start gap-1">
+      {formatDate(last.payment.paid_on)}
+      <AutomaticInfo payment={last.payment} />
+    </span>
+  )
+}
+
+function AutomaticInfo({ payment }: { payment: Payment }) {
+  if (payment.source !== 'infinitepay') return null
+
+  return (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <AutomaticBadge />
+      <ReceiptLink url={payment.receipt_url} />
+    </span>
   )
 }
 

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from dojoflow.shared.enums import PaymentKind, PaymentMethod
+from dojoflow.shared.enums import PaymentKind, PaymentMethod, PaymentSource
 
 ChargeStatus = Literal['paid', 'partial', 'overdue', 'upcoming', 'waived']
 
@@ -51,6 +51,19 @@ class PaymentRead(BaseModel):
     method: PaymentMethod | None
     notes: str | None
     allocations: list[AllocationRead]
+    # Manual ou automática (InfinitePay, com o recibo dela)
+    source: PaymentSource = PaymentSource.MANUAL
+    receipt_url: str | None = None
+
+
+class CheckoutReviewRead(BaseModel):
+    """Pago pela InfinitePay, mas o valor em aberto mudou: o mestre
+    confere."""
+
+    public_id: UUID
+    amount: Decimal
+    paid_at: date
+    receipt_url: str | None
 
 
 class StudentBillingRead(BaseModel):
@@ -60,6 +73,7 @@ class StudentBillingRead(BaseModel):
     pay_url: str
     charges: list[ChargeRead]
     payments: list[PaymentRead]
+    reviews: list[CheckoutReviewRead] = []
 
 
 OverviewFilter = Literal['overdue', 'upcoming', 'paid', 'all']

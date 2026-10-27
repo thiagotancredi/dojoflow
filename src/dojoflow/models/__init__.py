@@ -12,6 +12,7 @@ from dojoflow.models.graduation_list import (
 )
 from dojoflow.models.import_batch import ImportBatch
 from dojoflow.models.import_row import ImportRow
+from dojoflow.models.infinitepay_checkout import InfinitePayCheckout
 from dojoflow.models.master import Master
 from dojoflow.models.modality import Modality
 from dojoflow.models.notification import Notification
@@ -37,6 +38,7 @@ __all__ = [
     'GraduationListEntry',
     'ImportBatch',
     'ImportRow',
+    'InfinitePayCheckout',
     'Master',
     'Modality',
     'Notification',

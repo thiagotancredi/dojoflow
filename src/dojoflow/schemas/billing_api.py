@@ -10,10 +10,11 @@ from dojoflow.schemas.billing import (
     AllocationRead,
     ChargeRead,
     ChargeStatus,
+    CheckoutReviewRead,
     PaymentRead,
     StudentBillingRead,
 )
-from dojoflow.shared.enums import PaymentKind, PaymentMethod
+from dojoflow.shared.enums import PaymentKind, PaymentMethod, PaymentSource
 
 
 class ChargeApiRead(BaseModel):
@@ -63,6 +64,8 @@ class PaymentApiRead(BaseModel):
     method: PaymentMethod | None
     notes: str | None
     allocations: list[AllocationApiRead]
+    source: PaymentSource
+    receipt_url: str | None
 
     @classmethod
     def from_internal(cls, payment: PaymentRead) -> 'PaymentApiRead':
@@ -76,6 +79,28 @@ class PaymentApiRead(BaseModel):
                 AllocationApiRead.from_internal(item)
                 for item in payment.allocations
             ],
+            source=payment.source,
+            receipt_url=payment.receipt_url,
+        )
+
+
+class CheckoutReviewApiRead(BaseModel):
+    """Pagamento da InfinitePay "a conferir" (o valor em aberto mudou)."""
+
+    id: UUID
+    amount: Decimal
+    paid_at: date
+    receipt_url: str | None
+
+    @classmethod
+    def from_internal(
+        cls, review: CheckoutReviewRead
+    ) -> 'CheckoutReviewApiRead':
+        return cls(
+            id=review.public_id,
+            amount=review.amount,
+            paid_at=review.paid_at,
+            receipt_url=review.receipt_url,
         )
 
 
@@ -86,6 +111,7 @@ class StudentBillingApiRead(BaseModel):
     pay_url: str
     charges: list[ChargeApiRead]
     payments: list[PaymentApiRead]
+    reviews: list[CheckoutReviewApiRead]
 
     @classmethod
     def from_internal(
@@ -99,6 +125,9 @@ class StudentBillingApiRead(BaseModel):
             charges=[ChargeApiRead.from_internal(c) for c in billing.charges],
             payments=[
                 PaymentApiRead.from_internal(p) for p in billing.payments
+            ],
+            reviews=[
+                CheckoutReviewApiRead.from_internal(r) for r in billing.reviews
             ],
         )
 

@@ -1,10 +1,12 @@
 from datetime import date
+from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 
 from dojoflow.api.dependencies.auth import CurrentMasterDep
 from dojoflow.api.dependencies.billing import BillingServiceDep
 from dojoflow.api.dependencies.db_session import DbSessionDep
+from dojoflow.api.dependencies.infinitepay import InfinitePayServiceDep
 from dojoflow.api.dependencies.public_ids import (
     ChargeIdDep,
     PaymentIdDep,
@@ -249,3 +251,19 @@ async def renew_pay_link(
     )
 
     return PayLinkApiRead(pay_url=pay_url)
+
+
+@router.post(
+    path='/reviews/{review_id}/resolve',
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def resolve_billing_review(
+    review_id: UUID,
+    student_id: StudentIdDep,
+    current_master: CurrentMasterDep,
+    infinitepay_service_dep: InfinitePayServiceDep,
+) -> None:
+    """Pagamento da InfinitePay "a conferir": marcar como resolvido."""
+    await infinitepay_service_dep.resolve_review(
+        current_master.academy_id, student_id, review_id
+    )

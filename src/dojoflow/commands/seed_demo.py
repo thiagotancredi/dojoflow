@@ -39,6 +39,7 @@ from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.belt import Belt
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.enrollment_belt import EnrollmentBelt
+from dojoflow.models.infinitepay_checkout import InfinitePayCheckout
 from dojoflow.models.modality import Modality
 from dojoflow.models.payment import Payment
 from dojoflow.models.payment_allocation import PaymentAllocation
@@ -290,6 +291,12 @@ async def reset(session: AsyncSession, academy_id: int) -> int:
     )
     total = len((await session.scalars(students)).all())
 
+    # Links da InfinitePay apontam para alunos e baixas: saem primeiro
+    await session.execute(
+        delete(InfinitePayCheckout).where(
+            InfinitePayCheckout.student_id.in_(students)
+        )
+    )
     await session.execute(
         delete(PaymentAllocation).where(
             PaymentAllocation.payment_transaction_id.in_(transactions)

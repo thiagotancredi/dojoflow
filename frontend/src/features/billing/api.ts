@@ -8,6 +8,7 @@ export type StudentBilling = Schemas['StudentBillingApiRead']
 export type Charge = Schemas['ChargeApiRead']
 export type ChargeStatus = Charge['status']
 export type Payment = Schemas['PaymentApiRead']
+export type CheckoutReview = Schemas['CheckoutReviewApiRead']
 export type PaymentPreview = Schemas['PaymentPreviewApiRead']
 export type BillingOverview = Schemas['BillingOverviewRead']
 export type BillingOverviewItem = Schemas['BillingOverviewItemRead']
@@ -114,6 +115,17 @@ export function deletePayment(studentId: string, paymentId: string) {
     api.DELETE('/api/v1/students/{student_id}/billing/payments/{payment_id}', {
       params: { path: { student_id: studentId, payment_id: paymentId } },
     }),
+  )
+}
+
+// Pagamento da InfinitePay "a conferir" (o valor em aberto tinha mudado):
+// o mestre conferiu e o aviso some da ficha
+export function resolveReview(studentId: string, reviewId: string) {
+  return unwrap(
+    api.POST(
+      '/api/v1/students/{student_id}/billing/reviews/{review_id}/resolve',
+      { params: { path: { student_id: studentId, review_id: reviewId } } },
+    ),
   )
 }
 
