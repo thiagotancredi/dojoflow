@@ -7,12 +7,19 @@ from dojoflow.services.email_templates import (
 PAY = 'https://katsuflow.com.br/pagar/abc'
 
 
-def _billing(academy='Sparta Kombat'):
+ADULT_INTRO = (
+    'A mensalidade deste mês já está disponível. '
+    'Para pagar, é só tocar no botão:'
+)
+
+
+def _billing(academy='Sparta Kombat', student_first_name=None):
     return billing_email(
         recipient_first_name='Lucas',
         academy=academy,
         master='Kennedy Ribeiro',
         pay_link=PAY,
+        student_first_name=student_first_name,
     )
 
 
@@ -31,6 +38,33 @@ def test_billing_email_copy():
     assert 'Se já pagou, desconsidere. Obrigado!' in email.text
     assert 'R$' not in email.html
     assert 'R$' not in email.text
+
+
+def test_billing_email_to_student_keeps_adult_text():
+    email = _billing()
+
+    assert ADULT_INTRO in email.html
+    assert ADULT_INTRO in email.text
+
+
+def test_billing_email_to_responsible_names_the_student():
+    email = _billing(student_first_name='Ana')
+    intro = (
+        'A mensalidade de Ana deste mês já está disponível. '
+        'Para pagar, é só tocar no botão:'
+    )
+
+    assert intro in email.html
+    assert intro in email.text
+    assert ADULT_INTRO not in email.text
+    assert email.subject == 'Mensalidade disponível — Sparta Kombat'
+
+
+def test_billing_email_escapes_student_name():
+    email = _billing(student_first_name='<Ana>')
+
+    assert 'A mensalidade de &lt;Ana&gt; deste mês' in email.html
+    assert '<Ana>' not in email.html
 
 
 def test_billing_email_escapes_names():

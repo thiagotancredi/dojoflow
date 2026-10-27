@@ -80,10 +80,15 @@ def billing_email(
     academy: str,
     master: str,
     pay_link: str,
+    student_first_name: str | None = None,
 ) -> RenderedEmail:
+    """E-mail de cobrança do mês. Com ``student_first_name`` (quem lê é
+    o responsável), o texto cita o aluno: "A mensalidade de Ana ..."."""
     greeting = f'Olá, {recipient_first_name}! Tudo bem?'
+    # "de", sem artigo, igual à /pagar ("Mensalidade de Ana · novembro")
+    of_student = f' de {student_first_name}' if student_first_name else ''
     intro = (
-        'A mensalidade deste mês já está disponível. '
+        f'A mensalidade{of_student} deste mês já está disponível. '
         'Para pagar, é só tocar no botão:'
     )
     outro = 'Se já pagou, desconsidere. Obrigado!'
