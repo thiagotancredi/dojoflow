@@ -61,6 +61,8 @@ export function EmailBillingCard() {
     can_enable: canEnable,
     students_without_email: withoutEmail,
   } = status.data
+  // Ligada, mas sem cobrança configurada: o worker não envia nada
+  const notConfigured = enabled && !canEnable
 
   async function change(value: boolean) {
     try {
@@ -117,10 +119,18 @@ export function EmailBillingCard() {
                   : 'text-muted-foreground'
               }`}
             >
-              {enabled
-                ? `Próximo envio: 1º de ${nextSendMonth(new Date())}, às 8h.`
-                : 'Todo dia 1º, às 8h, o aluno recebe o link de pagamento.'}
+              {!enabled
+                ? 'Todo dia 1º, às 8h, o aluno recebe o link de pagamento.'
+                : notConfigured
+                  ? 'Nada será enviado até a cobrança ser configurada.'
+                  : `Próximo envio: 1º de ${nextSendMonth(new Date())}, às 8h.`}
             </p>
+            {/* Ligada, mas a chave Pix ou a InfinitePay saiu depois */}
+            {notConfigured && (
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                Configure a chave Pix ou ligue a InfinitePay primeiro.
+              </p>
+            )}
             {withoutEmail > 0 && (
               <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
                 {withoutEmail} {withoutEmail === 1 ? 'aluno' : 'alunos'} sem
