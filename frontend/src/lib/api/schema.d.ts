@@ -149,6 +149,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/password-reset/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Password Reset
+         * @description Responde sempre igual: não consulta o banco, só enfileira o envio.
+         */
+        post: operations["request_password_reset_api_v1_auth_password_reset_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Password Reset */
+        post: operations["confirm_password_reset_api_v1_auth_password_reset_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/modalities/catalog": {
         parameters: {
             query?: never;
@@ -654,6 +691,44 @@ export interface paths {
         post?: never;
         /** Disconnect Infinitepay */
         delete: operations["disconnect_infinitepay_api_v1_academy_infinitepay_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academy/email-billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Email Billing */
+        get: operations["read_email_billing_api_v1_academy_email_billing_get"];
+        /**
+         * Update Email Billing
+         * @description Liga ou desliga a cobrança por e-mail.
+         */
+        put: operations["update_email_billing_api_v1_academy_email_billing_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academy/email-billing/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview Email Billing */
+        get: operations["preview_email_billing_api_v1_academy_email_billing_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1505,6 +1580,30 @@ export interface components {
          * @enum {string}
          */
         Eligibility: "eligible" | "not_yet" | "no_belt" | "no_requirement";
+        /**
+         * EmailBillingStatusApi
+         * @description Situação da cobrança por e-mail da academia.
+         */
+        EmailBillingStatusApi: {
+            /** Enabled */
+            enabled: boolean;
+            /** Can Enable */
+            can_enable: boolean;
+            /** Students Without Email */
+            students_without_email: number;
+        };
+        /** EmailBillingUpdateApi */
+        EmailBillingUpdateApi: {
+            /** Enabled */
+            enabled: boolean;
+        };
+        /** EmailPreviewApi */
+        EmailPreviewApi: {
+            /** Subject */
+            subject: string;
+            /** Html */
+            html: string;
+        };
         /** EnrollmentApiPayload */
         EnrollmentApiPayload: {
             /**
@@ -1874,6 +1973,26 @@ export interface components {
             amount: string;
             /** Days Late */
             days_late: number;
+        };
+        /** PasswordResetConfirm */
+        PasswordResetConfirm: {
+            /** Token */
+            token: string;
+            /** Password */
+            password: string;
+        };
+        /** PasswordResetRequest */
+        PasswordResetRequest: {
+            /** Email */
+            email: string;
+        };
+        /** PasswordResetRequestRead */
+        PasswordResetRequestRead: {
+            /**
+             * Status
+             * @default sent
+             */
+            status: string;
         };
         /**
          * PayConfirmApi
@@ -2544,6 +2663,70 @@ export interface operations {
             };
         };
     };
+    request_password_reset_api_v1_auth_password_reset_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetRequestRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_password_reset_api_v1_auth_password_reset_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_modality_catalog_api_v1_modalities_catalog_get: {
         parameters: {
             query?: never;
@@ -2881,6 +3064,7 @@ export interface operations {
                 search?: string | null;
                 modality_id?: string | null;
                 status?: components["schemas"]["EnrollmentStatus"] | null;
+                missing_email?: boolean;
                 page?: number;
                 page_size?: number;
             };
@@ -3780,6 +3964,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InfinitePayStatusApi"];
+                };
+            };
+        };
+    };
+    read_email_billing_api_v1_academy_email_billing_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailBillingStatusApi"];
+                };
+            };
+        };
+    };
+    update_email_billing_api_v1_academy_email_billing_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailBillingUpdateApi"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailBillingStatusApi"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_email_billing_api_v1_academy_email_billing_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailPreviewApi"];
                 };
             };
         };
