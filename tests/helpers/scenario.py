@@ -181,11 +181,12 @@ async def add_responsible(
     student_id: str,
     name: str = 'Maria Lima',
     phone: str = '62988880001',
+    email: str | None = None,
 ) -> None:
     """Responsável ligado ao aluno (mãe)."""
     student = await _one(session, Student, student_id)
     responsible = Responsible(
-        academy_id=student.academy_id, name=name, phone=phone
+        academy_id=student.academy_id, name=name, phone=phone, email=email
     )
     session.add(responsible)
     await session.flush()

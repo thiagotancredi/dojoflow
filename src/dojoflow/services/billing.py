@@ -173,6 +173,36 @@ def choose_recipient(
     return None
 
 
+def choose_email_recipient(
+    student: StudentContact, today: date
+) -> Contact | None:
+    """Quem recebe a cobrança por e-mail, na mesma ordem do WhatsApp.
+
+    Menor de 18: responsáveis antes do próprio aluno. Vale o primeiro
+    com e-mail preenchido.
+    """
+    own = [Contact(student.name, student.phone, student.email)]
+    responsibles = list(student.responsibles)
+    is_minor = (
+        student.birth_date is not None
+        and age_on(student.birth_date, today) < ADULT_AGE
+    )
+    candidates = responsibles + own if is_minor else own + responsibles
+
+    for contact in candidates:
+        if contact.email and contact.email.strip():
+            return contact
+
+    return None
+
+
+def has_pix(settings: BillingSettingsApi) -> bool:
+    """Chave Pix completa: dá para montar o código copia e cola."""
+    return bool(
+        settings.pix_key and settings.pix_key_type and settings.pix_city
+    )
+
+
 @dataclass(frozen=True)
 class MessageSender:
     """Quem assina a cobrança: a academia e o mestre dela."""
@@ -930,7 +960,7 @@ class BillingService:  # noqa: PLR0904
             for row in students
         }
 
-    async def _academy_name(self, academy_id: int) -> str:
+    async def academy_name(self, academy_id: int) -> str:
         return (
             await self.db_session.scalar(
                 select(Academy.name).where(Academy.id == academy_id)
@@ -938,17 +968,31 @@ class BillingService:  # noqa: PLR0904
             or ''
         )
 
-    async def _sender(self, academy_id: int) -> MessageSender:
-        # Academia com mais de um mestre: assina o primeiro cadastrado
-        master = await self.db_session.scalar(
-            select(Master.name)
-            .where(Master.academy_id == academy_id)
-            .order_by(Master.id)
-            .limit(1)
+    async def academy_master(self, academy_id: int) -> tuple[str, str | None]:
+        """(nome, e-mail) de quem assina pela academia.
+
+        Academia com mais de um mestre: o primeiro cadastrado.
+        """
+        row = (
+            await self.db_session.execute(
+                select(Master.name, Master.email)
+                .where(Master.academy_id == academy_id)
+                .order_by(Master.id)
+                .limit(1)
+            )
+        ).one_or_none()
+        return (row.name, row.email) if row else ('', None)
+
+    async def billing_configured(self, academy_id: int) -> bool:
+        """Chave Pix completa ou InfinitePay ligada."""
+        return has_pix(await self.get_settings(academy_id)) or (
+            await self.checkout_enabled(academy_id)
         )
+
+    async def _sender(self, academy_id: int) -> MessageSender:
         return MessageSender(
-            academy=await self._academy_name(academy_id),
-            master=master or '',
+            academy=await self.academy_name(academy_id),
+            master=(await self.academy_master(academy_id))[0],
         )
 
     @transactional
@@ -1016,13 +1060,7 @@ class BillingService:  # noqa: PLR0904
         checkout_enabled = await self.checkout_enabled(academy_id)
 
         pix_code = None
-        if (
-            overdue
-            and not checkout_enabled
-            and settings.pix_key
-            and settings.pix_key_type
-            and settings.pix_city
-        ):
+        if overdue and not checkout_enabled and has_pix(settings):
             pix_code = pix_copy_paste(
                 settings.pix_key,
                 settings.recipient_name or academy_name,
@@ -1032,13 +1070,7 @@ class BillingService:  # noqa: PLR0904
 
         return PublicPaymentRead(
             academy_name=academy_name,
-            master_name=await self.db_session.scalar(
-                select(Master.name)
-                .where(Master.academy_id == academy_id)
-                .order_by(Master.id)
-                .limit(1)
-            )
-            or '',
+            master_name=(await self.academy_master(academy_id))[0],
             greeting_name=' '.join(greeting.split()),
             status='open' if overdue else 'clear',
             items=[

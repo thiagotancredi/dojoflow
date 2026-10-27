@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.api.dependencies.auth import CurrentMasterDep
 from dojoflow.api.dependencies.db_session import DbSessionDep
+from dojoflow.api.dependencies.email_billing import EmailBillingServiceDep
 from dojoflow.api.dependencies.enrollment_belt import EnrollmentBeltServiceDep
 from dojoflow.api.dependencies.public_ids import (
     EnrollmentIdDep,
@@ -78,10 +79,12 @@ async def _to_internal_current_belt(
 async def list_students(  # noqa: PLR0913, PLR0917
     current_master: CurrentMasterDep,
     student_service_dep: StudentServiceDep,
+    email_billing_service_dep: EmailBillingServiceDep,
     db_session_dep: DbSessionDep,
     search: str | None = Query(default=None, min_length=1, max_length=120),
     modality_id: UUID | None = None,
     status: EnrollmentStatus | None = None,
+    missing_email: bool = False,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> StudentPageRead:
@@ -104,6 +107,13 @@ async def list_students(  # noqa: PLR0913, PLR0917
         status=status,
         page=page,
         page_size=page_size,
+        student_ids=(
+            await email_billing_service_dep.students_without_email_ids(
+                current_master.academy_id
+            )
+            if missing_email
+            else None
+        ),
     )
     modality_names = await student_service_dep.get_active_modality_names(
         current_master.academy_id,

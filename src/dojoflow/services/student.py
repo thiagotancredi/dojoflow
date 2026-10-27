@@ -144,8 +144,13 @@ class StudentService:
         status: EnrollmentStatus | None,
         page: int,
         page_size: int,
+        student_ids: set[int] | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
         filters = [Student.academy_id == academy_id]
+
+        # Só estes alunos (ex.: os sem e-mail)
+        if student_ids is not None:
+            filters.append(Student.id.in_(student_ids))
 
         normalized = ' '.join(search.split()) if search else ''
 
