@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     # Cifra as chaves de API da InfinitePay guardadas no banco (Fernet)
     INFINITEPAY_SECRET_KEY: str = DEFAULT_INFINITEPAY_SECRET_KEY
 
+    # E-mail: 'console' só registra no log (dev/testes); 'ses' envia pelo
+    # Amazon SES. As credenciais da AWS vêm das variáveis padrão do boto3.
+    EMAIL_BACKEND: Literal['console', 'ses'] = 'console'
+    AWS_REGION: str = 'sa-east-1'
+    EMAIL_FROM_BILLING: str = 'cobranca@katsuflow.com.br'
+    EMAIL_FROM_ACCOUNT: str = 'nao-responda@katsuflow.com.br'
+
     CORS_ORIGINS: str = 'http://localhost:5173,http://127.0.0.1:5173'
 
     # E-mail do único administrador da plataforma (painel admin.*).
