@@ -2,10 +2,19 @@ from email.utils import parseaddr
 
 import boto3
 import pytest
-from botocore.exceptions import ClientError
+from botocore.exceptions import (
+    ClientError,
+    ConnectionClosedError,
+    ConnectTimeoutError,
+    EndpointConnectionError,
+    NoCredentialsError,
+    ParamValidationError,
+    ReadTimeoutError,
+)
 from botocore.stub import Stubber
 
 from dojoflow.core.settings import settings
+from dojoflow.integrations.email import sender as sender_module
 from dojoflow.integrations.email.sender import (
     ConsoleEmailSender,
     EmailMessage,
@@ -127,6 +136,57 @@ def test_ses_server_error_raises_email_unavailable(ses):
 
     with pytest.raises(EmailUnavailable):
         SesEmailSender(client).send(make_message())
+
+
+class _RaisingClient:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    def send_email(self, **kwargs):
+        raise self.error
+
+
+@pytest.mark.parametrize(
+    'error',
+    [
+        EndpointConnectionError(endpoint_url='https://email.aws'),
+        ConnectTimeoutError(endpoint_url='https://email.aws'),
+        ReadTimeoutError(endpoint_url='https://email.aws'),
+        ConnectionClosedError(endpoint_url='https://email.aws'),
+    ],
+)
+def test_ses_network_errors_raise_email_unavailable(error):
+    with pytest.raises(EmailUnavailable):
+        SesEmailSender(_RaisingClient(error)).send(make_message())
+
+
+@pytest.mark.parametrize(
+    'error',
+    [NoCredentialsError(), ParamValidationError(report='campo errado')],
+)
+def test_ses_setup_errors_are_not_retried(error):
+    with pytest.raises(type(error)):
+        SesEmailSender(_RaisingClient(error)).send(make_message())
+
+
+def test_default_ses_client_has_timeouts_and_retries(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        sender_module.boto3,
+        'client',
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+    monkeypatch.setattr(settings, 'AWS_REGION', 'sa-east-1')
+
+    SesEmailSender()
+
+    ((args, kwargs),) = calls
+    assert args == ('sesv2',)
+    assert kwargs['region_name'] == 'sa-east-1'
+    config = kwargs['config']
+    assert config.connect_timeout == 5  # noqa: PLR2004
+    assert config.read_timeout == 15  # noqa: PLR2004
+    assert config.retries == {'max_attempts': 3, 'mode': 'standard'}
 
 
 def test_console_sender_records_message():
