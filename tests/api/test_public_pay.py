@@ -88,6 +88,132 @@ async def _overdue_student(
     }
 
 
+async def _month_student(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    start: str,
+    today: date,
+) -> dict:
+    """R$ 100 com vencimento no dia 10, a partir de `start`; hoje é `today`."""
+    modality_id = await add_modality(db_session, 'Taekwondo')
+    student_id, _ = await add_student(
+        db_session,
+        modality_id,
+        name='Ana Lima',
+        monthly_fee='100',
+        due_day=10,
+        billing_start_month=start,
+        phone='62999990001',
+    )
+    await _freeze_today(monkeypatch, db_session, today)
+    return {
+        'student_id': student_id,
+        'token': await _token(db_session, student_id),
+        'headers': await auth_headers(client),
+    }
+
+
+@pytest.mark.asyncio
+async def test_public_pay_shows_current_month_before_due(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _month_student(
+        client,
+        db_session,
+        monkeypatch,
+        start='2027-11-01',
+        today=date(2027, 11, 1),
+    )
+
+    body = (await client.get(_pay_url(ctx['token']))).json()
+
+    assert body['status'] == 'open'
+    assert body['items'] == [
+        {'label': 'Mensalidade · novembro', 'amount': '100.00'}
+    ]
+    assert body['total'] == '100.00'
+
+
+@pytest.mark.asyncio
+async def test_public_pay_overdue_plus_current_month(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _month_student(
+        client,
+        db_session,
+        monkeypatch,
+        start='2027-10-01',
+        today=date(2027, 11, 1),
+    )
+
+    body = (await client.get(_pay_url(ctx['token']))).json()
+
+    assert body['items'] == [
+        {'label': 'Mensalidade · outubro', 'amount': '100.00'},
+        {'label': 'Mensalidade · novembro', 'amount': '100.00'},
+    ]
+    assert body['total'] == '200.00'
+
+
+@pytest.mark.asyncio
+async def test_public_pay_excludes_next_month_charge(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _month_student(
+        client,
+        db_session,
+        monkeypatch,
+        start='2027-11-01',
+        today=date(2027, 11, 1),
+    )
+    # A cobrança de dezembro já existe, mas ainda não é do mês
+    await generate_charges(db_session, date(2027, 12, 1))
+
+    body = (await client.get(_pay_url(ctx['token']))).json()
+
+    assert body['items'] == [
+        {'label': 'Mensalidade · novembro', 'amount': '100.00'}
+    ]
+    assert body['total'] == '100.00'
+
+
+@pytest.mark.asyncio
+async def test_public_pay_partial_current_month_shows_rest(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ctx = await _month_student(
+        client,
+        db_session,
+        monkeypatch,
+        start='2027-11-01',
+        today=date(2027, 11, 1),
+    )
+    paid = await client.post(
+        f'/api/v1/students/{ctx["student_id"]}/billing/payments',
+        headers=ctx['headers'],
+        json={'amount': '40.00', 'paid_on': '2027-11-01', 'method': 'cash'},
+    )
+    assert paid.status_code == HTTPStatus.CREATED, paid.text
+
+    body = (await client.get(_pay_url(ctx['token']))).json()
+
+    assert body['status'] == 'open'
+    assert body['items'] == [
+        {'label': 'Mensalidade · novembro', 'amount': '60.00'}
+    ]
+    assert body['total'] == '60.00'
+
+
 @pytest.mark.asyncio
 async def test_public_pay_open(
     client: AsyncClient,

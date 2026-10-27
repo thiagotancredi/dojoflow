@@ -372,7 +372,7 @@ class InfinitePayService:
         owed = sum(
             (
                 charge.open_amount
-                for charge in await billing.overdue_for_student(
+                for charge in await billing.payable_for_student(
                     checkout.academy_id, checkout.student_id, today
                 )
             ),

@@ -1,3 +1,4 @@
+import calendar
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -1030,7 +1031,8 @@ class BillingService:  # noqa: PLR0904
     async def public_payment(
         self, token: str, today: date | None = None
     ) -> PublicPaymentRead | None:
-        """Página pública /pagar: o que está vencido e o código Pix.
+        """Página pública /pagar: o que há a pagar (vencido e o do mês) e o
+        código Pix.
 
         None quando o código não existe ou a academia está bloqueada.
         """
@@ -1049,7 +1051,7 @@ class BillingService:  # noqa: PLR0904
 
         student_id, academy_id, academy_name = row
         today = today or local_today()
-        overdue = await self.overdue_for_student(academy_id, student_id, today)
+        overdue = await self.payable_for_student(academy_id, student_id, today)
         contact = (await self.contacts(academy_id, {student_id}))[student_id]
         recipient = choose_recipient(contact, today)
         to_responsible = recipient is not None and recipient[1]
@@ -1118,6 +1120,28 @@ class BillingService:  # noqa: PLR0904
                     academy_id, today, Enrollment.student_id == student_id
                 )
                 if c.status == 'overdue'
+            ),
+            key=lambda c: (c.reference_month, c.kind is PaymentKind.MONTHLY),
+        )
+
+    async def payable_for_student(
+        self, academy_id: int, student_id: int, today: date
+    ) -> list[ChargeRead]:
+        """O que o aluno pode pagar hoje, do mais antigo ao mais novo: o
+        vencido mais a cobrança em aberto que vence até o fim do mês de hoje.
+        É o que a página /pagar mostra e o que o checkout cobra e confere."""
+        month_end = date(
+            today.year,
+            today.month,
+            calendar.monthrange(today.year, today.month)[1],
+        )
+        return sorted(
+            (
+                c
+                for c in await self._charges(
+                    academy_id, today, Enrollment.student_id == student_id
+                )
+                if c.status not in CLOSED_STATUSES and c.due_date <= month_end
             ),
             key=lambda c: (c.reference_month, c.kind is PaymentKind.MONTHLY),
         )
