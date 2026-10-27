@@ -12,7 +12,14 @@ from http import HTTPStatus
 from typing import Any, Protocol
 
 import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.config import Config
+from botocore.exceptions import (
+    ClientError,
+    ConnectionClosedError,
+    ConnectTimeoutError,
+    EndpointConnectionError,
+    ReadTimeoutError,
+)
 
 from dojoflow.core.settings import settings
 
@@ -26,6 +33,22 @@ RETRYABLE_ERROR_CODES = frozenset({
     'LimitExceededException',
     'SendingPausedException',
 })
+
+
+# Rede: só estes passam com o tempo. Falta de credencial ou parâmetro
+# errado sobem como estão (tentar de novo não resolve)
+NETWORK_ERRORS = (
+    EndpointConnectionError,
+    ConnectTimeoutError,
+    ReadTimeoutError,
+    ConnectionClosedError,
+)
+# Sem isso o boto3 espera até 60 s por resposta e a tarefa fica presa
+CLIENT_CONFIG = Config(
+    connect_timeout=5,
+    read_timeout=15,
+    retries={'max_attempts': 3, 'mode': 'standard'},
+)
 
 
 class EmailUnavailable(Exception):
@@ -62,7 +85,7 @@ class ConsoleEmailSender:
 class SesEmailSender:
     def __init__(self, client: Any = None) -> None:
         self._client = client or boto3.client(
-            'sesv2', region_name=settings.AWS_REGION
+            'sesv2', region_name=settings.AWS_REGION, config=CLIENT_CONFIG
         )
 
     def send(self, message: EmailMessage) -> str:
@@ -94,7 +117,7 @@ class SesEmailSender:
                     f'SES unavailable ({error.response["Error"]["Code"]}).'
                 ) from error
             raise
-        except BotoCoreError as error:
+        except NETWORK_ERRORS as error:
             # Rede, tempo esgotado, endpoint inalcançável
             raise EmailUnavailable(
                 f'SES unreachable ({type(error).__name__}).'
