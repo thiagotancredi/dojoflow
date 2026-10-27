@@ -37,3 +37,5 @@ public_pay_limiter = RateLimiter(limit=30, window_seconds=60)
 # Avisos da InfinitePay chegam de poucos endereços, para todas as
 # academias: limite mais folgado
 webhook_limiter = RateLimiter(limit=300, window_seconds=60)
+# Recuperar senha: pedido e troca, por IP
+password_reset_limiter = RateLimiter(limit=5, window_seconds=900)

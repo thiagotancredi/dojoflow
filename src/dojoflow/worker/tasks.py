@@ -23,6 +23,7 @@ from dojoflow.services.belt_rules import local_today
 from dojoflow.services.billing import BillingService
 from dojoflow.services.email_billing import EmailBillingService
 from dojoflow.services.infinitepay import InfinitePayService
+from dojoflow.services.password_reset import PasswordResetService
 from dojoflow.worker.app import celery_app
 from dojoflow.worker.bridge import run_async
 
@@ -130,4 +131,29 @@ def send_billing_email(student_id: int, day: str) -> str | None:
         )
     )
     logger.info('Billing e-mail for student %s: %s.', student_id, status)
+    return status.value if status else None
+
+
+@celery_app.task(
+    name='dojoflow.send_password_reset_email',
+    # SES fora do ar ou no limite, ou banco fora do ar: tenta de novo
+    autoretry_for=(EmailUnavailable, DBAPIError),
+    # 1 s, 2 s, 4 s… até 1 h entre tentativas (cerca de 2 h no total)
+    retry_backoff=True,
+    retry_backoff_max=3600,
+    retry_jitter=False,
+    max_retries=12,
+    # Abaixo do limite de envio do SES
+    rate_limit='10/s',
+)
+def send_password_reset_email(email: str) -> str | None:
+    """Manda o link de nova senha, se a conta existir e puder receber."""
+    sender = get_email_sender()
+    status = run_async(
+        lambda session: PasswordResetService(session).send_reset_email(
+            email, sender
+        )
+    )
+    # Sem e-mail no log: o pedido não pode revelar se a conta existe
+    logger.info('Password reset e-mail: %s.', status)
     return status.value if status else None

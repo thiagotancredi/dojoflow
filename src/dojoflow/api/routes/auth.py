@@ -1,12 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Response, status
+from fastapi import APIRouter, Cookie, Depends, Response, status
 
 from dojoflow.api.dependencies.auth import (
     AccountMasterDep,
     AuthServiceDep,
     CurrentMasterDep,
 )
+from dojoflow.api.dependencies.password_reset import PasswordResetServiceDep
+from dojoflow.api.dependencies.rate_limit import password_reset_limiter
 from dojoflow.core.settings import settings
 from dojoflow.schemas.auth import (
     AuthLoginRequest,
@@ -16,8 +18,14 @@ from dojoflow.schemas.auth import (
     SupportExchangeRequest,
 )
 from dojoflow.schemas.master_context import MasterContextApiRead
+from dojoflow.schemas.password_reset import (
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    PasswordResetRequestRead,
+)
 from dojoflow.services.auth import SUPPORT_SESSION_TTL
 from dojoflow.shared.exceptions import UnauthorizedError
+from dojoflow.worker import tasks
 
 router = APIRouter(prefix='/auth', tags=['Auth'])
 
@@ -168,3 +176,29 @@ async def exchange_support_code(
     )
 
     return result.response
+
+
+@router.post(
+    path='/password-reset/request',
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(password_reset_limiter)],
+)
+async def request_password_reset(
+    data: PasswordResetRequest,
+) -> PasswordResetRequestRead:
+    """Responde sempre igual: não consulta o banco, só enfileira o envio."""
+    tasks.send_password_reset_email.delay(data.email)
+
+    return PasswordResetRequestRead()
+
+
+@router.post(
+    path='/password-reset/confirm',
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(password_reset_limiter)],
+)
+async def confirm_password_reset(
+    data: PasswordResetConfirm,
+    password_reset_service_dep: PasswordResetServiceDep,
+) -> None:
+    await password_reset_service_dep.confirm(data.token, data.password)
