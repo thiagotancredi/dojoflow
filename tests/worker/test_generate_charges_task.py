@@ -61,6 +61,10 @@ def test_worker_ready_enqueues_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple] = []
+    # Fora do dia 1º/2: só a geração
+    monkeypatch.setattr(
+        worker_app, 'should_catch_up_billing_emails', lambda now: False
+    )
     monkeypatch.setattr(
         tasks.generate_monthly_charges,
         'delay',

@@ -11,12 +11,17 @@ from datetime import date
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dojoflow.integrations.email.sender import (
+    EmailUnavailable,
+    get_email_sender,
+)
 from dojoflow.integrations.infinitepay.client import (
     InfinitePayClient,
     InfinitePayUnavailable,
 )
 from dojoflow.services.belt_rules import local_today
 from dojoflow.services.billing import BillingService
+from dojoflow.services.email_billing import EmailBillingService
 from dojoflow.services.infinitepay import InfinitePayService
 from dojoflow.worker.app import celery_app
 from dojoflow.worker.bridge import run_async
@@ -75,4 +80,54 @@ def settle_infinitepay_payment(
         )
     )
     logger.info('InfinitePay settlement finished: %s.', status)
+    return status.value if status else None
+
+
+async def send_monthly_billing_emails_job(
+    session: AsyncSession, today: date
+) -> list[int]:
+    """Alunos que ainda recebem a cobrança do mês por e-mail."""
+    return await EmailBillingService(session).due_recipients(today)
+
+
+@celery_app.task(name='dojoflow.send_monthly_billing_emails')
+def send_monthly_billing_emails() -> int:
+    """Dia 1º às 8h: uma tarefa de envio por aluno."""
+    today = local_today()
+    student_ids = run_async(
+        lambda session: send_monthly_billing_emails_job(session, today)
+    )
+    for student_id in student_ids:
+        # O dia vai junto: uma nova tentativa no dia 2 ainda é a cobrança
+        # do mês certo
+        send_billing_email.delay(student_id, today.isoformat())
+
+    logger.info(
+        '%s e-mail(s) de cobrança na fila para %s.', len(student_ids), today
+    )
+    return len(student_ids)
+
+
+@celery_app.task(
+    name='dojoflow.send_billing_email',
+    # SES fora do ar ou no limite, ou banco fora do ar: tenta de novo
+    autoretry_for=(EmailUnavailable, DBAPIError),
+    # 1 s, 2 s, 4 s… até 1 h entre tentativas (cerca de 2 h no total)
+    retry_backoff=True,
+    retry_backoff_max=3600,
+    retry_jitter=False,
+    max_retries=12,
+    # Abaixo do limite de envio do SES
+    rate_limit='10/s',
+)
+def send_billing_email(student_id: int, day: str) -> str | None:
+    """Envia a cobrança do mês para um aluno (uma vez só)."""
+    today = date.fromisoformat(day)
+    sender = get_email_sender()
+    status = run_async(
+        lambda session: EmailBillingService(session).send_to_student(
+            student_id, today, sender
+        )
+    )
+    logger.info('Billing e-mail for student %s: %s.', student_id, status)
     return status.value if status else None
