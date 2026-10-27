@@ -478,6 +478,26 @@ async def test_from_name_is_academy_and_reply_to_is_master_email(
     assert bia_message.reply_to is None
 
 
+@pytest.mark.asyncio
+async def test_academy_name_line_breaks_are_collapsed_in_headers(
+    db_session: AsyncSession,
+):
+    other = await _academy(db_session, 'Dojo\r\nTigre', None)
+    await _configure(db_session, other)
+    karate = await add_modality(db_session, 'Karatê', other)
+    await _student(
+        db_session, karate, 'Bia Reis', 'bia@exemplo.com', academy_id=other
+    )
+    await generate_charges(db_session, TODAY)
+    sender = ConsoleEmailSender()
+
+    await _run_flow(db_session, sender)
+
+    (message,) = sender.sent
+    assert message.from_name == 'Dojo Tigre'
+    assert message.subject == 'Mensalidade disponível — Dojo Tigre'
+
+
 def test_should_catch_up_billing_emails() -> None:
     catch_up = worker_app.should_catch_up_billing_emails
 

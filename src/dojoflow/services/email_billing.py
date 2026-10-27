@@ -287,7 +287,9 @@ class EmailBillingService:
 
         contact, (recipient, is_responsible) = due
         master, master_email = await self.billing.academy_master(academy_id)
-        academy = await self.billing.academy_name(academy_id)
+        # Sem quebra de linha no From e no assunto (cabeçalhos do e-mail)
+        academy_name = await self.billing.academy_name(academy_id)
+        academy = ' '.join(academy_name.split())
         rendered = billing_email(
             recipient_first_name=_first_name(recipient.name, contact.name),
             academy=academy,
