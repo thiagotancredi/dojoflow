@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dojoflow.models.academy import Academy
 from dojoflow.models.student import Student
+from dojoflow.shared.email import DEMO_EMAIL_DOMAIN
 from tests.helpers.auth import SEED, auth_headers, other_academy_headers
 from tests.helpers.infinitepay import enable_infinitepay
 from tests.helpers.scenario import add_modality, add_responsible, add_student
@@ -121,13 +122,18 @@ async def test_students_without_email_count(
     )
     await add_responsible(db_session, minor, email='mae@exemplo.com')
     await add_student(db_session, judo, 'Sem Email')
+    # Endereço de demonstração ou reservado conta como sem e-mail
+    demo, _ = await add_student(db_session, judo, 'Demo')
+    await _set_email(db_session, demo, f'demo@{DEMO_EMAIL_DOMAIN}')
+    reserved, _ = await add_student(db_session, judo, 'Reservado')
+    await _set_email(db_session, reserved, 'aluno@dojo.example')
     # Isento e inativo não entram na conta
     await add_student(db_session, judo, 'Isento', is_exempt=True)
     await add_student(db_session, judo, 'Parado', status='inactive')
 
     response = await client.get(URL, headers=headers)
 
-    assert response.json()['students_without_email'] == 1
+    assert response.json()['students_without_email'] == 3  # noqa: PLR2004
 
 
 @pytest.mark.asyncio

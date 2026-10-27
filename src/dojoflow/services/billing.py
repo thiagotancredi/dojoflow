@@ -56,6 +56,7 @@ from dojoflow.services.billing_rules import (
     whatsapp_phone,
 )
 from dojoflow.services.pix import pix_copy_paste
+from dojoflow.shared.email import is_deliverable_email
 from dojoflow.shared.enums import (
     AcademyStatus,
     CheckoutStatus,
@@ -204,7 +205,8 @@ def choose_email_recipient(
     mesma ordem do WhatsApp.
 
     Menor de 18: responsáveis antes do próprio aluno. Vale o primeiro
-    com e-mail preenchido.
+    com e-mail que dá para enviar (endereço de demonstração, reservado ou
+    malformado conta como sem e-mail).
     """
     own = [(Contact(student.name, student.phone, student.email), False)]
     responsibles = [(contact, True) for contact in student.responsibles]
@@ -215,7 +217,7 @@ def choose_email_recipient(
     candidates = responsibles + own if is_minor else own + responsibles
 
     for contact, is_responsible in candidates:
-        if contact.email and contact.email.strip():
+        if is_deliverable_email(contact.email):
             return contact, is_responsible
 
     return None

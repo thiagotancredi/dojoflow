@@ -21,6 +21,7 @@ from dojoflow.models.student import Student
 from dojoflow.services import email_billing as email_billing_module
 from dojoflow.services.billing import pay_url
 from dojoflow.services.email_billing import EmailBillingService
+from dojoflow.shared.email import DEMO_EMAIL_DOMAIN
 from dojoflow.shared.enums import (
     EmailKind,
     EmailStatus,
@@ -171,6 +172,11 @@ async def test_sends_only_for_enabled_academies_with_open_amount(
         db_session, judo, 'Duda Em Dia', 'duda@exemplo.com', monthly_fee=None
     )
     await _student(db_session, judo, 'Edu Sem Email', None)
+    await _student(
+        db_session, judo, 'Hugo Demo', f'hugo@{DEMO_EMAIL_DOMAIN}'
+    )
+    await _student(db_session, judo, 'Ivo Reservado', 'ivo@dojo.invalid')
+    await _student(db_session, judo, 'Juca Errado', 'juca@dojo.com;x@y.com')
 
     # Academia desligada e academia ligada mas sem cobrança configurada
     off = await _academy(db_session, 'Dojo Desligado', 'off@exemplo.com')

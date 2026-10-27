@@ -1,11 +1,14 @@
 from datetime import date
 from uuid import uuid4
 
+import pytest
+
 from dojoflow.services.billing import (
     Contact,
     StudentContact,
     choose_email_recipient,
 )
+from dojoflow.shared.email import DEMO_EMAIL_DOMAIN
 
 TODAY = date(2026, 10, 26)
 
@@ -60,3 +63,39 @@ def test_choose_email_recipient_adult_prefers_self():
     assert contact.name == 'Lucas'
     assert is_responsible is False
     assert choose_email_recipient(no_email, TODAY) == (mother, True)
+
+
+@pytest.mark.parametrize(
+    'email',
+    [
+        f'ana@{DEMO_EMAIL_DOMAIN}',
+        'ana@escola.test',
+        'ana@dojo.example',
+        'ana@dojo.invalid',
+        'ana@dev.localhost',
+        'ANA@DOJO.EXAMPLE',
+        'ana',
+        'ana@dojo',
+        'ana@@dojo.com',
+        'ana@dojo.com; bia@dojo.com',
+        'ana@dojo.com,bia@dojo.com',
+        'ana lima@dojo.com',
+    ],
+)
+def test_choose_email_recipient_skips_unusable_addresses(email):
+    adult = _student(birth_date=date(1990, 1, 1), email=email)
+    mother = Contact('Maria', None, 'mae@exemplo.com')
+    with_mother = _student(
+        birth_date=date(1990, 1, 1), email=email, responsibles=(mother,)
+    )
+
+    assert choose_email_recipient(adult, TODAY) is None
+    # Vale como sem e-mail: passa para o próximo da fila
+    assert choose_email_recipient(with_mother, TODAY) == (mother, True)
+
+
+def test_choose_email_recipient_accepts_padded_real_address():
+    adult = _student(birth_date=date(1990, 1, 1), email='  Ana@Dojo.com.br ')
+
+    contact, _ = choose_email_recipient(adult, TODAY)
+    assert contact.email == '  Ana@Dojo.com.br '
