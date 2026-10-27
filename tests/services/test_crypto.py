@@ -41,6 +41,7 @@ def test_settings_accept_custom_infinitepay_secret_in_prod() -> None:
         ENVIRONMENT='prod',
         JWT_SECRET=PROD_JWT,
         INFINITEPAY_SECRET_KEY='x' * 43 + '=',
+        EMAIL_BACKEND='ses',
     )
 
     assert settings.INFINITEPAY_SECRET_KEY == 'x' * 43 + '='
