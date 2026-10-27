@@ -154,10 +154,10 @@ class EmailBillingService:
 
     async def _due_contacts(
         self, academy_id: int, student_ids: set[int], today: date
-    ) -> dict[int, tuple[StudentContact, Contact]]:
+    ) -> dict[int, tuple[StudentContact, tuple[Contact, bool]]]:
         """Dos alunos dados, os que recebem: ativos, não isentos, com algo
-        em aberto (o mesmo da /pagar) e com e-mail. Valor: (aluno, quem
-        recebe)."""
+        em aberto (o mesmo da /pagar) e com e-mail. Valor: (aluno, (quem
+        recebe, é responsável?))."""
         if not student_ids:
             return {}
 
@@ -180,7 +180,7 @@ class EmailBillingService:
 
     async def _due_recipient(
         self, academy_id: int, student_id: int, today: date
-    ) -> tuple[StudentContact, Contact] | None:
+    ) -> tuple[StudentContact, tuple[Contact, bool]] | None:
         """Confere, na hora do envio, se o aluno ainda deve receber."""
         if not await self._sends_billing_emails(academy_id):
             return None
@@ -285,7 +285,7 @@ class EmailBillingService:
             await self.db_session.delete(log)
             return None
 
-        contact, recipient = due
+        contact, (recipient, is_responsible) = due
         master, master_email = await self.billing.academy_master(academy_id)
         academy = await self.billing.academy_name(academy_id)
         rendered = billing_email(
@@ -293,6 +293,10 @@ class EmailBillingService:
             academy=academy,
             master=master,
             pay_link=pay_url(contact.pay_token),
+            # Irmãos com o mesmo responsável: cada e-mail cita o seu aluno
+            student_first_name=(
+                _first_name(contact.name) if is_responsible else None
+            ),
         )
         log.recipient = (recipient.email or '').strip()
 

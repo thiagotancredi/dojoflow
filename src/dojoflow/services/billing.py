@@ -176,23 +176,24 @@ def choose_recipient(
 
 def choose_email_recipient(
     student: StudentContact, today: date
-) -> Contact | None:
-    """Quem recebe a cobrança por e-mail, na mesma ordem do WhatsApp.
+) -> tuple[Contact, bool] | None:
+    """Quem recebe a cobrança por e-mail: (contato, é responsável?), na
+    mesma ordem do WhatsApp.
 
     Menor de 18: responsáveis antes do próprio aluno. Vale o primeiro
     com e-mail preenchido.
     """
-    own = [Contact(student.name, student.phone, student.email)]
-    responsibles = list(student.responsibles)
+    own = [(Contact(student.name, student.phone, student.email), False)]
+    responsibles = [(contact, True) for contact in student.responsibles]
     is_minor = (
         student.birth_date is not None
         and age_on(student.birth_date, today) < ADULT_AGE
     )
     candidates = responsibles + own if is_minor else own + responsibles
 
-    for contact in candidates:
+    for contact, is_responsible in candidates:
         if contact.email and contact.email.strip():
-            return contact
+            return contact, is_responsible
 
     return None
 

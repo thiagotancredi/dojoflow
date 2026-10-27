@@ -230,6 +230,36 @@ async def test_minor_with_own_email_and_responsible_without_email_gets_own(
 
 
 @pytest.mark.asyncio
+async def test_siblings_with_same_responsible_get_emails_naming_each_child(
+    db_session: AsyncSession,
+):
+    await _configure(db_session)
+    judo = await add_modality(db_session, 'Judô')
+    for name in ('Ana Prado', 'Bruno Prado'):
+        student_id = await _student(
+            db_session, judo, name, None, birth_date='2015-05-20'
+        )
+        public_id = await db_session.scalar(
+            select(Student.public_id).where(Student.id == student_id)
+        )
+        await add_responsible(
+            db_session, str(public_id), 'Maria Prado', email='mae@exemplo.com'
+        )
+    await generate_charges(db_session, TODAY)
+    sender = ConsoleEmailSender()
+
+    await _run_flow(db_session, sender)
+
+    assert [m.to for m in sender.sent] == ['mae@exemplo.com'] * 2
+    texts = sorted(m.text for m in sender.sent)
+    assert all('Olá, Maria!' in text for text in texts)
+    assert 'A mensalidade de Ana deste mês já está disponível.' in texts[0]
+    assert 'A mensalidade de Bruno deste mês já está disponível.' in texts[1]
+    htmls = sorted(m.html for m in sender.sent)
+    assert 'A mensalidade de Ana deste mês' in htmls[0]
+
+
+@pytest.mark.asyncio
 async def test_resend_after_restart_does_not_duplicate(
     db_session: AsyncSession,
 ):

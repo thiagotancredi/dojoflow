@@ -40,10 +40,10 @@ def test_choose_email_recipient_minor_prefers_responsible_then_self():
     )
     nobody = _student(birth_date=minor, email='  ', responsibles=(silent,))
 
-    assert choose_email_recipient(with_both, TODAY) == mother
-    assert choose_email_recipient(only_self, TODAY).email == (
-        'lucas@exemplo.com'
-    )
+    assert choose_email_recipient(with_both, TODAY) == (mother, True)
+    contact, is_responsible = choose_email_recipient(only_self, TODAY)
+    assert contact.email == 'lucas@exemplo.com'
+    assert is_responsible is False
     assert choose_email_recipient(nobody, TODAY) is None
 
 
@@ -56,5 +56,7 @@ def test_choose_email_recipient_adult_prefers_self():
     )
     no_email = _student(birth_date=None, email=None, responsibles=(mother,))
 
-    assert choose_email_recipient(adult, TODAY).name == 'Lucas'
-    assert choose_email_recipient(no_email, TODAY) == mother
+    contact, is_responsible = choose_email_recipient(adult, TODAY)
+    assert contact.name == 'Lucas'
+    assert is_responsible is False
+    assert choose_email_recipient(no_email, TODAY) == (mother, True)
