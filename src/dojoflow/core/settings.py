@@ -65,6 +65,11 @@ class Settings(BaseSettings):
                 'INFINITEPAY_SECRET_KEY must be set when ENVIRONMENT is not '
                 'dev.'
             )
+        # 'console' só registra no log: em produção nenhum e-mail sairia
+        if self.ENVIRONMENT != 'dev' and self.EMAIL_BACKEND == 'console':
+            raise ValueError(
+                "EMAIL_BACKEND must be 'ses' when ENVIRONMENT is not dev."
+            )
 
         return self
 
