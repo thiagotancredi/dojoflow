@@ -816,15 +816,7 @@ class BillingService:  # noqa: PLR0904
             _refresh_paid_status(row, paid_on)
 
         if source is PaymentSource.MANUAL:
-            await self.db_session.execute(
-                update(InfinitePayCheckout)
-                .where(
-                    InfinitePayCheckout.academy_id == academy_id,
-                    InfinitePayCheckout.student_id == student_id,
-                    InfinitePayCheckout.status == CheckoutStatus.OPEN,
-                )
-                .values(status=CheckoutStatus.CANCELED)
-            )
+            await self._cancel_open_checkouts(academy_id, student_id)
 
         await self.db_session.flush()
         (payment,) = await self._payments(
@@ -972,7 +964,24 @@ class BillingService:  # noqa: PLR0904
         if updated is None:
             raise NotFoundError('Student not found.', code='STUDENT_NOT_FOUND')
 
+        # O checkout aberto volta para o link antigo depois de pago (e cairia
+        # em "Link inválido"): o próximo "Pagar" cria outro
+        await self._cancel_open_checkouts(academy_id, student_id)
         return pay_url(token)
+
+    async def _cancel_open_checkouts(
+        self, academy_id: int, student_id: int
+    ) -> None:
+        """Faz o Katsuflow parar de reaproveitar os links abertos do aluno."""
+        await self.db_session.execute(
+            update(InfinitePayCheckout)
+            .where(
+                InfinitePayCheckout.academy_id == academy_id,
+                InfinitePayCheckout.student_id == student_id,
+                InfinitePayCheckout.status == CheckoutStatus.OPEN,
+            )
+            .values(status=CheckoutStatus.CANCELED)
+        )
 
     async def public_payment(
         self, token: str, today: date | None = None

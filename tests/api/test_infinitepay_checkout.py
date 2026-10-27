@@ -203,6 +203,34 @@ async def test_checkout_reuses_open_link_same_amount(
 
 
 @pytest.mark.asyncio
+async def test_renew_pay_link_cancels_open_checkout(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Depois de "Gerar novo", o aluno não cai num checkout que volta para
+    o link antigo (que já não vale): o próximo "Pagar" cria outro."""
+    ctx = await _student(db_session, monkeypatch)
+    await enable_infinitepay(db_session)
+    with fake_infinitepay(link_created(LINK)):
+        await client.post(_checkout_url(ctx['token']))
+
+    renewed = await client.post(
+        f'/api/v1/students/{ctx["student_id"]}/billing/pay-link',
+        headers=await auth_headers(client),
+    )
+    new_token = renewed.json()['pay_url'].rsplit('/', 1)[1]
+    with fake_infinitepay(link_created('https://novo')) as fake:
+        response = await client.post(_checkout_url(new_token))
+
+    assert response.json() == {'url': 'https://novo'}
+    assert len(fake.requests) == 1
+    old, new = await _checkouts(db_session)
+    assert old.status is CheckoutStatus.CANCELED
+    assert new.status is CheckoutStatus.OPEN
+
+
+@pytest.mark.asyncio
 async def test_checkout_new_link_when_old_one_expired(
     client: AsyncClient,
     db_session: AsyncSession,
