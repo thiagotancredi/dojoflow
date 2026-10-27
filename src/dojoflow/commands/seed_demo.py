@@ -37,6 +37,7 @@ from dojoflow.database.transaction import unit_of_work
 from dojoflow.models.academy import Academy
 from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.belt import Belt
+from dojoflow.models.email_log import EmailLog
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.enrollment_belt import EnrollmentBelt
 from dojoflow.models.infinitepay_checkout import InfinitePayCheckout
@@ -51,6 +52,7 @@ from dojoflow.repositories.belt import BeltRepository
 from dojoflow.services.belt import BeltService
 from dojoflow.services.belt_rules import local_today
 from dojoflow.services.billing import BillingService
+from dojoflow.shared.email import DEMO_EMAIL_DOMAIN
 from dojoflow.shared.enums import (
     EnrollmentStatus,
     PaymentMethod,
@@ -58,7 +60,6 @@ from dojoflow.shared.enums import (
     StudentSex,
 )
 
-DEMO_EMAIL_DOMAIN = 'demo.dojoflow.test'
 TKD = 'Taekwondo'
 KB = 'Kickboxing'
 
@@ -291,7 +292,11 @@ async def reset(session: AsyncSession, academy_id: int) -> int:
     )
     total = len((await session.scalars(students)).all())
 
-    # Links da InfinitePay apontam para alunos e baixas: saem primeiro
+    # E-mails enviados e links da InfinitePay apontam para alunos e baixas:
+    # saem primeiro
+    await session.execute(
+        delete(EmailLog).where(EmailLog.student_id.in_(students))
+    )
     await session.execute(
         delete(InfinitePayCheckout).where(
             InfinitePayCheckout.student_id.in_(students)
