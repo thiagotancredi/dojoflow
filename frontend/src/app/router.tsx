@@ -2,7 +2,9 @@ import { Navigate, createBrowserRouter } from 'react-router'
 
 import { AppLayout } from '@/app/layouts/AppLayout'
 import { NotFoundPage } from '@/app/NotFoundPage'
+import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage'
 import { SupportEntryPage } from '@/features/auth/pages/SupportEntryPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { BulkBeltsPage } from '@/features/belts/pages/BulkBeltsPage'
@@ -24,6 +26,9 @@ import { StudentsPage } from '@/features/students/pages/StudentsPage'
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/app" replace /> },
   { path: '/login', element: <LoginPage /> },
+  // Recuperar senha por e-mail (públicas)
+  { path: '/esqueci-senha', element: <ForgotPasswordPage /> },
+  { path: '/redefinir-senha/:token', element: <ResetPasswordPage /> },
   // Botão "Entrar" do painel admin.*: abre a academia em modo suporte
   { path: '/suporte', element: <SupportEntryPage /> },
   // Página pública de pagamento (link da cobrança do WhatsApp, sem login)

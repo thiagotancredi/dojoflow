@@ -1,7 +1,7 @@
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import { useState } from 'react'
 import type { SubmitEvent } from 'react'
-import { Navigate, useNavigate } from 'react-router'
+import { Link, Navigate, useNavigate } from 'react-router'
 
 import { useAuth } from '@/features/auth/useAuth'
 import type { ApiError } from '@/lib/api/client'
@@ -99,6 +99,14 @@ export function LoginPage({
             )}
           </button>
         </div>
+        <div className="text-right">
+          <Link
+            to="/esqueci-senha"
+            className="text-sm text-muted-foreground underline"
+          >
+            Esqueci minha senha
+          </Link>
+        </div>
       </div>
 
       {error && (
@@ -169,10 +177,6 @@ export function LoginPage({
           </div>
 
           {fields}
-
-          <p className="text-center text-xs text-muted-foreground">
-            Esqueceu a senha? Fale com o suporte.
-          </p>
         </form>
       </div>
     </div>

@@ -52,6 +52,9 @@ const SESSION_ROUTES = new Set([
   '/api/v1/auth/register',
   '/api/v1/auth/refresh',
   '/api/v1/auth/logout',
+  // Recuperar senha é público: 401 aqui é "link vencido", não sessão caída
+  '/api/v1/auth/password-reset/request',
+  '/api/v1/auth/password-reset/confirm',
 ])
 
 function isSessionRoute(request: Request) {
