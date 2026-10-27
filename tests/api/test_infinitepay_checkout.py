@@ -349,16 +349,16 @@ async def test_checkout_disabled_409(
 
 
 @pytest.mark.asyncio
-async def test_checkout_nothing_overdue_409(
+async def test_checkout_nothing_payable_409(
     client: AsyncClient,
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ):
     ctx = await _student(db_session, monkeypatch)
     await enable_infinitepay(db_session)
-    # Antes do vencimento de janeiro: nada vencido
+    # Em dezembro, janeiro ainda é mês futuro: nada a pagar
     monkeypatch.setattr(
-        billing_module, 'local_today', lambda: date(2027, 1, 2)
+        billing_module, 'local_today', lambda: date(2026, 12, 15)
     )
 
     with fake_infinitepay() as fake:

@@ -27,6 +27,8 @@ from tests.helpers.auth import SEED, auth_headers
 from tests.helpers.infinitepay import (
     FakeInfinitePay,
     enable_infinitepay,
+    fake_infinitepay,
+    link_created,
     payment_not_found,
     payment_paid,
     unreachable,
@@ -38,6 +40,7 @@ ORDER = 'order-abc-123'
 TX = 'tx-fc3c0858'
 SLUG = 'b6JwL3ZmAt'
 RECEIPT = 'https://recibo.infinitepay.io/abc'
+LINK = 'https://checkout.infinitepay.io/katsuflow/abc'
 
 
 @pytest.fixture(autouse=True)
@@ -652,3 +655,44 @@ async def test_two_links_paid_at_the_same_time_one_pays_one_reviews(
 
     assert sorted(r.value for r in results) == ['paid', 'review']
     assert len(await _transactions(db_session)) == 1
+
+
+@pytest.mark.asyncio
+async def test_checkout_settles_current_month_without_review(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Dia 1º: a mensalidade do mês ainda não venceu e mesmo assim o link
+    criado pela página /pagar é baixado sozinho (sem cair em "a conferir")."""
+    today = date(2027, 11, 1)
+    monkeypatch.setattr(billing_module, 'local_today', lambda: today)
+    modality_id = await add_modality(db_session, 'Taekwondo')
+    student_public_id, _ = await add_student(
+        db_session,
+        modality_id,
+        monthly_fee='100',
+        due_day=10,
+        billing_start_month='2027-11-01',
+        phone='62999990001',
+    )
+    await generate_charges(db_session, today)
+    await enable_infinitepay(db_session)
+    token = await db_session.scalar(
+        select(Student.pay_token).where(
+            Student.public_id == uuid.UUID(student_public_id)
+        )
+    )
+    with fake_infinitepay(link_created(LINK)):
+        created = await client.post(f'/api/v1/public/pay/{token}/checkout')
+    assert created.status_code == HTTPStatus.OK, created.text
+    checkout = await db_session.scalar(select(InfinitePayCheckout))
+    assert checkout.amount == Decimal('100.00')
+
+    status = await InfinitePayService(
+        db_session, FakeInfinitePay(payment_paid(10000, 'pix')).client()
+    ).settle(checkout.order_nsu, TX, SLUG)
+
+    assert status is CheckoutStatus.PAID
+    assert len(await _transactions(db_session)) == 1
+    assert await _open_total(client, student_public_id) == '0.00'
