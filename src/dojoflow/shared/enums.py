@@ -130,3 +130,18 @@ class CheckoutStatus(str, enum.Enum):
     # Pago, mas o valor em aberto mudou: o mestre confere
     REVIEW = 'review'
     RESOLVED = 'resolved'
+
+
+class EmailKind(str, enum.Enum):
+    """Tipo de e-mail enviado pelo Katsuflow."""
+
+    BILLING = 'billing'
+    PASSWORD_RESET = 'password_reset'
+
+
+class EmailStatus(str, enum.Enum):
+    """Situação de um envio no registro de e-mails."""
+
+    PENDING = 'pending'
+    SENT = 'sent'
+    FAILED = 'failed'

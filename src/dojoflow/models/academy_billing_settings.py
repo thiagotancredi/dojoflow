@@ -51,3 +51,8 @@ class AcademyBillingSettings(BaseModel):
     infinitepay_tested_at: Mapped[datetime | None] = datetime_column(
         nullable=True
     )
+
+    # Cobrança do mês por e-mail (desligada por padrão)
+    email_billing_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
