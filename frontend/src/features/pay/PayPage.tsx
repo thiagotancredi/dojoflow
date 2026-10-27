@@ -26,8 +26,9 @@ import { formatMoney } from '@/lib/money'
 const CONFIRM_POLL_MS = 2000
 const CONFIRM_TIMEOUT_MS = 30000
 
-// Página que o aluno abre pelo link da cobrança do WhatsApp: o que está
-// vencido e como pagar — o código Pix (copia e cola) ou, com a baixa
+// Página que o aluno abre pelo link da cobrança (WhatsApp ou e-mail): o que
+// está em aberto até este mês (o vencido mais a mensalidade do mês) e como
+// pagar — o código Pix (copia e cola) ou, com a baixa
 // automática ligada, o botão que leva ao checkout da InfinitePay
 export function PayPage() {
   const { token } = useParams()

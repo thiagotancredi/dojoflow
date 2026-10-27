@@ -190,7 +190,8 @@ class InfinitePayService:
     async def checkout_for_token(
         self, token: str, today: date | None = None
     ) -> str:
-        """URL do checkout com tudo o que o aluno deve hoje.
+        """URL do checkout com o que o aluno pode pagar hoje: o vencido mais
+        a cobrança em aberto que vence até o fim do mês (o total da /pagar).
 
         Reaproveita o link aberto do aluno com o mesmo valor (criado há
         menos de 24 h); senão cria um novo na InfinitePay.
