@@ -1,7 +1,8 @@
-import { Check, Zap } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 
+// Logo oficial (kit de imprensa da InfinitePay), sem alteração
+import infinitePayLogo from '@/assets/brand/infinitepay-logo.png'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -47,75 +48,102 @@ export function InfinitePayInvite() {
     }
   }
 
+  // Logo empilhado à esquerda nos dois estados (escolhas do Thiago em 26/10:
+  // desligada "E2", ligada "G1 + F3")
+  const logo = (
+    <img
+      src={infinitePayLogo}
+      alt="InfinitePay"
+      className="h-[52px] w-auto shrink-0 self-start sm:self-center"
+    />
+  )
+
   return (
     <div
       className={
         enabled
-          ? // Ligada: verde-claro com a faixa verde-musgo à esquerda (opção
-            // "C2 + etiquetas" escolhida pelo Thiago em 24/10)
+          ? // Ligada: verde-claro com a faixa verde-musgo à esquerda
             'rounded-2xl border border-chip-active-border border-l-[6px] border-l-sidebar-primary bg-chip-active p-4'
-          : 'rounded-2xl border border-primary/30 bg-primary/5 p-4'
+          : // Desligada: o mesmo desenho, em cinza
+            'rounded-2xl border border-border border-l-[6px] border-l-muted-foreground/30 bg-muted p-4'
       }
     >
-      {enabled ? (
-        // No celular, os botões vão para baixo do texto
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <div className="flex min-w-0 flex-1 items-start gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-[14px] bg-sidebar-primary text-primary-foreground">
-              <Check className="size-6" strokeWidth={3} />
-            </span>
-            <div className="min-w-0 space-y-1.5">
-              <p className="text-base leading-tight font-bold text-chip-active-foreground">
-                Baixa automática ligada
-              </p>
-              <p className="text-xs text-chip-active-foreground/85">
-                Pagamentos pela InfinitePay entram sozinhos.
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                <Tag strong>${handle}</Tag>
-                {keyLast4 && <Tag strong>chave ••••{keyLast4}</Tag>}
-                {testedAt && <Tag>testada em {formatDay(testedAt)}</Tag>}
+      {/* No celular, os botões vão para baixo do texto */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        {enabled ? (
+          <>
+            <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+              {logo}
+              <div className="min-w-0 space-y-1.5">
+                <p className="flex flex-wrap items-center gap-2 text-base leading-tight font-bold text-chip-active-foreground">
+                  Baixa automática
+                  <Badge className="rounded-full bg-sidebar-primary text-primary-foreground">
+                    ✓ LIGADA
+                  </Badge>
+                </p>
+                <p className="text-xs text-chip-active-foreground/85">
+                  Tudo pronto! Cada pagamento do aluno já dá baixa na
+                  mensalidade sozinho.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Tag strong>${handle}</Tag>
+                  {keyLast4 && <Tag strong>chave ••••{keyLast4}</Tag>}
+                  {testedAt && <Tag>testada em {formatDay(testedAt)}</Tag>}
+                </div>
               </div>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={() => setDialog('key')}
+              >
+                Trocar chave
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={disconnect.isPending}
+                onClick={() => setConfirmOff(true)}
+              >
+                Desligar
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+              {logo}
+              <div className="min-w-0 space-y-1.5">
+                <p className="flex flex-wrap items-center gap-2 text-base leading-tight font-bold">
+                  Receba com baixa automática
+                  <Badge className="rounded-full bg-sidebar-primary text-primary-foreground">
+                    GRÁTIS
+                  </Badge>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  O aluno paga pela InfinitePay e a mensalidade fica paga
+                  sozinha, na hora. Não custa nada para você: o Pix é sem taxa e
+                  a taxa do cartão fica com o aluno.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Tag tone="green">Sem custo para você</Tag>
+                  <Tag tone="gray">Pix sem taxa</Tag>
+                  <Tag tone="gray">Baixa na hora</Tag>
+                </div>
+              </div>
+            </div>
             <Button
-              variant="outline"
-              size="sm"
-              className="rounded-full"
-              onClick={() => setDialog('key')}
+              className="self-start rounded-full bg-sidebar-primary text-primary-foreground hover:bg-sidebar-primary/90 sm:self-center"
+              onClick={() => setDialog('connect')}
             >
-              Trocar chave
+              Ligar
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="rounded-full"
-              disabled={disconnect.isPending}
-              onClick={() => setConfirmOff(true)}
-            >
-              Desligar
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-              <Zap className="size-4 text-primary" />
-              Receba com baixa automática
-              <Badge className="rounded-full">GRÁTIS</Badge>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              O aluno paga pela InfinitePay e a mensalidade fica paga sozinha,
-              na hora. Pix sem taxa.
-            </p>
-          </div>
-          <Button className="rounded-full" onClick={() => setDialog('connect')}>
-            Ligar
-          </Button>
-        </div>
-      )}
+          </>
+        )}
+      </div>
 
       <InfinitePaySetupDialog
         open={dialog !== null}
@@ -138,16 +166,27 @@ export function InfinitePayInvite() {
   )
 }
 
-// Etiqueta com um detalhe da conexão (tag, final da chave, data do teste)
-function Tag({ children, strong }: { children: ReactNode; strong?: boolean }) {
+// Cor de cada tipo de etiqueta. Ligada: detalhes da conexão (tag, final da
+// chave, data do teste). Desligada: benefícios, em cinza ou em verde.
+const TAG_TONES = {
+  strong: 'bg-muted font-semibold',
+  soft: 'bg-muted text-muted-foreground',
+  gray: 'bg-border font-semibold',
+  green: 'bg-sidebar-primary font-semibold text-primary-foreground',
+}
+
+function Tag({
+  children,
+  strong,
+  tone,
+}: {
+  children: ReactNode
+  strong?: boolean
+  tone?: keyof typeof TAG_TONES
+}) {
+  const color = TAG_TONES[tone ?? (strong ? 'strong' : 'soft')]
   return (
-    <span
-      className={
-        strong
-          ? 'rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold'
-          : 'rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground'
-      }
-    >
+    <span className={`rounded-full px-2.5 py-0.5 text-xs ${color}`}>
       {children}
     </span>
   )
