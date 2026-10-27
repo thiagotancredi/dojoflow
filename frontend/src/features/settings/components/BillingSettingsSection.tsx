@@ -22,6 +22,7 @@ import type { BillingSettings } from '@/features/billing/api'
 import { WhatsAppPhone } from '@/features/billing/components/WhatsAppPhone'
 import { useBillingSettings, useSaveBillingSettings } from '@/features/billing/hooks'
 import { fillTemplate } from '@/features/billing/whatsapp'
+import { EmailBillingCard } from '@/features/settings/components/EmailBillingCard'
 import { InfinitePayInvite } from '@/features/settings/components/InfinitePayInvite'
 import { showApiError } from '@/lib/api/errors'
 
@@ -89,6 +90,7 @@ export function BillingSettingsSection() {
         </p>
       </div>
       <InfinitePayInvite />
+      <EmailBillingCard />
       {settings.isLoading && !settings.data ? (
         <p className="text-sm text-muted-foreground">Carregando…</p>
       ) : settings.data ? (

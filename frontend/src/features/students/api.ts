@@ -14,6 +14,7 @@ export type StudentFilters = {
   search: string
   status: EnrollmentStatus
   modalityId: string | null
+  missingEmail: boolean
   page: number
 }
 
@@ -26,6 +27,7 @@ export function listStudents(filters: StudentFilters, signal?: AbortSignal) {
           search: filters.search.trim() || undefined,
           status: filters.status,
           modality_id: filters.modalityId ?? undefined,
+          missing_email: filters.missingEmail || undefined,
           page: filters.page,
           page_size: PAGE_SIZE,
         },
