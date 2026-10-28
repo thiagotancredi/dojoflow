@@ -108,7 +108,8 @@ export function AppInstallSection() {
 
       {!installed && (
         <div className="space-y-3 border-t pt-4">
-          <div className="flex flex-wrap gap-1.5">
+          {/* Seletor de 3 partes iguais: sempre cabe numa linha */}
+          <div className="grid grid-cols-3 rounded-full bg-muted p-1 sm:max-w-md">
             {TABS.map((option) => (
               <button
                 key={option.device}
@@ -116,9 +117,9 @@ export function AppInstallSection() {
                 aria-pressed={tab === option.device}
                 onClick={() => setTab(option.device)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm',
+                  'inline-flex min-w-0 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-sm',
                   tab === option.device
-                    ? 'border-chip-active-border bg-chip-active font-semibold text-chip-active-foreground'
+                    ? 'bg-card font-semibold text-foreground shadow-sm'
                     : 'text-muted-foreground',
                 )}
               >

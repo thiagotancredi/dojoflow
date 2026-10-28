@@ -15,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/features/auth/useAuth'
 import type { BillingSettings } from '@/features/billing/api'
@@ -76,25 +75,23 @@ function toForm(settings: BillingSettings): FormValues {
   }
 }
 
-// Configurações → Cobrança: Pix, quem recebe e a mensagem do WhatsApp
+// Configurações → cobrança em três cartões (28/10, opção 1): baixa
+// automática (InfinitePay), Pix e a mensagem do WhatsApp. Pix e mensagem
+// são um formulário só (a API salva os dois juntos), cada um com seu botão
 export function BillingSettingsSection() {
   const settings = useBillingSettings()
 
   return (
-    <section className="space-y-6 rounded-3xl bg-card p-5">
-      <div>
-        <h2 className="font-semibold">Cobrança</h2>
-        <p className="text-xs text-muted-foreground">
-          Como você cobra os alunos pelo WhatsApp.
-        </p>
-      </div>
+    <>
       <InfinitePayInvite />
       {settings.isLoading && !settings.data ? (
-        <p className="text-sm text-muted-foreground">Carregando…</p>
+        <section className="rounded-3xl bg-card p-5">
+          <p className="text-sm text-muted-foreground">Carregando…</p>
+        </section>
       ) : settings.data ? (
         <BillingSettingsForm initial={settings.data} />
       ) : (
-        <div className="space-y-2 text-sm">
+        <section className="space-y-2 rounded-3xl bg-card p-5 text-sm">
           <p role="alert" className="text-destructive">
             Não foi possível carregar a cobrança.
           </p>
@@ -105,9 +102,9 @@ export function BillingSettingsSection() {
           >
             Tentar de novo
           </Button>
-        </div>
+        </section>
       )}
-    </section>
+    </>
   )
 }
 
@@ -189,9 +186,9 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
   const errors = form.formState.errors
 
   return (
-    <form noValidate onSubmit={form.handleSubmit(save)} className="space-y-8">
-      {/* Bloco 1: para onde o aluno paga */}
-      <div className="space-y-4">
+    <form noValidate onSubmit={form.handleSubmit(save)} className="space-y-4">
+      {/* Cartão Pix: para onde o aluno paga */}
+      <section className="space-y-4 rounded-3xl bg-card p-5">
         <BlockTitle
           title="Pix"
           description="Usados para montar o código Pix que o aluno copia na página de pagamento."
@@ -265,21 +262,23 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
             Pix na página de pagamento.
           </p>
         )}
-      </div>
+        <div className="flex justify-end">
+          <Button type="submit" className="rounded-full" disabled={isPending}>
+            {isPending ? 'Salvando…' : 'Salvar Pix'}
+          </Button>
+        </div>
+      </section>
 
-      <Separator />
-
-      {/* Bloco 2: o texto (esquerda) e como ele chega (direita) */}
-      <div className="space-y-4">
+      {/* Cartão Mensagem: o texto (esquerda) e como ele chega (direita) */}
+      <section className="space-y-4 rounded-3xl bg-card p-5">
         <BlockTitle
           title="Mensagem de cobrança"
           description="O texto que abre no WhatsApp quando você cobra um aluno."
         />
         {/* Texto à esquerda; à direita, um celular com a conversa como o
-            aluno vai ver, centralizado na altura do texto. Largura limitada
-            (40rem): numa tela grande o campo não estica até a borda e o
-            celular fica junto dele. No celular, um embaixo do outro */}
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,40rem)_18rem] lg:items-center lg:gap-10">
+            aluno vai ver, centralizado na altura do texto. No celular, um
+            embaixo do outro */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-center lg:gap-8">
           <div className="space-y-2">
             <Label
               htmlFor="billing-message"
@@ -352,25 +351,25 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
 
           <WhatsAppPhone contact="Ana" text={preview} />
         </div>
-      </div>
 
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          className="rounded-full"
-          onClick={() =>
-            setValue('message_template', DEFAULT_MESSAGE_TEMPLATE, {
-              shouldDirty: true,
-            })
-          }
-        >
-          <RotateCcw /> Restaurar texto padrão
-        </Button>
-        <Button type="submit" className="rounded-full" disabled={isPending}>
-          {isPending ? 'Salvando…' : 'Salvar'}
-        </Button>
-      </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            className="rounded-full"
+            onClick={() =>
+              setValue('message_template', DEFAULT_MESSAGE_TEMPLATE, {
+                shouldDirty: true,
+              })
+            }
+          >
+            <RotateCcw /> Restaurar texto padrão
+          </Button>
+          <Button type="submit" className="rounded-full" disabled={isPending}>
+            {isPending ? 'Salvando…' : 'Salvar mensagem'}
+          </Button>
+        </div>
+      </section>
     </form>
   )
 }
@@ -384,7 +383,7 @@ function BlockTitle({
 }) {
   return (
     <div className="space-y-1">
-      <h3 className="text-sm font-semibold">{title}</h3>
+      <h2 className="font-semibold">{title}</h2>
       <p className="text-xs text-muted-foreground">{description}</p>
     </div>
   )

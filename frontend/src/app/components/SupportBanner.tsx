@@ -23,7 +23,7 @@ export function SupportBanner() {
   }
 
   return (
-    <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-status-pending/40 bg-status-pending-soft px-4 py-2 text-sm">
+    <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-status-pending/40 bg-status-pending-soft px-4 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-status-pending px-2 py-0.5 text-[11px] font-bold tracking-wide text-white uppercase">
           Modo suporte

@@ -32,8 +32,9 @@ export function SettingsPage() {
 
   const { academy } = master
 
+  // Largura limitada: num monitor grande os cartões não esticam até a borda
   return (
-    <div className="space-y-4">
+    <div className="max-w-4xl space-y-4">
       <PageHeader title="Configurações" />
 
       <section className="space-y-4 rounded-3xl bg-card p-5">

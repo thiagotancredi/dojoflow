@@ -11,7 +11,7 @@ export function AdminLayout() {
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 backdrop-blur md:px-6">
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur md:px-6">
         <div className="flex items-center gap-3">
           <Logo />
           <span className="text-lg font-semibold">Katsuflow</span>
