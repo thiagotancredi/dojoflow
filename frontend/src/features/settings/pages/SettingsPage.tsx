@@ -9,6 +9,7 @@ import { useAuth } from '@/features/auth/useAuth'
 import { ModalitiesSection } from '@/features/modalities/components/ModalitiesSection'
 import { BillingSettingsSection } from '@/features/settings/components/BillingSettingsSection'
 import { ChangePasswordForm } from '@/features/settings/components/ChangePasswordForm'
+import { AppInstallSection } from '@/features/settings/components/AppInstallSection'
 import { formatPhone } from '@/lib/format'
 
 // Configurações da academia: dados (só leitura por enquanto), modalidades,
@@ -72,6 +73,8 @@ export function SettingsPage() {
       <ModalitiesSection />
 
       <BillingSettingsSection />
+
+      <AppInstallSection />
 
       {!master.support_mode && (
         <section className="space-y-4 rounded-3xl bg-card p-5">

@@ -13,6 +13,7 @@ import { GraduationListPage } from '@/features/graduations/pages/GraduationListP
 import { GraduationListsPage } from '@/features/graduations/pages/GraduationListsPage'
 import { PayPage } from '@/features/pay/PayPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
+import { PwaInstallPreviewPage } from '@/features/settings/pages/PwaInstallPreviewPage'
 import { NewStudentPage } from '@/features/students/pages/NewStudentPage'
 import { StudentDetailPage } from '@/features/students/pages/StudentDetailPage'
 import { StudentsEmptyDetail } from '@/features/students/pages/StudentsEmptyDetail'
@@ -28,6 +29,16 @@ export const router = createBrowserRouter([
   { path: '/suporte', element: <SupportEntryPage /> },
   // Página pública de pagamento (link da cobrança do WhatsApp, sem login)
   { path: '/pagar/:token', element: <PayPage /> },
+  // Prévia visual da instalação: só no ambiente local, nunca em produção
+  ...(import.meta.env.DEV
+    ? [
+        {
+          path: '/pwa-preview',
+          element: <AppLayout />,
+          children: [{ index: true, element: <PwaInstallPreviewPage /> }],
+        },
+      ]
+    : []),
   {
     path: '/app',
     // RequireAuth manda para /login quem não tem sessão
