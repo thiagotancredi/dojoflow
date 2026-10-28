@@ -7,6 +7,8 @@ import { adminRouter } from '@/features/admin/router'
 import { isAdminHost } from '@/lib/host'
 import { trackKeyboardInset } from '@/lib/keyboardInset'
 import { applyInitialMode } from '@/app/theme'
+import { PullToRefresh } from '@/app/components/PullToRefresh'
+import { UpdateBanner } from '@/app/components/UpdateBanner'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/features/auth/AuthProvider'
 
@@ -30,6 +32,9 @@ createRoot(document.getElementById('root')!).render(
       <RouterProvider router={isAdminHost ? adminRouter : router} />
       {/* Avisos rápidos (toasts) de sucesso e erro, em qualquer tela */}
       <Toaster position="bottom-right" />
+      {/* "Nova versão disponível" e puxar para baixo para atualizar */}
+      <UpdateBanner />
+      <PullToRefresh />
     </AuthProvider>
   </StrictMode>,
 )

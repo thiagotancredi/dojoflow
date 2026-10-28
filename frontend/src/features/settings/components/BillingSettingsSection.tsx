@@ -275,11 +275,12 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
           title="Mensagem de cobrança"
           description="O texto que abre no WhatsApp quando você cobra um aluno."
         />
-        {/* Texto à esquerda; à direita, um celular com a conversa como o
-            aluno vai ver, centralizado na altura do texto. No celular, um
-            embaixo do outro */}
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-center lg:gap-8">
-          <div className="space-y-2">
+        {/* Computador (28/10, "metade e metade"): texto à esquerda com os
+            botões logo abaixo; à direita, o celular no meio de um painel com
+            o fundo do WhatsApp, na mesma altura, sem sobrar espaço vazio.
+            No celular, um embaixo do outro, como antes */}
+        <div className="grid gap-6 lg:grid-cols-2 lg:grid-rows-[auto_1fr] lg:gap-x-7 lg:gap-y-3">
+          <div className="space-y-2 lg:col-start-1 lg:row-start-1">
             <Label
               htmlFor="billing-message"
               className="flex items-center gap-1.5 text-sm font-medium"
@@ -349,25 +350,33 @@ function BillingSettingsForm({ initial }: { initial: BillingSettings }) {
             )}
           </div>
 
-          <WhatsAppPhone contact="Ana" text={preview} />
-        </div>
+          <div className="flex flex-col gap-2 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+            <p className="hidden text-sm text-muted-foreground lg:block">
+              Como o aluno recebe
+            </p>
+            {/* Fundo do WhatsApp (bege com pontinhos), só no computador */}
+            <div className="flex flex-1 items-center justify-center lg:rounded-2xl lg:bg-[#efeae2] lg:bg-[radial-gradient(#e0d9cb_1px,transparent_1px)] lg:bg-size-[14px_14px] lg:p-6">
+              <WhatsAppPhone contact="Ana" text={preview} />
+            </div>
+          </div>
 
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            className="rounded-full"
-            onClick={() =>
-              setValue('message_template', DEFAULT_MESSAGE_TEMPLATE, {
-                shouldDirty: true,
-              })
-            }
-          >
-            <RotateCcw /> Restaurar texto padrão
-          </Button>
-          <Button type="submit" className="rounded-full" disabled={isPending}>
-            {isPending ? 'Salvando…' : 'Salvar mensagem'}
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2 lg:col-start-1 lg:row-start-2 lg:self-start">
+            <Button
+              type="button"
+              variant="ghost"
+              className="rounded-full"
+              onClick={() =>
+                setValue('message_template', DEFAULT_MESSAGE_TEMPLATE, {
+                  shouldDirty: true,
+                })
+              }
+            >
+              <RotateCcw /> Restaurar texto padrão
+            </Button>
+            <Button type="submit" className="rounded-full" disabled={isPending}>
+              {isPending ? 'Salvando…' : 'Salvar mensagem'}
+            </Button>
+          </div>
         </div>
       </section>
     </form>

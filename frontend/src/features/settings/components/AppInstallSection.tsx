@@ -1,7 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Check, Download, EllipsisVertical, Share, SquarePlus } from 'lucide-react'
+import {
+  Check,
+  Download,
+  EllipsisVertical,
+  RefreshCw,
+  Share,
+  SquarePlus,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { formatAppVersion, isStandalone, reloadApp } from '@/lib/appUpdate'
 import { cn } from '@/lib/utils'
 
 type InstallPromptEvent = Event & {
@@ -36,17 +44,10 @@ function detectDevice(): Device {
   return 'computer'
 }
 
-function isInstalled() {
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    ('standalone' in navigator && navigator.standalone === true)
-  )
-}
-
 export function AppInstallSection() {
   const [installPrompt, setInstallPrompt] =
     useState<InstallPromptEvent | null>(pendingInstallPrompt)
-  const [installed, setInstalled] = useState(isInstalled)
+  const [installed, setInstalled] = useState(isStandalone)
   const [currentDevice] = useState(detectDevice)
   const [tab, setTab] = useState<Device>(currentDevice)
 
@@ -105,6 +106,18 @@ export function AppInstallSection() {
           </span>
         )}
       </div>
+
+      {/* No app instalado não há botão de recarregar do navegador */}
+      {installed && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <p className="text-xs text-muted-foreground">
+            Versão de {formatAppVersion()}
+          </p>
+          <Button variant="outline" size="sm" className="rounded-full" onClick={reloadApp}>
+            <RefreshCw aria-hidden="true" /> Recarregar app
+          </Button>
+        </div>
+      )}
 
       {!installed && (
         <div className="space-y-3 border-t pt-4">
