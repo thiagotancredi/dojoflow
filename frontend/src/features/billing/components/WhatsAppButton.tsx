@@ -45,7 +45,7 @@ export function WhatsAppButton({
         variant="outline"
         size={size}
         disabled
-        title="Sem telefone ou sem atraso"
+        title="Sem telefone ou nada a cobrar"
         className={cn('rounded-full', className)}
       >
         <MessageCircle /> {label}

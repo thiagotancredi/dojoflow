@@ -494,14 +494,13 @@ function OverviewList({
 }
 
 function StudentName({ item }: { item: BillingOverviewItem }) {
-  // Em atraso e sem link: o aluno (ou responsável) não tem telefone
-  const noPhone = item.days_late !== null && !item.whatsapp_url
+  // Algo em aberto e sem link: o aluno (ou responsável) não tem telefone
+  const noPhone = Number(item.open_amount) > 0 && !item.whatsapp_url
 
   return (
     <p className="min-w-0">
       <Link
         to={`/app/alunos/${item.student_id}`}
-        state={{ tab: 'billing' }}
         className="font-medium hover:underline"
       >
         {item.name}
