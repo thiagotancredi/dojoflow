@@ -23,7 +23,7 @@ import { callHref, whatsappHref } from '@/lib/phone'
 // Ficha do aluno: lê o ":studentId" da URL (/app/alunos/<uuid>).
 export function StudentDetailPage() {
   const { studentId } = useParams()
-  const { search, state } = useLocation()
+  const { search } = useLocation()
   const { data, isLoading, error, refetch } = useStudent(studentId)
   const list = useOutletContext<{ refreshList: () => void } | undefined>()
   const backToList = `/app/alunos${search}`
@@ -153,11 +153,12 @@ export function StudentDetailPage() {
         )}
       </div>
 
-      {/* key: ao trocar de aluno, as abas voltam ao estado inicial */}
+      {/* key: ao trocar de aluno, as abas voltam ao estado inicial
+          (sempre em Mensalidades, o que o mestre mais usa) */}
       <StudentSections
         key={student.id}
         student={data}
-        initial={initialTab(state)}
+        initial="billing"
         onChanged={onChanged}
       />
     </article>
@@ -224,17 +225,6 @@ function StudentSections({
       </Tabs>
     </SectionMenuProvider>
   )
-}
-
-// Aba que abre primeiro: quem vem de uma tela de cobrança pede
-// "Mensalidades" (navigate/Link com state { tab: 'billing' }); o resto abre
-// em "Matrículas"
-function initialTab(state: unknown): StudentSection {
-  const tab =
-    typeof state === 'object' && state !== null && 'tab' in state
-      ? state.tab
-      : null
-  return tab === 'billing' ? 'billing' : 'enrollments'
 }
 
 // 404 do aluno ou id que nem é UUID (422): "não encontrado"
