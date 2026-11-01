@@ -770,17 +770,17 @@ def _message(url: str) -> tuple[str, str]:
 
 
 @pytest.mark.asyncio
-async def test_whatsapp_url_only_for_overdue(
+async def test_whatsapp_url_while_something_is_open(
     client: AsyncClient,
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ):
     ctx = await _overdue_student(client, db_session, monkeypatch)
 
-    # 10/01: janeiro ainda a vencer → sem link
+    # 10/01: janeiro ainda a vencer → o mestre já pode cobrar
     await _freeze_today(monkeypatch, db_session, date(2027, 1, 10))
     body = await _read(client, ctx['student_id'], ctx['headers'])
-    assert body['whatsapp_url'] is None
+    assert body['whatsapp_url'].startswith('https://wa.me/5562999990001?text=')
 
     await _freeze_today(monkeypatch, db_session, date(2027, 2, 20))
     body = await _read(client, ctx['student_id'], ctx['headers'])
@@ -1022,15 +1022,17 @@ async def test_whatsapp_amount_matches_pay_page_total(
 
 
 @pytest.mark.asyncio
-async def test_whatsapp_still_needs_something_overdue(
+async def test_whatsapp_before_due_date(
     client: AsyncClient,
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    # Só outubro, que vence dia 20: nada vencido, sem link
+    # Só outubro, que vence dia 20: nada vencido, mas já dá para cobrar
     ctx = await _september_and_october_student(
         client, db_session, monkeypatch, start='2026-10-01'
     )
+    token = await _pay_token(db_session, ctx['student_id'])
+    expected = f'R$ 150,00|outubro|{settings.WEB_APP_URL}/pagar/{token}'
 
     body = await _read(client, ctx['student_id'], ctx['headers'])
     overview = await client.get(
@@ -1039,9 +1041,9 @@ async def test_whatsapp_still_needs_something_overdue(
         params={'filter': 'all'},
     )
 
-    assert body['whatsapp_url'] is None
+    assert _message(body['whatsapp_url'])[1] == expected
     (item,) = overview.json()['items']
-    assert item['whatsapp_url'] is None
+    assert _message(item['whatsapp_url'])[1] == expected
 
 
 @pytest.mark.asyncio

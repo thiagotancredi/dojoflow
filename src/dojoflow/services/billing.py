@@ -212,19 +212,21 @@ def whatsapp_url(  # noqa: PLR0913, PLR0917
     sender: MessageSender,
     today: date,
 ) -> str | None:
-    """Link wa.me com a mensagem de cobrança; None sem atraso ou telefone.
+    """Link wa.me com a mensagem de cobrança; None sem nada a pagar ou sem
+    telefone.
 
     ``charges``: as cobranças do aluno já carregadas (com todas as em
-    aberto). O link só aparece com algo vencido; o {valor} e os {meses}
-    são o mesmo total da /pagar (vencido mais a do mês).
+    aberto). O mestre pode cobrar antes do vencimento; o que já tem baixa
+    não entra. O {valor} e os {meses} são o mesmo total da /pagar (vencido
+    mais a do mês).
     """
     recipient = choose_recipient(student, today)
+    payable = payable_charges(charges, today)
 
-    if recipient is None or not any(c.status == 'overdue' for c in charges):
+    if recipient is None or not payable:
         return None
 
     contact, _ = recipient
-    payable = payable_charges(charges, today)
     values = {
         '{nome}': contact.name.split()[0],
         '{mestre}': sender.master,
@@ -1104,22 +1106,6 @@ class BillingService:  # noqa: PLR0904
         ).one_or_none()
         return (row.academy_id, row.id) if row else None
 
-    async def overdue_for_student(
-        self, academy_id: int, student_id: int, today: date
-    ) -> list[ChargeRead]:
-        """O que o aluno deve hoje (vencido), do mais antigo ao mais novo:
-        é o que a página /pagar mostra e o que o checkout cobra."""
-        return sorted(
-            (
-                c
-                for c in await self._charges(
-                    academy_id, today, Enrollment.student_id == student_id
-                )
-                if c.status == 'overdue'
-            ),
-            key=lambda c: (c.reference_month, c.kind is PaymentKind.MONTHLY),
-        )
-
     async def payable_for_student(
         self, academy_id: int, student_id: int, today: date
     ) -> list[ChargeRead]:
@@ -1153,7 +1139,7 @@ class BillingService:  # noqa: PLR0904
         charges: list[ChargeRead],
         today: date,
     ) -> str | None:
-        if not any(c.status == 'overdue' for c in charges):
+        if not payable_charges(charges, today):
             return None
 
         contacts = await self.contacts(academy_id, {student_id})
@@ -1246,13 +1232,17 @@ class BillingService:  # noqa: PLR0904
                 c for c in student_loaded if c.status == 'overdue'
             ]
             recipient = choose_recipient(contact, today)
+            message_url = whatsapp_url(
+                contact, student_loaded, settings, sender, today
+            )
             items.append(
                 BillingOverviewItemRead(
                     student_id=contact.public_id,
                     name=contact.name,
+                    # Quem recebe a cobrança, quando é um responsável
                     responsible_name=(
                         recipient[0].name
-                        if recipient and recipient[1] and student_overdue
+                        if recipient and recipient[1] and message_url
                         else None
                     ),
                     modalities=sorted({
@@ -1264,9 +1254,7 @@ class BillingService:  # noqa: PLR0904
                         if student_overdue
                         else None
                     ),
-                    whatsapp_url=whatsapp_url(
-                        contact, student_loaded, settings, sender, today
-                    ),
+                    whatsapp_url=message_url,
                 )
             )
 
