@@ -100,7 +100,8 @@ def billing_email(
     )
     subject = f'Mensalidade disponível — {academy}'
     text = (
-        f'{greeting}\n\n{intro}\n{pay_link}\n\n{outro}\n\n{master}\n{academy}\n'
+        f'{greeting}\n\n{intro}\n{pay_link}\n\n'
+        f'{outro}\n\n{master}\n{academy}\n'
     )
     return RenderedEmail(
         subject=subject,

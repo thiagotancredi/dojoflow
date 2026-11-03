@@ -168,9 +168,7 @@ async def test_preview_in_support_mode_signs_as_academy_master(
         EXCHANGE_URL, json={'code': entry.json()['code']}
     )
     client.cookies.clear()
-    headers = {
-        'Authorization': f'Bearer {exchange.json()["access_token"]}'
-    }
+    headers = {'Authorization': f'Bearer {exchange.json()["access_token"]}'}
 
     response = await client.get(f'{URL}/preview', headers=headers)
 

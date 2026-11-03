@@ -66,9 +66,7 @@ async def test_request_always_202_same_body(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(
-        tasks.send_password_reset_email, 'delay', calls.append
-    )
+    monkeypatch.setattr(tasks.send_password_reset_email, 'delay', calls.append)
 
     known = await client.post(REQUEST_URL, json={'email': SEED.email})
     unknown = await client.post(REQUEST_URL, json={'email': 'x@nada.test'})
@@ -86,9 +84,7 @@ async def test_request_normalizes_email(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(
-        tasks.send_password_reset_email, 'delay', calls.append
-    )
+    monkeypatch.setattr(tasks.send_password_reset_email, 'delay', calls.append)
     await client.post(REQUEST_URL, json={'email': f' {SEED.email.upper()} '})
     assert calls == [SEED.email]
 

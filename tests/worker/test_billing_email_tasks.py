@@ -172,9 +172,7 @@ async def test_sends_only_for_enabled_academies_with_open_amount(
         db_session, judo, 'Duda Em Dia', 'duda@exemplo.com', monthly_fee=None
     )
     await _student(db_session, judo, 'Edu Sem Email', None)
-    await _student(
-        db_session, judo, 'Hugo Demo', f'hugo@{DEMO_EMAIL_DOMAIN}'
-    )
+    await _student(db_session, judo, 'Hugo Demo', f'hugo@{DEMO_EMAIL_DOMAIN}')
     await _student(db_session, judo, 'Ivo Reservado', 'ivo@dojo.invalid')
     await _student(db_session, judo, 'Juca Errado', 'juca@dojo.com;x@y.com')
 
