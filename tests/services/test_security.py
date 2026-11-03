@@ -51,3 +51,27 @@ def test_token_without_role_is_rejected() -> None:
             expected_purpose='access',
             expected_role=MASTER_ROLE,
         )
+
+
+def test_token_issued_slightly_in_the_future_is_accepted() -> None:
+    # O relógio pode voltar um pouco (WSL, NTP): o iat fica "no futuro"
+    token = jwt.encode(
+        {
+            'sub': str(TEST_MASTER_ID),
+            'purpose': 'access',
+            'role': MASTER_ROLE,
+            'iat': datetime.now(UTC) + timedelta(seconds=2),
+            'exp': datetime.now(UTC) + timedelta(minutes=5),
+        },
+        settings.JWT_SECRET,
+        algorithm=settings.JWT_ALGORITHM,
+    )
+
+    assert (
+        get_master_id_from_token(
+            token,
+            expected_purpose='access',
+            expected_role=MASTER_ROLE,
+        )
+        == TEST_MASTER_ID
+    )
