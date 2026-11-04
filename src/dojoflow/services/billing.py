@@ -1173,7 +1173,11 @@ class BillingService:  # noqa: PLR0904
         )
 
     async def public_payment(
-        self, token: str, today: date | None = None
+        self,
+        token: str,
+        today: date | None = None,
+        *,
+        group: ChargeGroup = ChargeGroup.MONTHLY,
     ) -> PublicPaymentRead | None:
         """Página pública /pagar: o que há a pagar (vencido e o do mês) e o
         código Pix.
@@ -1195,7 +1199,9 @@ class BillingService:  # noqa: PLR0904
 
         student_id, academy_id, academy_name = row
         today = today or local_today()
-        payable = await self.payable_for_student(academy_id, student_id, today)
+        payable = await self.payable_for_student(
+            academy_id, student_id, today, group=group
+        )
         contact = (await self.contacts(academy_id, {student_id}))[student_id]
         recipient = choose_recipient(contact, today)
         to_responsible = recipient is not None and recipient[1]
@@ -1235,6 +1241,7 @@ class BillingService:  # noqa: PLR0904
             recipient_name=settings.recipient_name or academy_name,
             pix_code=pix_code,
             checkout_enabled=checkout_enabled,
+            group=group,
         )
 
     async def pay_token_owner(self, token: str) -> tuple[int, int] | None:

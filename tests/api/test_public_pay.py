@@ -251,8 +251,10 @@ async def test_public_pay_open(
         'recipient_name',
         'pix_code',
         'checkout_enabled',
+        'group',
     }
     assert body['checkout_enabled'] is False
+    assert body['group'] == 'monthly'
 
 
 @pytest.mark.asyncio

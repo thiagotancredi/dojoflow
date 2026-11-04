@@ -15,6 +15,7 @@ from dojoflow.schemas.infinitepay_api import (
     WebhookAckRead,
 )
 from dojoflow.schemas.public_pay import PublicCheckoutRead, PublicPaymentRead
+from dojoflow.shared.enums import ChargeGroup
 from dojoflow.shared.exceptions import NotFoundError
 from dojoflow.worker import tasks
 
@@ -30,8 +31,9 @@ router = APIRouter(prefix='/public', tags=['Public'])
 async def read_public_payment(
     token: Annotated[str, Path(max_length=64)],
     billing_service_dep: BillingServiceDep,
+    group: ChargeGroup = ChargeGroup.MONTHLY,
 ) -> PublicPaymentRead:
-    payment = await billing_service_dep.public_payment(token)
+    payment = await billing_service_dep.public_payment(token, group=group)
 
     if payment is None:
         raise NotFoundError('Payment link not found.', code='PAY_LINK_INVALID')
@@ -47,10 +49,13 @@ async def read_public_payment(
 async def create_public_checkout(
     token: Annotated[str, Path(max_length=64)],
     infinitepay_service_dep: InfinitePayServiceDep,
+    group: ChargeGroup = ChargeGroup.MONTHLY,
 ) -> PublicCheckoutRead:
-    """ "Pagar mensalidade": devolve o checkout da InfinitePay."""
+    """ "Pagar": devolve o checkout da InfinitePay (só do grupo)."""
     return PublicCheckoutRead(
-        url=await infinitepay_service_dep.checkout_for_token(token)
+        url=await infinitepay_service_dep.checkout_for_token(
+            token, group=group
+        )
     )
 
 
