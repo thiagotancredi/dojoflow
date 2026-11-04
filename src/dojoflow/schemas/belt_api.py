@@ -1,3 +1,4 @@
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -17,6 +18,7 @@ class BeltApiRead(BaseModel):
     min_time_amount: int | None
     min_time_unit: DurationUnit | None
     position: int
+    price: Decimal
 
     @classmethod
     def from_internal(cls, belt: BeltRead) -> 'BeltApiRead':

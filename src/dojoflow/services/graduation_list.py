@@ -26,6 +26,7 @@ from dojoflow.schemas.graduation_list import (
 from dojoflow.services.belt import BeltService, next_in_sequence
 from dojoflow.services.belt_rules import evaluate_eligibility
 from dojoflow.services.enrollment_belt import EnrollmentBeltService
+from dojoflow.services.graduation_billing import GraduationBillingService
 from dojoflow.shared.enums import EnrollmentStatus
 from dojoflow.shared.exceptions import ConflictError, NotFoundError
 
@@ -47,6 +48,7 @@ def _summaries_query(academy_id: int) -> Select[Any]:
             Modality.name.label('modality_name'),
             Modality.emoji.label('modality_emoji'),
             GraduationList.exam_date,
+            GraduationList.payment_due_date,
             GraduationList.created_at,
             entry_count.label('entry_count'),
         )
@@ -73,6 +75,7 @@ class GraduationListService:
         self.enrollment_belt_service = enrollment_belt_service
         self.academy_modality_repository = academy_modality_repository
         self.db_session = db_session
+        self.graduation_billing = GraduationBillingService(db_session)
 
     async def list_summaries(
         self,
@@ -168,11 +171,20 @@ class GraduationListService:
             await self.graduation_list_repository.update_by_id(
                 list_id, payload
             )
+            await self.graduation_billing.sync_list(academy_id, list_id)
 
     @transactional
     async def delete(self, academy_id: int, list_id: int) -> None:
         await self.get_summary(academy_id, list_id)
 
+        entry_ids = await self.db_session.scalars(
+            select(GraduationListEntry.id).where(
+                GraduationListEntry.graduation_list_id == list_id
+            )
+        )
+        await self.graduation_billing.drop_open_charges(
+            academy_id, list(entry_ids)
+        )
         await self.db_session.execute(
             delete(GraduationListEntry).where(
                 GraduationListEntry.graduation_list_id == list_id
@@ -242,6 +254,7 @@ class GraduationListService:
             'snapshot_belt_id': current.belt.id if current else None,
             'snapshot_graduated_on': current.graduated_on if current else None,
         })
+        await self.graduation_billing.sync_list(academy_id, list_id)
 
     @transactional
     async def update_entry(
@@ -259,6 +272,7 @@ class GraduationListService:
         await self.graduation_list_entry_repository.update_by_id(
             entry_id, {'target_belt_id': target.id}
         )
+        await self.graduation_billing.sync_list(academy_id, list_id)
 
     @transactional
     async def remove_entry(
@@ -268,6 +282,7 @@ class GraduationListService:
         entry_id: int,
     ) -> None:
         await self.get_summary(academy_id, list_id)
+        await self.graduation_billing.drop_open_charges(academy_id, [entry_id])
         await self.graduation_list_entry_repository.delete_by_id(entry_id)
 
     async def _resolve_target(

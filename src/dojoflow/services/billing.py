@@ -323,7 +323,7 @@ def _public_label(
     return f'{label} · {charge.modality_name}' if show_modality else label
 
 
-def _refresh_paid_status(charge: Payment, paid_on: date | None) -> None:
+def refresh_paid_status(charge: Payment, paid_on: date | None) -> None:
     """Situação gravada a partir do valor já alocado na cobrança."""
     if charge.status is PaymentStatus.WAIVED:
         return
@@ -934,7 +934,7 @@ class BillingService:  # noqa: PLR0904
             )
             row = locked[charge.id]
             row.amount_paid += part
-            _refresh_paid_status(row, paid_on)
+            refresh_paid_status(row, paid_on)
 
         if source is PaymentSource.MANUAL:
             await self._cancel_open_checkouts(academy_id, student_id, group)
@@ -966,7 +966,7 @@ class BillingService:  # noqa: PLR0904
         for allocation in allocations:
             charge = locked[allocation.payment_id]
             charge.amount_paid -= allocation.allocated_amount
-            _refresh_paid_status(charge, None)
+            refresh_paid_status(charge, None)
 
         # Baixa automática desfeita: o link continua pago (o dinheiro está
         # na InfinitePay), só deixa de apontar para a baixa

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Annotated, Self
 from uuid import UUID
 
@@ -30,6 +31,10 @@ class BeltPayload(BaseModel):
         default=None, gt=0, le=MAX_MIN_TIME_AMOUNT
     )
     min_time_unit: DurationUnit | None = None
+    # Valor da graduação para esta faixa; 0 = sem cobrança
+    price: Decimal = Field(
+        default=Decimal('0.00'), ge=0, max_digits=10, decimal_places=2
+    )
 
     @model_validator(mode='after')
     def _min_time_needs_amount_and_unit(self) -> Self:

@@ -9,6 +9,7 @@ from dojoflow.models.modality import Modality
 from dojoflow.repositories.belt import BeltRepository
 from dojoflow.schemas.belt import BeltPayload, BeltRead
 from dojoflow.services.belt_presets import BELT_PRESETS
+from dojoflow.services.graduation_billing import GraduationBillingService
 from dojoflow.shared.exceptions import ConflictError, NotFoundError
 
 
@@ -118,6 +119,9 @@ class BeltService:
         )
 
         await self.belt_repository.update_by_id(belt_id, data)
+        await GraduationBillingService(self.db_session).sync_belt(
+            academy_id, belt_id
+        )
 
         return await self.get(academy_id, belt_id)
 

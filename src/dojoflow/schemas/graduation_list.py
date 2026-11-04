@@ -18,11 +18,14 @@ class GraduationListCreate(BaseModel):
     name: ListName
     modality_id: int
     exam_date: date
+    payment_due_date: date | None = None
 
 
 class GraduationListUpdate(BaseModel):
     name: ListName | None = None
     exam_date: date | None = None
+    # Data limite de pagamento: null explícito apaga (a lista para de cobrar)
+    payment_due_date: date | None = None
 
     @field_validator('name', 'exam_date', mode='before')
     @classmethod
@@ -42,6 +45,7 @@ class GraduationListSummary(BaseModel):
     modality_name: str
     modality_emoji: str
     exam_date: date
+    payment_due_date: date | None = None
     created_at: datetime
     entry_count: int
 

@@ -19,6 +19,7 @@ class GraduationListApiCreate(BaseModel):
     name: ListName
     modality_id: UUID
     exam_date: date
+    payment_due_date: date | None = None
 
 
 class GraduationEntryApiCreate(BaseModel):
@@ -41,6 +42,7 @@ class GraduationListSummaryApiRead(BaseModel):
     name: str
     modality: ModalityRefApiRead
     exam_date: date
+    payment_due_date: date | None
     created_at: datetime
     entry_count: int
 
@@ -57,6 +59,7 @@ class GraduationListSummaryApiRead(BaseModel):
                 emoji=summary.modality_emoji,
             ),
             exam_date=summary.exam_date,
+            payment_due_date=summary.payment_due_date,
             created_at=summary.created_at,
             entry_count=summary.entry_count,
         )

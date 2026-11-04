@@ -51,6 +51,7 @@ async def create_graduation_list(
             name=data.name,
             modality_id=modality_id,
             exam_date=data.exam_date,
+            payment_due_date=data.payment_due_date,
         ),
     )
 
