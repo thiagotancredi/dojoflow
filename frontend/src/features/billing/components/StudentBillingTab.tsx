@@ -61,13 +61,20 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
   }
 
   const hasOpen = Number(data.open_total) > 0
+  // Por enquanto a graduação fica só na lista de graduação: sai do extrato
+  // (cobranças e pagamentos dela) até a aba virar "Financeiro"
+  const graduationIds = new Set(
+    data.charges.filter((charge) => charge.kind === 'graduation').map((charge) => charge.id),
+  )
+  const charges = data.charges.filter((charge) => !graduationIds.has(charge.id))
+  const payments = data.payments.filter(
+    (payment) =>
+      payment.allocations.length === 0 ||
+      payment.allocations.some((allocation) => !graduationIds.has(allocation.charge_id)),
+  )
   // O que forma o "em aberto": mensalidades e taxa não pagas nem isentas
-  // (a graduação aparece no extrato, mas é cobrada pela lista)
-  const openCharges = data.charges.filter(
-    (charge) =>
-      charge.kind !== 'graduation' &&
-      charge.status !== 'paid' &&
-      charge.status !== 'waived',
+  const openCharges = charges.filter(
+    (charge) => charge.status !== 'paid' && charge.status !== 'waived',
   )
 
   async function setWaived(charge: Charge, waived: boolean) {
@@ -199,15 +206,15 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
 
       {/* Extrato: uma linha por mensalidade (mais nova em cima) */}
       <section className="space-y-4">
-        {data.charges.length === 0 ? (
+        {charges.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nenhuma cobrança ainda. A primeira mensalidade aparece no mês
             seguinte à matrícula.
           </p>
         ) : (
           <ChargeStatement
-            charges={data.charges}
-            payments={data.payments}
+            charges={charges}
+            payments={payments}
             busy={waive.isPending}
             onWaive={(charge, waived) => void setWaived(charge, waived)}
             onEdit={setEditing}
@@ -263,7 +270,7 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
             ? `Excluir o pagamento de ${formatMoney(removing.amount)} de ${formatDate(removing.paid_on)}?`
             : 'Excluir este pagamento?'
         }
-        description={removing ? removeDescription(removing, data.charges) : ''}
+        description={removing ? removeDescription(removing, charges) : ''}
         confirmLabel="Excluir pagamento"
         onConfirm={() => void confirmRemove()}
       />
