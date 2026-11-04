@@ -165,14 +165,18 @@ class GraduationListService:
         list_id: int,
         data: GraduationListUpdate,
     ) -> None:
-        await self.get_summary(academy_id, list_id)
+        summary = await self.get_summary(academy_id, list_id)
         payload = data.model_dump(exclude_unset=True)
 
         if payload:
             await self.graduation_list_repository.update_by_id(
                 list_id, payload
             )
-            await self.graduation_billing.sync_list(academy_id, list_id)
+        # Só a data limite mexe nas cobranças (nome e exame, não)
+        if 'payment_due_date' in payload:
+            await self.graduation_billing.move_deadline(
+                academy_id, list_id, summary.payment_due_date
+            )
 
     @transactional
     async def delete(self, academy_id: int, list_id: int) -> None:
@@ -247,7 +251,7 @@ class GraduationListService:
             target_belt_id,
         )
 
-        await self.graduation_list_entry_repository.create({
+        entry_id = await self.graduation_list_entry_repository.create({
             'academy_id': academy_id,
             'graduation_list_id': list_id,
             'enrollment_id': enrollment_id,
@@ -255,7 +259,9 @@ class GraduationListService:
             'snapshot_belt_id': current.belt.id if current else None,
             'snapshot_graduated_on': current.graduated_on if current else None,
         })
-        await self.graduation_billing.sync_list(academy_id, list_id)
+        await self.graduation_billing.sync_list(
+            academy_id, list_id, entry_ids=[entry_id]
+        )
 
     @transactional
     async def update_entry(
@@ -273,7 +279,9 @@ class GraduationListService:
         await self.graduation_list_entry_repository.update_by_id(
             entry_id, {'target_belt_id': target.id}
         )
-        await self.graduation_billing.sync_list(academy_id, list_id)
+        await self.graduation_billing.sync_list(
+            academy_id, list_id, entry_ids=[entry_id], reprice=True
+        )
 
     @transactional
     async def remove_entry(

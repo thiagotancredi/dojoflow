@@ -176,6 +176,8 @@ class PaymentPreviewApiPayload(BaseModel):
     amount: Money
     # Mensalidade (padrão) ou graduação: a baixa só abate o próprio grupo
     group: ChargeGroup = ChargeGroup.MONTHLY
+    # Só esta cobrança (a linha da lista de graduação); None = mais antigas
+    charge_id: UUID | None = None
 
 
 class AllocationPreviewApiRead(AllocationApiRead):
@@ -203,6 +205,7 @@ class CreatePaymentApiPayload(BaseModel):
     method: PaymentMethod | None = None
     notes: str | None = Field(default=None, max_length=255)
     group: ChargeGroup = ChargeGroup.MONTHLY
+    charge_id: UUID | None = None
 
 
 # Baixa em lote: cada aluno pagou exatamente o valor da linha
@@ -212,6 +215,7 @@ MAX_BULK_PAYMENTS = 200
 class BulkPaymentItemApi(BaseModel):
     student_id: UUID
     amount: Money
+    charge_id: UUID | None = None
 
 
 class BulkPaymentApiPayload(BaseModel):

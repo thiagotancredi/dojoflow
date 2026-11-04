@@ -119,8 +119,9 @@ class BeltService:
         )
 
         await self.belt_repository.update_by_id(belt_id, data)
-        await GraduationBillingService(self.db_session).sync_belt(
-            academy_id, belt_id
+        # Quem ainda pagava o preço antigo passa ao novo (desconto fica)
+        await GraduationBillingService(self.db_session).reprice_belt(
+            academy_id, belt_id, belt.price
         )
 
         return await self.get(academy_id, belt_id)

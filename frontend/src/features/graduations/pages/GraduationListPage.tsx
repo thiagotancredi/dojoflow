@@ -101,6 +101,8 @@ export function GraduationListPage() {
   // Toda ação: trava os botões, chama a API, recarrega a lista
   async function run(action: () => Promise<unknown>, success?: string) {
     setSaving(true)
+    // Valores marcados podem mudar (faixa, data): marca de novo depois
+    setSelected(new Map())
     try {
       await action()
       if (success) toast.success(success)
@@ -363,6 +365,7 @@ export function GraduationListPage() {
                       student_id: entry.student_id,
                       name: entry.student_name,
                       open_amount: openAmount(entry).toFixed(2),
+                      charge_id: entry.charge?.id,
                     })),
                   )
                 }
@@ -525,6 +528,7 @@ export function GraduationListPage() {
           onOpenChange={(open) => !open && setPaying(null)}
           onDone={afterPayment}
           group="graduation"
+          chargeId={paying.charge?.id}
         />
       )}
       <BulkPaymentDialog

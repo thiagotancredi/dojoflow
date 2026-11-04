@@ -90,12 +90,13 @@ export function previewPayment(
   studentId: string,
   amount: string,
   group: ChargeGroup,
+  chargeId: string | null,
   signal?: AbortSignal,
 ) {
   return unwrap(
     api.POST('/api/v1/students/{student_id}/billing/payments/preview', {
       params: { path: { student_id: studentId } },
-      body: { amount, group },
+      body: { amount, group, charge_id: chargeId },
       signal,
     }),
   )

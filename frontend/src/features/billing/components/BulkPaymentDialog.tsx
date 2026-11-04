@@ -34,6 +34,8 @@ export type BulkPaymentItem = {
   student_id: string
   name: string
   open_amount: string
+  // Só esta cobrança (lista de graduação)
+  charge_id?: string
 }
 
 type BulkPaymentDialogProps = {
@@ -67,6 +69,7 @@ export function BulkPaymentDialog({
         items: items.map((item) => ({
           student_id: item.student_id,
           amount: item.open_amount,
+          charge_id: item.charge_id ?? null,
         })),
       })
       toast.success(

@@ -471,3 +471,99 @@ async def test_graduation_whatsapp_text(
     assert '/graduacao\n' in text
     assert entries['Duda Reis']['responsible_name'] == 'Inimar Reis'
     assert 'Olá, Inimar!' in unquote(entries['Duda Reis']['whatsapp_url'])
+
+
+async def _edit_charge(
+    client: AsyncClient, ctx: dict, student: str, charge: Payment, **values
+) -> None:
+    student_id = ctx['students'][student][0]
+    response = await client.patch(
+        f'/api/v1/students/{student_id}/billing/charges/{charge.public_id}',
+        headers=ctx['headers'],
+        json=values,
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+
+
+@pytest.mark.asyncio
+async def test_master_discount_survives_other_changes(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    ctx = await _setup(client, db_session)
+    await _add(client, ctx, 'Ana Lima')
+    (ana,) = await _charges(db_session)
+    await _edit_charge(client, ctx, 'Ana Lima', ana, amount='80')
+
+    await _add(client, ctx, 'Bruno Costa')
+    await _patch_list(client, ctx, name='Exame de dezembro')
+    await _set_price(client, ctx, 'Verde', '100')
+
+    amounts = {c.id: c.amount_due for c in await _charges(db_session)}
+    assert amounts[ana.id] == Decimal('80.00')
+
+
+@pytest.mark.asyncio
+async def test_price_change_keeps_discounted_charge(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    ctx = await _setup(client, db_session)
+    await _add(client, ctx, 'Ana Lima')
+    await _add(client, ctx, 'Bruno Costa')
+    ana, bruno = await _charges(db_session)
+    await _edit_charge(client, ctx, 'Ana Lima', ana, amount='80')
+
+    await _set_price(client, ctx, 'Verde', '110')
+
+    amounts = {c.id: c.amount_due for c in await _charges(db_session)}
+    assert amounts == {ana.id: Decimal('80.00'), bruno.id: Decimal('110.00')}
+
+
+@pytest.mark.asyncio
+async def test_deadline_change_keeps_edited_due_date(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    ctx = await _setup(client, db_session)
+    await _add(client, ctx, 'Ana Lima')
+    await _add(client, ctx, 'Bruno Costa')
+    ana, bruno = await _charges(db_session)
+    await _edit_charge(client, ctx, 'Ana Lima', ana, due_date='2026-12-10')
+
+    await _patch_list(client, ctx, payment_due_date='2026-12-08')
+
+    dues = {c.id: c.due_date for c in await _charges(db_session)}
+    assert dues == {ana.id: date(2026, 12, 10), bruno.id: date(2026, 12, 8)}
+
+
+@pytest.mark.asyncio
+async def test_remove_partially_paid_entry_closes_charge(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    ctx = await _setup(client, db_session)
+    entry_id = await _add(client, ctx, 'Ana Lima')
+    (charge,) = await _charges(db_session)
+    await _mark_paid(db_session, charge.id, '50')
+
+    response = await client.delete(
+        f'{ctx["list_url"]}/entries/{entry_id}', headers=ctx['headers']
+    )
+
+    assert response.status_code == HTTPStatus.NO_CONTENT, response.text
+    (charge,) = await _charges(db_session)
+    assert charge.status is PaymentStatus.PAID
+    assert charge.amount_due == Decimal('50.00')
+
+
+@pytest.mark.asyncio
+async def test_clearing_deadline_closes_partially_paid_charge(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    ctx = await _setup(client, db_session)
+    await _add(client, ctx, 'Ana Lima')
+    (charge,) = await _charges(db_session)
+    await _mark_paid(db_session, charge.id, '50')
+
+    await _patch_list(client, ctx, payment_due_date=None)
+
+    (charge,) = await _charges(db_session)
+    assert charge.status is PaymentStatus.PAID
+    assert charge.amount_due == Decimal('50.00')

@@ -339,3 +339,72 @@ async def test_student_sheet_shows_graduation_charge(
     graduation = next(c for c in body['charges'] if c['kind'] == 'graduation')
     assert graduation['description'] == 'Verde'
     assert body['open_total'] == '110.00'
+
+
+@pytest.mark.asyncio
+async def test_graduation_payment_targets_the_row_charge(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Aluno em duas listas: a baixa vai para a cobrança da linha clicada,
+    não para a mais antiga."""
+    ctx = await _scenario(db_session)
+    enrollment_id = await db_session.scalar(
+        select(Payment.enrollment_id).where(
+            Payment.kind == PaymentKind.GRADUATION
+        )
+    )
+    later = Payment(
+        academy_id=SEED.academy_id,
+        enrollment_id=enrollment_id,
+        kind=PaymentKind.GRADUATION,
+        reference_month=date(2026, 12, 1),
+        due_date=date(2026, 12, 20),
+        amount_due=Decimal('80.00'),
+        amount_paid=Decimal('0.00'),
+        description='Azul',
+    )
+    db_session.add(later)
+    await db_session.commit()
+    headers = await auth_headers(client)
+    student = await _student_public_id(db_session, ctx['student_id'])
+    base = f'/api/v1/students/{student}/billing'
+
+    preview = await client.post(
+        f'{base}/payments/preview',
+        headers=headers,
+        json={
+            'amount': '80',
+            'group': 'graduation',
+            'charge_id': str(later.public_id),
+        },
+    )
+    created = await client.post(
+        f'{base}/payments',
+        headers=headers,
+        json={
+            'amount': '80',
+            'paid_on': '2026-11-15',
+            'group': 'graduation',
+            'charge_id': str(later.public_id),
+        },
+    )
+
+    assert preview.status_code == HTTPStatus.OK, preview.text
+    assert [a['label'] for a in preview.json()['allocations']] == [
+        'Graduação · Azul'
+    ]
+    assert created.status_code == HTTPStatus.CREATED, created.text
+    db_session.expire_all()
+    statuses = dict(
+        (
+            await db_session.execute(
+                select(Payment.description, Payment.status).where(
+                    Payment.kind == PaymentKind.GRADUATION
+                )
+            )
+        ).all()
+    )
+    assert statuses == {
+        'Verde': PaymentStatus.PENDING,
+        'Azul': PaymentStatus.PAID,
+    }

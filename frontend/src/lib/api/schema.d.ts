@@ -1450,6 +1450,8 @@ export interface components {
             student_id: string;
             /** Amount */
             amount: number | string;
+            /** Charge Id */
+            charge_id?: string | null;
         };
         /** CepAddress */
         CepAddress: {
@@ -1544,6 +1546,8 @@ export interface components {
             notes?: string | null;
             /** @default monthly */
             group: components["schemas"]["ChargeGroup"];
+            /** Charge Id */
+            charge_id?: string | null;
         };
         /** DashboardSummaryRead */
         DashboardSummaryRead: {
@@ -2127,6 +2131,8 @@ export interface components {
             amount: number | string;
             /** @default monthly */
             group: components["schemas"]["ChargeGroup"];
+            /** Charge Id */
+            charge_id?: string | null;
         };
         /** PaymentPreviewApiRead */
         PaymentPreviewApiRead: {

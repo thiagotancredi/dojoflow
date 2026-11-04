@@ -836,16 +836,24 @@ class BillingService:  # noqa: PLR0904
         )
         return {charge.id: charge for charge in rows}
 
-    async def _plan_allocations(
+    async def _plan_allocations(  # noqa: PLR0913
         self,
         academy_id: int,
         student_id: int,
         amount: Decimal,
         today: date,
+        *,
         group: ChargeGroup,
+        charge_id: int | None = None,
     ) -> list[tuple[ChargeRead, Decimal]]:
+        # charge_id: a baixa vai só para essa cobrança (a linha clicada)
+        only = [] if charge_id is None else [Payment.id == charge_id]
         charges = await self._charges(
-            academy_id, today, Enrollment.student_id == student_id, group=group
+            academy_id,
+            today,
+            Enrollment.student_id == student_id,
+            *only,
+            group=group,
         )
         open_charges = {
             c.id: c for c in charges if c.status not in CLOSED_STATUSES
@@ -882,11 +890,17 @@ class BillingService:  # noqa: PLR0904
         amount: Decimal,
         *,
         group: ChargeGroup = ChargeGroup.MONTHLY,
+        charge_id: int | None = None,
     ) -> list[AllocationPreview]:
         """Como a baixa vai ser abatida, sem gravar nada."""
         today = local_today()
         plan = await self._plan_allocations(
-            academy_id, student_id, amount, today, group
+            academy_id,
+            student_id,
+            amount,
+            today,
+            group=group,
+            charge_id=charge_id,
         )
 
         return [
@@ -908,7 +922,7 @@ class BillingService:  # noqa: PLR0904
     async def create_bulk_payments(
         self,
         academy_id: int,
-        items: list[tuple[int, Decimal]],
+        items: list[tuple[int, Decimal, int | None]],
         paid_on: date,
         method: PaymentMethod | None,
         *,
@@ -918,7 +932,7 @@ class BillingService:  # noqa: PLR0904
         falhar, nenhum entra). Cada um segue a regra da baixa individual."""
         total = ZERO
 
-        for student_id, amount in items:
+        for student_id, amount, charge_id in items:
             await self.create_payment(
                 academy_id,
                 student_id,
@@ -927,6 +941,7 @@ class BillingService:  # noqa: PLR0904
                 method,
                 None,
                 group=group,
+                charge_id=charge_id,
             )
             total += amount
 
@@ -944,6 +959,7 @@ class BillingService:  # noqa: PLR0904
         *,
         source: PaymentSource = PaymentSource.MANUAL,
         group: ChargeGroup = ChargeGroup.MONTHLY,
+        charge_id: int | None = None,
     ) -> PaymentRead:
         """Baixa do aluno, abatendo da cobrança mais antiga à mais nova,
         só dentro do grupo (mensalidade ou graduação).
@@ -954,7 +970,12 @@ class BillingService:  # noqa: PLR0904
         today = local_today()
         locked = await self.lock_student_charges(academy_id, student_id)
         plan = await self._plan_allocations(
-            academy_id, student_id, amount, today, group
+            academy_id,
+            student_id,
+            amount,
+            today,
+            group=group,
+            charge_id=charge_id,
         )
 
         transaction = PaymentTransaction(
