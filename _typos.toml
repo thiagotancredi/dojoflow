@@ -58,3 +58,8 @@ Fale = "Fale"
 sinal = "sinal"
 falso = "falso"
 frase = "frase"
+credencial = "credencial"
+condicional = "condicional"
+quites = "quites"
+# id da migration dbe8655d2208
+dbe = "dbe"

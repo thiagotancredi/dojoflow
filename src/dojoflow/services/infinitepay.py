@@ -31,6 +31,7 @@ from dojoflow.services import billing as billing_module
 from dojoflow.services.billing import BillingService, choose_recipient
 from dojoflow.services.billing_rules import whatsapp_phone
 from dojoflow.shared.enums import (
+    ChargeGroup,
     CheckoutStatus,
     PaymentMethod,
     PaymentSource,
@@ -188,9 +189,14 @@ class InfinitePayService:
         )
 
     async def checkout_for_token(
-        self, token: str, today: date | None = None
+        self,
+        token: str,
+        today: date | None = None,
+        *,
+        group: ChargeGroup = ChargeGroup.MONTHLY,
     ) -> str:
-        """URL do checkout com tudo o que o aluno deve hoje.
+        """URL do checkout com o que o aluno pode pagar hoje: o vencido mais
+        a cobrança em aberto que vence até o fim do mês (o total da /pagar).
 
         Reaproveita o link aberto do aluno com o mesmo valor (criado há
         menos de 24 h); senão cria um novo na InfinitePay.
@@ -211,7 +217,7 @@ class InfinitePayService:
             )
 
         today = today or billing_module.local_today()
-        page = await billing.public_payment(token, today)
+        page = await billing.public_payment(token, today, group=group)
         if page is None or page.status == 'clear':
             raise ConflictError(
                 'Este aluno não tem nada em aberto.', code='NOTHING_TO_PAY'
@@ -223,6 +229,7 @@ class InfinitePayService:
                 InfinitePayCheckout.academy_id == academy_id,
                 InfinitePayCheckout.student_id == student_id,
                 InfinitePayCheckout.status == CheckoutStatus.OPEN,
+                InfinitePayCheckout.charge_group == group,
                 InfinitePayCheckout.amount == page.total,
                 InfinitePayCheckout.created_at
                 > func.now() - LINK_REUSE_WINDOW,
@@ -246,7 +253,7 @@ class InfinitePayService:
                     for item in page.items
                 ],
                 customer=_customer(contacts[student_id], today),
-                redirect_url=f'{app_settings.WEB_APP_URL}/pagar/{token}',
+                redirect_url=billing_module.pay_url(token, group),
                 webhook_url=webhook_url(),
                 handle=settings.infinitepay_handle,
             )
@@ -280,6 +287,7 @@ class InfinitePayService:
                 amount=page.total,
                 url=url,
                 status=CheckoutStatus.OPEN,
+                charge_group=group,
             )
         )
         return url
@@ -373,7 +381,10 @@ class InfinitePayService:
             (
                 charge.open_amount
                 for charge in await billing.payable_for_student(
-                    checkout.academy_id, checkout.student_id, today
+                    checkout.academy_id,
+                    checkout.student_id,
+                    today,
+                    group=checkout.charge_group,
                 )
             ),
             Decimal(0),
@@ -398,6 +409,7 @@ class InfinitePayService:
             ),
             'InfinitePay',
             source=PaymentSource.INFINITEPAY,
+            group=checkout.charge_group,
         )
         checkout.payment_transaction_id = payment.id
         checkout.status = CheckoutStatus.PAID

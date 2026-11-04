@@ -27,6 +27,7 @@ import { minTimeLabel } from '@/features/belts/rules'
 import { useAcademyModalities } from '@/features/modalities/hooks'
 import { isValidationError, showApiError } from '@/lib/api/errors'
 import { useMutation } from '@/lib/hooks/useMutation'
+import { formatMoney } from '@/lib/money'
 
 // Modalidades com sequência padrão no backend (services/belt_presets.py)
 const PRESET_MODALITIES = new Set(['taekwondo', 'kickboxing', 'karatê'])
@@ -213,6 +214,12 @@ export function ModalityBeltsPage() {
                 <span className="min-w-24 flex-1">
                   <span className="block truncate text-sm font-medium">
                     {belt.name}
+                    {Number(belt.price) > 0 && (
+                      <span className="font-normal text-muted-foreground">
+                        {' '}
+                        · {formatMoney(belt.price)}
+                      </span>
+                    )}
                   </span>
                   <span className="block text-xs text-muted-foreground">
                     {minTimeLabel(belt.min_time_amount, belt.min_time_unit)}

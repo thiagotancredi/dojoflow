@@ -14,7 +14,12 @@ from dojoflow.schemas.billing import (
     PaymentRead,
     StudentBillingRead,
 )
-from dojoflow.shared.enums import PaymentKind, PaymentMethod, PaymentSource
+from dojoflow.shared.enums import (
+    ChargeGroup,
+    PaymentKind,
+    PaymentMethod,
+    PaymentSource,
+)
 
 
 class ChargeApiRead(BaseModel):
@@ -27,6 +32,8 @@ class ChargeApiRead(BaseModel):
     amount: Decimal
     paid: Decimal
     status: ChargeStatus
+    # Graduação: o nome da faixa-alvo (ex.: "Verde")
+    description: str | None
 
     @classmethod
     def from_internal(cls, charge: ChargeRead) -> 'ChargeApiRead':
@@ -40,6 +47,7 @@ class ChargeApiRead(BaseModel):
             amount=charge.amount,
             paid=charge.paid,
             status=charge.status,
+            description=charge.description,
         )
 
 
@@ -166,6 +174,10 @@ class UpdateChargeApiPayload(BaseModel):
 
 class PaymentPreviewApiPayload(BaseModel):
     amount: Money
+    # Mensalidade (padrão) ou graduação: a baixa só abate o próprio grupo
+    group: ChargeGroup = ChargeGroup.MONTHLY
+    # Só esta cobrança (a linha da lista de graduação); None = mais antigas
+    charge_id: UUID | None = None
 
 
 class AllocationPreviewApiRead(AllocationApiRead):
@@ -192,6 +204,8 @@ class CreatePaymentApiPayload(BaseModel):
     paid_on: ChargeDate
     method: PaymentMethod | None = None
     notes: str | None = Field(default=None, max_length=255)
+    group: ChargeGroup = ChargeGroup.MONTHLY
+    charge_id: UUID | None = None
 
 
 # Baixa em lote: cada aluno pagou exatamente o valor da linha
@@ -201,11 +215,13 @@ MAX_BULK_PAYMENTS = 200
 class BulkPaymentItemApi(BaseModel):
     student_id: UUID
     amount: Money
+    charge_id: UUID | None = None
 
 
 class BulkPaymentApiPayload(BaseModel):
     paid_on: ChargeDate
     method: PaymentMethod | None = None
+    group: ChargeGroup = ChargeGroup.MONTHLY
     items: list[BulkPaymentItemApi] = Field(
         min_length=1, max_length=MAX_BULK_PAYMENTS
     )

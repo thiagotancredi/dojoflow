@@ -144,6 +144,17 @@ function Cell({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function What({ charge, inline }: { charge: Charge; inline?: boolean }) {
+  if (charge.kind === 'graduation') {
+    if (inline) return <>Graduação · {charge.description} · {charge.modality_name}</>
+    return (
+      <>
+        Graduação · {charge.description}
+        <span className="block text-xs text-muted-foreground">
+          {charge.modality_name}
+        </span>
+      </>
+    )
+  }
   if (charge.kind !== 'enrollment_fee') return <>{charge.modality_name}</>
   if (inline) return <>Taxa de matrícula · {charge.modality_name}</>
   return (

@@ -4,6 +4,7 @@ from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.address import Address
 from dojoflow.models.audit_log import AuditLog
 from dojoflow.models.belt import Belt
+from dojoflow.models.email_log import EmailLog
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.enrollment_belt import EnrollmentBelt
 from dojoflow.models.graduation_list import (
@@ -32,6 +33,7 @@ __all__ = [
     'Address',
     'AuditLog',
     'Belt',
+    'EmailLog',
     'Enrollment',
     'EnrollmentBelt',
     'GraduationList',

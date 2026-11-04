@@ -14,6 +14,7 @@ from dojoflow.api.routes.billing import (
 )
 from dojoflow.api.routes.cep import router as cep_router
 from dojoflow.api.routes.dashboard import router as dashboard_router
+from dojoflow.api.routes.email_billing import router as email_billing_router
 from dojoflow.api.routes.enrollment_belts import (
     router as enrollment_belts_router,
 )
@@ -56,6 +57,7 @@ app.include_router(enrollment_belts_router, prefix=settings.API_V1_PREFIX)
 app.include_router(billing_router, prefix=settings.API_V1_PREFIX)
 app.include_router(billing_settings_router, prefix=settings.API_V1_PREFIX)
 app.include_router(infinitepay_router, prefix=settings.API_V1_PREFIX)
+app.include_router(email_billing_router, prefix=settings.API_V1_PREFIX)
 app.include_router(billing_overview_router, prefix=settings.API_V1_PREFIX)
 app.include_router(dashboard_router, prefix=settings.API_V1_PREFIX)
 app.include_router(graduation_lists_router, prefix=settings.API_V1_PREFIX)

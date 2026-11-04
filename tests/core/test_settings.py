@@ -19,9 +19,27 @@ def test_prod_accepts_custom_jwt_secret() -> None:
         ENVIRONMENT='prod',
         JWT_SECRET='a-real-secret-with-enough-length-32',
         INFINITEPAY_SECRET_KEY='x' * 43 + '=',
+        EMAIL_BACKEND='ses',
     )
 
     assert settings.cookie_secure is True
+
+
+def test_prod_refuses_console_email_backend() -> None:
+    with pytest.raises(ValidationError, match='EMAIL_BACKEND'):
+        Settings(
+            _env_file=None,
+            ENVIRONMENT='prod',
+            JWT_SECRET='a-real-secret-with-enough-length-32',
+            INFINITEPAY_SECRET_KEY='x' * 43 + '=',
+            EMAIL_BACKEND='console',
+        )
+
+
+def test_dev_allows_console_email_backend() -> None:
+    settings = Settings(_env_file=None, ENVIRONMENT='dev')
+
+    assert settings.EMAIL_BACKEND == 'console'
 
 
 def test_dev_allows_default_secret_and_insecure_cookie() -> None:

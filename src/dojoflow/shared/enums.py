@@ -50,6 +50,15 @@ class PaymentStatus(str, enum.Enum):
 class PaymentKind(str, enum.Enum):
     MONTHLY = 'monthly'
     ENROLLMENT_FEE = 'enrollment_fee'
+    GRADUATION = 'graduation'
+
+
+class ChargeGroup(str, enum.Enum):
+    """Cobranças que nunca se misturam: cada grupo tem o seu link, a sua
+    baixa e os seus números."""
+
+    MONTHLY = 'monthly'  # mensalidade e taxa de matrícula
+    GRADUATION = 'graduation'
 
 
 class ImportStatus(str, enum.Enum):
@@ -130,3 +139,18 @@ class CheckoutStatus(str, enum.Enum):
     # Pago, mas o valor em aberto mudou: o mestre confere
     REVIEW = 'review'
     RESOLVED = 'resolved'
+
+
+class EmailKind(str, enum.Enum):
+    """Tipo de e-mail enviado pelo Katsuflow."""
+
+    BILLING = 'billing'
+    PASSWORD_RESET = 'password_reset'
+
+
+class EmailStatus(str, enum.Enum):
+    """Situação de um envio no registro de e-mails."""
+
+    PENDING = 'pending'
+    SENT = 'sent'
+    FAILED = 'failed'

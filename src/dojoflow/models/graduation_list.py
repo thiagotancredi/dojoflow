@@ -19,6 +19,8 @@ class GraduationList(BaseModel):
 
     name: Mapped[str] = str_column(length=120)
     exam_date: Mapped[date] = date_column()
+    # Data limite de pagamento da graduação; sem ela, a lista não cobra
+    payment_due_date: Mapped[date | None] = date_column(nullable=True)
 
 
 class GraduationListEntry(BaseModel):

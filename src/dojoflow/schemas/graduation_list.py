@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, StringConstraints, field_validator
 
 from dojoflow.schemas.belt import BeltRead
+from dojoflow.schemas.billing import GraduationEntryBilling
 from dojoflow.schemas.enrollment_belt import BeltRecord
 from dojoflow.shared.enums import Eligibility
 
@@ -18,11 +19,14 @@ class GraduationListCreate(BaseModel):
     name: ListName
     modality_id: int
     exam_date: date
+    payment_due_date: date | None = None
 
 
 class GraduationListUpdate(BaseModel):
     name: ListName | None = None
     exam_date: date | None = None
+    # Data limite de pagamento: null explícito apaga (a lista para de cobrar)
+    payment_due_date: date | None = None
 
     @field_validator('name', 'exam_date', mode='before')
     @classmethod
@@ -42,6 +46,7 @@ class GraduationListSummary(BaseModel):
     modality_name: str
     modality_emoji: str
     exam_date: date
+    payment_due_date: date | None = None
     created_at: datetime
     entry_count: int
 
@@ -67,6 +72,9 @@ class GraduationEntry(BaseModel):
     snapshot_graduated_on: date | None
     eligibility: Eligibility
     target_belt: BeltRead
+    student_public_id: UUID
+    # Cobrança da graduação (None: lista sem data limite ou faixa sem preço)
+    billing: GraduationEntryBilling | None = None
 
 
 class GraduationListDetail(BaseModel):

@@ -147,6 +147,15 @@ async def _resolve_charge_id(
 ChargeIdDep = Annotated[int, Depends(_resolve_charge_id)]
 
 
+async def resolve_student_charge_id(
+    db_session: AsyncSession, charge_id: UUID | None, student_id: int
+) -> int | None:
+    """Cobrança (id público) do aluno, para mirar uma baixa nela."""
+    if charge_id is None:
+        return None
+    return await _resolve_charge_id(charge_id, student_id, db_session)
+
+
 async def _resolve_payment_id(
     payment_id: UUID,
     student_id: StudentIdDep,

@@ -15,6 +15,10 @@ TokenPurpose = Literal['access']
 
 MASTER_ROLE = 'master'
 
+# O relógio do sistema pode voltar um pouco (NTP, WSL): sem folga, um token
+# recém-criado parece emitido "no futuro" e é recusado
+CLOCK_SKEW_LEEWAY = timedelta(seconds=5)
+
 
 def hash_password(plain_password: str) -> str:
     return password_hash.hash(plain_password)
@@ -101,6 +105,7 @@ def decode_token(
             token,
             settings.JWT_SECRET,
             algorithms=[settings.JWT_ALGORITHM],
+            leeway=CLOCK_SKEW_LEEWAY,
         )
     except jwt.PyJWTError as exc:
         raise UnauthorizedError('Invalid or expired token.') from exc

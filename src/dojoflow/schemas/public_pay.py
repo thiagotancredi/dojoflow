@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from dojoflow.shared.enums import ChargeGroup
+
 
 class PublicPaymentItemRead(BaseModel):
     label: str
@@ -26,6 +28,8 @@ class PublicPaymentRead(BaseModel):
     # Baixa automática ligada: a página mostra "Pagar mensalidade", que
     # leva ao checkout da InfinitePay
     checkout_enabled: bool = False
+    # Mensalidade ou graduação: cada uma tem o seu link
+    group: ChargeGroup = ChargeGroup.MONTHLY
 
 
 class PublicCheckoutRead(BaseModel):

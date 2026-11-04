@@ -1,4 +1,4 @@
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import {
   Link,
@@ -53,6 +53,7 @@ function readFilters(params: URLSearchParams): StudentFilters {
     search: params.get('busca') ?? '',
     status: params.get('status') === 'inativos' ? 'inactive' : 'active',
     modalityId: params.get('modalidade'),
+    missingEmail: params.get('sem-email') === '1',
     // "abc", "0" ou vazio viram a página 1
     page: Number.isInteger(page) && page >= 1 ? page : 1,
   }
@@ -106,17 +107,19 @@ export function StudentsPage() {
 
   function clearFilters() {
     setSearchText('')
-    updateParams({ busca: null, modalidade: null })
+    updateParams({ busca: null, modalidade: null, 'sem-email': null })
   }
 
   const page = students.data
   const totalPages = page ? Math.max(1, Math.ceil(page.total / PAGE_SIZE)) : 1
-  const hasFilter = Boolean(filters.search || filters.modalityId)
+  const hasFilter = Boolean(
+    filters.search || filters.modalityId || filters.missingEmail,
+  )
 
   // Computador: sempre há uma ficha aberta. Abre o primeiro aluno quando
   // nenhum está aberto, ou quando a busca/filtro tira o aberto da lista.
   // Recarregar a lista (ex.: depois de salvar) ou trocar de página não troca.
-  const filterKey = `${filters.search}|${filters.status}|${filters.modalityId ?? ''}`
+  const filterKey = `${filters.search}|${filters.status}|${filters.modalityId ?? ''}|${filters.missingEmail}`
   const lastFilterKey = useRef(filterKey)
 
   useEffect(() => {
@@ -239,6 +242,17 @@ export function StudentsPage() {
               </SelectContent>
             </Select>
           </div>
+
+          {filters.missingEmail && (
+            <button
+              type="button"
+              onClick={() => updateParams({ 'sem-email': null })}
+              className="flex items-center gap-1 self-start rounded-full border border-chip-active-border bg-chip-active px-3 py-1 text-xs text-chip-active-foreground"
+            >
+              Sem e-mail <X className="size-3" aria-hidden />
+              <span className="sr-only">Tirar filtro</span>
+            </button>
+          )}
 
           {/* Só os alunos rolam; busca, filtros e paginação ficam no lugar */}
           <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">

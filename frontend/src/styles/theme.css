@@ -41,6 +41,8 @@
   --popover-foreground: #1e2140;
   --muted: #f4f5fb;
   --muted-foreground: #8a8eab;
+  /* Texto de exemplo dos campos vazios (mais claro e em itálico) */
+  --placeholder: var(--muted-foreground);
   --border: #eceefa;
   --input: #e2e4f5;
   --ring: #a5a1f5;
@@ -429,6 +431,7 @@
   --popover-foreground: #1b1b1b;
   --muted: #f0eee9;
   --muted-foreground: #5a5852;
+  --placeholder: #a9a59c;
   --border: #e2dfd8;
   --input: #d6d2c9;
   --ring: #4f6b3a;
@@ -510,6 +513,7 @@
   --popover-foreground: #ececea;
   --muted: #232427;
   --muted-foreground: #a5a5a0;
+  --placeholder: #8a867e;
   --border: #2f3034;
   --input: #3a3b40;
   --ring: #3d8fa3;

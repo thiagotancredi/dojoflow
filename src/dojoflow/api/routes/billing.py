@@ -12,6 +12,7 @@ from dojoflow.api.dependencies.public_ids import (
     PaymentIdDep,
     StudentIdDep,
     resolve_public_id,
+    resolve_student_charge_id,
     resolve_student_enrollment_id,
 )
 from dojoflow.models.student import Student
@@ -163,9 +164,16 @@ async def preview_payment(
     data: PaymentPreviewApiPayload,
     current_master: CurrentMasterDep,
     billing_service_dep: BillingServiceDep,
+    db_session_dep: DbSessionDep,
 ) -> PaymentPreviewApiRead:
     allocations = await billing_service_dep.preview_payment(
-        current_master.academy_id, student_id, data.amount
+        current_master.academy_id,
+        student_id,
+        data.amount,
+        group=data.group,
+        charge_id=await resolve_student_charge_id(
+            db_session_dep, data.charge_id, student_id
+        ),
     )
 
     return PaymentPreviewApiRead(
@@ -181,6 +189,7 @@ async def create_payment(
     data: CreatePaymentApiPayload,
     current_master: CurrentMasterDep,
     billing_service_dep: BillingServiceDep,
+    db_session_dep: DbSessionDep,
 ) -> PaymentApiRead:
     payment = await billing_service_dep.create_payment(
         current_master.academy_id,
@@ -189,6 +198,10 @@ async def create_payment(
         data.paid_on,
         data.method,
         data.notes,
+        group=data.group,
+        charge_id=await resolve_student_charge_id(
+            db_session_dep, data.charge_id, student_id
+        ),
     )
 
     return PaymentApiRead.from_internal(payment)
@@ -218,23 +231,25 @@ async def create_bulk_payments(
     db_session_dep: DbSessionDep,
 ) -> BulkPaymentApiRead:
     """Dá baixa de uma vez em vários alunos que pagaram o que deviam."""
-    items = [
-        (
-            await resolve_public_id(
-                db_session_dep,
-                Student,
-                item.student_id,
-                code='STUDENT_NOT_FOUND',
-                extra_filters=[
-                    Student.academy_id == current_master.academy_id
-                ],
-            ),
-            item.amount,
+    items = []
+    for item in data.items:
+        student_id = await resolve_public_id(
+            db_session_dep,
+            Student,
+            item.student_id,
+            code='STUDENT_NOT_FOUND',
+            extra_filters=[Student.academy_id == current_master.academy_id],
         )
-        for item in data.items
-    ]
+        charge_id = await resolve_student_charge_id(
+            db_session_dep, item.charge_id, student_id
+        )
+        items.append((student_id, item.amount, charge_id))
     total = await billing_service_dep.create_bulk_payments(
-        current_master.academy_id, items, data.paid_on, data.method
+        current_master.academy_id,
+        items,
+        data.paid_on,
+        data.method,
+        group=data.group,
     )
 
     return BulkPaymentApiRead(count=len(items), total=total)

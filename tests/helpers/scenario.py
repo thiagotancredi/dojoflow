@@ -37,6 +37,11 @@ async def _one(session: AsyncSession, model: type, value: str) -> Any:
     )
 
 
+async def db_id(session: AsyncSession, model: type, public_id: str) -> int:
+    """Id interno a partir do id público (para montar linhas no banco)."""
+    return (await _one(session, model, public_id)).id
+
+
 async def add_modality(
     session: AsyncSession,
     name: str,
@@ -66,6 +71,7 @@ async def add_belt(  # noqa: PLR0913
     min_time_amount: int | None = None,
     min_time_unit: str | None = None,
     academy_id: int | None = None,
+    price: str = '0',
 ) -> dict[str, str]:
     """Faixa no fim da sequência da modalidade."""
     academy_id = academy_id or SEED.academy_id
@@ -84,6 +90,7 @@ async def add_belt(  # noqa: PLR0913
         min_time_amount=min_time_amount,
         min_time_unit=DurationUnit(min_time_unit) if min_time_unit else None,
         position=(last_position or 0) + 1,
+        price=Decimal(price),
     )
     session.add(belt)
     await session.commit()
@@ -161,6 +168,7 @@ async def add_graduation_list(
     modality_id: str,
     exam_date: str,
     name: str = 'Novembro/2026',
+    payment_due_date: str | None = None,
 ) -> dict[str, str]:
     """Lista de graduação vazia."""
     modality = await _one(session, Modality, modality_id)
@@ -169,6 +177,9 @@ async def add_graduation_list(
         modality_id=modality.id,
         name=name,
         exam_date=date.fromisoformat(exam_date),
+        payment_due_date=(
+            date.fromisoformat(payment_due_date) if payment_due_date else None
+        ),
     )
     session.add(graduation_list)
     await session.commit()
@@ -181,11 +192,12 @@ async def add_responsible(
     student_id: str,
     name: str = 'Maria Lima',
     phone: str = '62988880001',
+    email: str | None = None,
 ) -> None:
     """Responsável ligado ao aluno (mãe)."""
     student = await _one(session, Student, student_id)
     responsible = Responsible(
-        academy_id=student.academy_id, name=name, phone=phone
+        academy_id=student.academy_id, name=name, phone=phone, email=email
     )
     session.add(responsible)
     await session.flush()

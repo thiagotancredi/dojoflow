@@ -149,6 +149,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/password-reset/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Password Reset
+         * @description Responde sempre igual: não consulta o banco, só enfileira o envio.
+         */
+        post: operations["request_password_reset_api_v1_auth_password_reset_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Password Reset */
+        post: operations["confirm_password_reset_api_v1_auth_password_reset_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/modalities/catalog": {
         parameters: {
             query?: never;
@@ -659,6 +696,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/academy/email-billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Email Billing */
+        get: operations["read_email_billing_api_v1_academy_email_billing_get"];
+        /**
+         * Update Email Billing
+         * @description Liga ou desliga a cobrança por e-mail.
+         */
+        put: operations["update_email_billing_api_v1_academy_email_billing_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academy/email-billing/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview Email Billing */
+        get: operations["preview_email_billing_api_v1_academy_email_billing_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/billing/overview": {
         parameters: {
             query?: never;
@@ -936,7 +1011,7 @@ export interface paths {
         put?: never;
         /**
          * Create Public Checkout
-         * @description "Pagar mensalidade": devolve o checkout da InfinitePay.
+         * @description "Pagar": devolve o checkout da InfinitePay (só do grupo).
          */
         post: operations["create_public_checkout_api_v1_public_pay__token__checkout_post"];
         delete?: never;
@@ -1191,6 +1266,8 @@ export interface components {
             min_time_unit: components["schemas"]["DurationUnit"] | null;
             /** Position */
             position: number;
+            /** Price */
+            price: string;
         };
         /** BeltOrderRequest */
         BeltOrderRequest: {
@@ -1220,6 +1297,11 @@ export interface components {
             /** Min Time Amount */
             min_time_amount?: number | null;
             min_time_unit?: components["schemas"]["DurationUnit"] | null;
+            /**
+             * Price
+             * @default 0.00
+             */
+            price: number | string;
         };
         /** BeltRecordApiRead */
         BeltRecordApiRead: {
@@ -1347,6 +1429,8 @@ export interface components {
              */
             paid_on: string;
             method?: components["schemas"]["PaymentMethod"] | null;
+            /** @default monthly */
+            group: components["schemas"]["ChargeGroup"];
             /** Items */
             items: components["schemas"]["BulkPaymentItemApi"][];
         };
@@ -1366,6 +1450,8 @@ export interface components {
             student_id: string;
             /** Amount */
             amount: number | string;
+            /** Charge Id */
+            charge_id?: string | null;
         };
         /** CepAddress */
         CepAddress: {
@@ -1416,7 +1502,16 @@ export interface components {
              * @enum {string}
              */
             status: "paid" | "partial" | "overdue" | "upcoming" | "waived";
+            /** Description */
+            description: string | null;
         };
+        /**
+         * ChargeGroup
+         * @description Cobranças que nunca se misturam: cada grupo tem o seu link, a sua
+         *     baixa e os seus números.
+         * @enum {string}
+         */
+        ChargeGroup: "monthly" | "graduation";
         /**
          * CheckoutReviewApiRead
          * @description Pagamento da InfinitePay "a conferir" (o valor em aberto mudou).
@@ -1449,6 +1544,10 @@ export interface components {
             method?: components["schemas"]["PaymentMethod"] | null;
             /** Notes */
             notes?: string | null;
+            /** @default monthly */
+            group: components["schemas"]["ChargeGroup"];
+            /** Charge Id */
+            charge_id?: string | null;
         };
         /** DashboardSummaryRead */
         DashboardSummaryRead: {
@@ -1505,6 +1604,30 @@ export interface components {
          * @enum {string}
          */
         Eligibility: "eligible" | "not_yet" | "no_belt" | "no_requirement";
+        /**
+         * EmailBillingStatusApi
+         * @description Situação da cobrança por e-mail da academia.
+         */
+        EmailBillingStatusApi: {
+            /** Enabled */
+            enabled: boolean;
+            /** Can Enable */
+            can_enable: boolean;
+            /** Students Without Email */
+            students_without_email: number;
+        };
+        /** EmailBillingUpdateApi */
+        EmailBillingUpdateApi: {
+            /** Enabled */
+            enabled: boolean;
+        };
+        /** EmailPreviewApi */
+        EmailPreviewApi: {
+            /** Subject */
+            subject: string;
+            /** Html */
+            html: string;
+        };
         /** EnrollmentApiPayload */
         EnrollmentApiPayload: {
             /**
@@ -1601,6 +1724,37 @@ export interface components {
             eligibility: components["schemas"]["Eligibility"];
             suggested_target: components["schemas"]["BeltApiRead"] | null;
         };
+        /**
+         * GraduationChargeApiRead
+         * @description Cobrança da graduação de um aluno da lista.
+         */
+        GraduationChargeApiRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Amount */
+            amount: string;
+            /** Paid */
+            paid: string;
+            /** Open Amount */
+            open_amount: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "paid" | "partial" | "overdue" | "upcoming" | "waived";
+            /**
+             * Due Date
+             * Format: date
+             */
+            due_date: string;
+            /** Paid At */
+            paid_at: string | null;
+            /** Days Late */
+            days_late: number;
+        };
         /** GraduationEntryApiCreate */
         GraduationEntryApiCreate: {
             /**
@@ -1623,6 +1777,11 @@ export interface components {
              * Format: uuid
              */
             enrollment_id: string;
+            /**
+             * Student Id
+             * Format: uuid
+             */
+            student_id: string;
             /** Student Name */
             student_name: string;
             snapshot_belt: components["schemas"]["BeltApiRead"] | null;
@@ -1630,6 +1789,11 @@ export interface components {
             snapshot_graduated_on: string | null;
             eligibility: components["schemas"]["Eligibility"];
             target_belt: components["schemas"]["BeltApiRead"];
+            charge: components["schemas"]["GraduationChargeApiRead"] | null;
+            /** Whatsapp Url */
+            whatsapp_url: string | null;
+            /** Responsible Name */
+            responsible_name: string | null;
         };
         /** GraduationEntryApiUpdate */
         GraduationEntryApiUpdate: {
@@ -1653,6 +1817,8 @@ export interface components {
              * Format: date
              */
             exam_date: string;
+            /** Payment Due Date */
+            payment_due_date?: string | null;
         };
         /** GraduationListDetailApiRead */
         GraduationListDetailApiRead: {
@@ -1679,6 +1845,8 @@ export interface components {
              * Format: date
              */
             exam_date: string;
+            /** Payment Due Date */
+            payment_due_date: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1693,6 +1861,8 @@ export interface components {
             name?: string | null;
             /** Exam Date */
             exam_date?: string | null;
+            /** Payment Due Date */
+            payment_due_date?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1875,6 +2045,26 @@ export interface components {
             /** Days Late */
             days_late: number;
         };
+        /** PasswordResetConfirm */
+        PasswordResetConfirm: {
+            /** Token */
+            token: string;
+            /** Password */
+            password: string;
+        };
+        /** PasswordResetRequest */
+        PasswordResetRequest: {
+            /** Email */
+            email: string;
+        };
+        /** PasswordResetRequestRead */
+        PasswordResetRequestRead: {
+            /**
+             * Status
+             * @default sent
+             */
+            status: string;
+        };
         /**
          * PayConfirmApi
          * @description Volta do aluno do checkout (a InfinitePay acrescenta ao endereço).
@@ -1929,7 +2119,7 @@ export interface components {
          * PaymentKind
          * @enum {string}
          */
-        PaymentKind: "monthly" | "enrollment_fee";
+        PaymentKind: "monthly" | "enrollment_fee" | "graduation";
         /**
          * PaymentMethod
          * @enum {string}
@@ -1939,6 +2129,10 @@ export interface components {
         PaymentPreviewApiPayload: {
             /** Amount */
             amount: number | string;
+            /** @default monthly */
+            group: components["schemas"]["ChargeGroup"];
+            /** Charge Id */
+            charge_id?: string | null;
         };
         /** PaymentPreviewApiRead */
         PaymentPreviewApiRead: {
@@ -2032,6 +2226,8 @@ export interface components {
              * @default false
              */
             checkout_enabled: boolean;
+            /** @default monthly */
+            group: components["schemas"]["ChargeGroup"];
         };
         /** RecentEnrollmentRead */
         RecentEnrollmentRead: {
@@ -2544,6 +2740,70 @@ export interface operations {
             };
         };
     };
+    request_password_reset_api_v1_auth_password_reset_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetRequestRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_password_reset_api_v1_auth_password_reset_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_modality_catalog_api_v1_modalities_catalog_get: {
         parameters: {
             query?: never;
@@ -2881,6 +3141,7 @@ export interface operations {
                 search?: string | null;
                 modality_id?: string | null;
                 status?: components["schemas"]["EnrollmentStatus"] | null;
+                missing_email?: boolean;
                 page?: number;
                 page_size?: number;
             };
@@ -3784,6 +4045,79 @@ export interface operations {
             };
         };
     };
+    read_email_billing_api_v1_academy_email_billing_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailBillingStatusApi"];
+                };
+            };
+        };
+    };
+    update_email_billing_api_v1_academy_email_billing_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailBillingUpdateApi"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailBillingStatusApi"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_email_billing_api_v1_academy_email_billing_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailPreviewApi"];
+                };
+            };
+        };
+    };
     read_billing_overview_api_v1_billing_overview_get: {
         parameters: {
             query?: {
@@ -4364,7 +4698,9 @@ export interface operations {
     };
     read_public_payment_api_v1_public_pay__token__get: {
         parameters: {
-            query?: never;
+            query?: {
+                group?: components["schemas"]["ChargeGroup"];
+            };
             header?: never;
             path: {
                 token: string;
@@ -4395,7 +4731,9 @@ export interface operations {
     };
     create_public_checkout_api_v1_public_pay__token__checkout_post: {
         parameters: {
-            query?: never;
+            query?: {
+                group?: components["schemas"]["ChargeGroup"];
+            };
             header?: never;
             path: {
                 token: string;

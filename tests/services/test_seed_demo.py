@@ -12,10 +12,13 @@ from dojoflow.commands.seed_demo import (
 )
 from dojoflow.models.academy_modality import AcademyModality
 from dojoflow.models.belt import Belt
+from dojoflow.models.email_log import EmailLog
 from dojoflow.models.infinitepay_checkout import InfinitePayCheckout
 from dojoflow.models.modality import Modality
 from dojoflow.models.payment_transaction import PaymentTransaction
 from dojoflow.models.student import Student
+from dojoflow.shared.email import DEMO_EMAIL_DOMAIN
+from dojoflow.shared.enums import EmailKind, EmailStatus
 from tests.helpers.auth import SEED
 
 
@@ -122,5 +125,35 @@ async def test_reset_removes_infinitepay_checkouts(db_session: AsyncSession):
         await db_session.scalar(
             select(func.count()).select_from(InfinitePayCheckout)
         )
+        == 0
+    )
+
+
+@pytest.mark.asyncio
+async def test_reset_removes_email_logs(db_session: AsyncSession):
+    # Um e-mail de cobrança registrado para um aluno da carga
+    await _catalog(db_session)
+    created = await seed(db_session, SEED.academy_id, {})
+    await db_session.commit()
+    student_id = await db_session.scalar(
+        select(Student.id).where(Student.academy_id == SEED.academy_id)
+    )
+    db_session.add(
+        EmailLog(
+            kind=EmailKind.BILLING,
+            status=EmailStatus.FAILED,
+            academy_id=SEED.academy_id,
+            student_id=student_id,
+            recipient=f'x@{DEMO_EMAIL_DOMAIN}',
+        )
+    )
+    await db_session.commit()
+
+    removed = await reset(db_session, SEED.academy_id)
+    await db_session.commit()
+
+    assert removed == created
+    assert (
+        await db_session.scalar(select(func.count()).select_from(EmailLog))
         == 0
     )
