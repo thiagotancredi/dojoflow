@@ -1,5 +1,6 @@
 import asyncio
 from datetime import date, datetime
+from decimal import Decimal
 
 import pytest
 from botocore.exceptions import ClientError
@@ -15,6 +16,7 @@ from dojoflow.integrations.email.sender import (
 from dojoflow.models.academy import Academy
 from dojoflow.models.academy_billing_settings import AcademyBillingSettings
 from dojoflow.models.email_log import EmailLog
+from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.master import Master
 from dojoflow.models.payment import Payment
 from dojoflow.models.student import Student
@@ -25,6 +27,7 @@ from dojoflow.shared.email import DEMO_EMAIL_DOMAIN
 from dojoflow.shared.enums import (
     EmailKind,
     EmailStatus,
+    PaymentKind,
     PaymentStatus,
     PixKeyType,
 )
@@ -582,3 +585,31 @@ def test_send_billing_email_task_targets_the_given_day(
 
     assert calls == [(7, date(2027, 3, 1))]
     assert result == 'sent'
+
+
+@pytest.mark.asyncio
+async def test_billing_email_ignores_graduation(db_session: AsyncSession):
+    """Quem só deve graduação não recebe o e-mail de mensalidade."""
+    await _configure(db_session)
+    judo = await add_modality(db_session, 'Judô')
+    ana = await _student(
+        db_session, judo, 'Ana Lima', 'ana@exemplo.com', monthly_fee=None
+    )
+    enrollment_id = await db_session.scalar(
+        select(Enrollment.id).where(Enrollment.student_id == ana)
+    )
+    db_session.add(
+        Payment(
+            academy_id=SEED.academy_id,
+            enrollment_id=enrollment_id,
+            kind=PaymentKind.GRADUATION,
+            reference_month=MONTH,
+            due_date=date(2027, 3, 5),
+            amount_due=Decimal('100.00'),
+            amount_paid=Decimal('0.00'),
+            description='Verde',
+        )
+    )
+    await db_session.commit()
+
+    assert await EmailBillingService(db_session).due_recipients(TODAY) == []

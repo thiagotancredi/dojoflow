@@ -52,6 +52,7 @@ from dojoflow.services.billing_rules import (
     first_monthly_month,
     format_brl,
     join_names,
+    kinds_of,
     month_name,
     whatsapp_phone,
 )
@@ -59,6 +60,7 @@ from dojoflow.services.pix import pix_copy_paste
 from dojoflow.shared.email import is_deliverable_email
 from dojoflow.shared.enums import (
     AcademyStatus,
+    ChargeGroup,
     CheckoutStatus,
     EnrollmentStatus,
     PaymentKind,
@@ -89,6 +91,7 @@ DEFAULT_MESSAGE_TEMPLATE = (
     '*{mestre}*\n{academia}'
 )
 ENROLLMENT_FEE_LABEL = 'taxa de matrícula'
+GRADUATION_LABEL = 'Graduação'
 CLOSED_STATUSES = {'paid', 'waived'}
 # Texto salvo sem {link}: o link entra no fim, para ninguém ficar sem ele
 LINK_FALLBACK = '\n\nPara pagar pelo Pix, toque aqui: {link}'
@@ -109,9 +112,16 @@ def _months_from(start: date, end: date) -> list[date]:
     return months
 
 
-def _charge_label(kind: PaymentKind, reference_month: date, year: int) -> str:
+def _charge_label(
+    kind: PaymentKind,
+    reference_month: date,
+    year: int,
+    description: str | None = None,
+) -> str:
     if kind is PaymentKind.ENROLLMENT_FEE:
         return ENROLLMENT_FEE_LABEL
+    if kind is PaymentKind.GRADUATION:
+        return f'{GRADUATION_LABEL} · {description or ""}'.rstrip(' ·')
     return month_name(reference_month, year)
 
 
@@ -126,10 +136,15 @@ def open_label(charges: list[ChargeRead], current_year: int) -> str:
 
 
 def payable_charges(
-    charges: list[ChargeRead], today: date
+    charges: list[ChargeRead],
+    today: date,
+    group: ChargeGroup = ChargeGroup.MONTHLY,
 ) -> list[ChargeRead]:
-    """O que dá para pagar hoje, do mais antigo ao mais novo: tudo em aberto
-    que vence até o fim do mês de hoje (o vencido mais a do mês).
+    """O que dá para pagar hoje, do mais antigo ao mais novo, só do grupo.
+
+    Mensalidade: tudo em aberto que vence até o fim do mês de hoje (o
+    vencido mais a do mês). Graduação: tudo em aberto, porque a data limite
+    pode cair no mês seguinte.
 
     É o total da /pagar, do checkout e do {valor} do WhatsApp.
     """
@@ -138,11 +153,14 @@ def payable_charges(
         today.month,
         calendar.monthrange(today.year, today.month)[1],
     )
+    kinds = kinds_of(group)
     return sorted(
         (
             c
             for c in charges
-            if c.status not in CLOSED_STATUSES and c.due_date <= month_end
+            if c.kind in kinds
+            and c.status not in CLOSED_STATUSES
+            and (group is ChargeGroup.GRADUATION or c.due_date <= month_end)
         ),
         key=lambda c: (c.reference_month, c.kind is PaymentKind.MONTHLY),
     )
@@ -297,6 +315,8 @@ def _public_label(
     of_student = f' de {student_first_name}' if student_first_name else ''
     if charge.kind is PaymentKind.ENROLLMENT_FEE:
         label = f'Taxa de matrícula{of_student}'
+    elif charge.kind is PaymentKind.GRADUATION:
+        label = f'{GRADUATION_LABEL}{of_student} · {charge.description}'
     else:
         month = month_name(charge.reference_month, year)
         label = f'Mensalidade{of_student} · {month}'
@@ -529,10 +549,16 @@ class BillingService:  # noqa: PLR0904
         today: date | None = None,
     ) -> StudentBillingRead:
         today = today or local_today()
+        # A ficha mostra tudo; totais, WhatsApp e link são da mensalidade
         charges = await self._charges(
-            academy_id, today, Enrollment.student_id == student_id
+            academy_id, today, Enrollment.student_id == student_id, group=None
         )
-        open_charges = [c for c in charges if c.status not in CLOSED_STATUSES]
+        monthly = kinds_of(ChargeGroup.MONTHLY)
+        open_charges = [
+            c
+            for c in charges
+            if c.status not in CLOSED_STATUSES and c.kind in monthly
+        ]
         open_total = sum((c.amount - c.paid for c in open_charges), Decimal(0))
 
         return StudentBillingRead(
@@ -588,7 +614,11 @@ class BillingService:  # noqa: PLR0904
         academy_id: int,
         today: date,
         *filters: ColumnElement[bool],
+        group: ChargeGroup | None = ChargeGroup.MONTHLY,
     ) -> list[ChargeRead]:
+        """Cobranças do grupo (mensalidade por padrão; None = todas)."""
+        if group is not None:
+            filters = (*filters, Payment.kind.in_(kinds_of(group)))
         stmt = (
             select(
                 Payment,
@@ -621,6 +651,7 @@ class BillingService:  # noqa: PLR0904
                     due_date=due_date,
                     amount=amount,
                     paid=payment.amount_paid,
+                    description=payment.description,
                     status=billing_status(
                         amount,
                         payment.amount_paid,
@@ -638,7 +669,7 @@ class BillingService:  # noqa: PLR0904
         self, academy_id: int, charge_id: int, today: date
     ) -> ChargeRead:
         (charge,) = await self._charges(
-            academy_id, today, Payment.id == charge_id
+            academy_id, today, Payment.id == charge_id, group=None
         )
         return charge
 
@@ -764,9 +795,10 @@ class BillingService:  # noqa: PLR0904
         student_id: int,
         amount: Decimal,
         today: date,
+        group: ChargeGroup,
     ) -> list[tuple[ChargeRead, Decimal]]:
         charges = await self._charges(
-            academy_id, today, Enrollment.student_id == student_id
+            academy_id, today, Enrollment.student_id == student_id, group=group
         )
         open_charges = {
             c.id: c for c in charges if c.status not in CLOSED_STATUSES
@@ -801,18 +833,23 @@ class BillingService:  # noqa: PLR0904
         academy_id: int,
         student_id: int,
         amount: Decimal,
+        *,
+        group: ChargeGroup = ChargeGroup.MONTHLY,
     ) -> list[AllocationPreview]:
         """Como a baixa vai ser abatida, sem gravar nada."""
         today = local_today()
         plan = await self._plan_allocations(
-            academy_id, student_id, amount, today
+            academy_id, student_id, amount, today, group
         )
 
         return [
             AllocationPreview(
                 charge_public_id=charge.public_id,
                 label=_charge_label(
-                    charge.kind, charge.reference_month, today.year
+                    charge.kind,
+                    charge.reference_month,
+                    today.year,
+                    charge.description,
                 ),
                 amount=part.quantize(CENTS),
                 settles=part == charge.open_amount,
@@ -827,6 +864,8 @@ class BillingService:  # noqa: PLR0904
         items: list[tuple[int, Decimal]],
         paid_on: date,
         method: PaymentMethod | None,
+        *,
+        group: ChargeGroup = ChargeGroup.MONTHLY,
     ) -> Decimal:
         """Baixa em lote: um pagamento por aluno, numa transação só (se um
         falhar, nenhum entra). Cada um segue a regra da baixa individual."""
@@ -834,7 +873,13 @@ class BillingService:  # noqa: PLR0904
 
         for student_id, amount in items:
             await self.create_payment(
-                academy_id, student_id, amount, paid_on, method, None
+                academy_id,
+                student_id,
+                amount,
+                paid_on,
+                method,
+                None,
+                group=group,
             )
             total += amount
 
@@ -851,16 +896,18 @@ class BillingService:  # noqa: PLR0904
         notes: str | None,
         *,
         source: PaymentSource = PaymentSource.MANUAL,
+        group: ChargeGroup = ChargeGroup.MONTHLY,
     ) -> PaymentRead:
-        """Baixa do aluno, abatendo da cobrança mais antiga à mais nova.
+        """Baixa do aluno, abatendo da cobrança mais antiga à mais nova,
+        só dentro do grupo (mensalidade ou graduação).
 
         Baixa manual cancela (do lado do Katsuflow) os links de checkout
-        abertos do aluno: a página /pagar não os reaproveita mais.
+        abertos do aluno naquele grupo: a página /pagar não os reaproveita.
         """
         today = local_today()
         locked = await self.lock_student_charges(academy_id, student_id)
         plan = await self._plan_allocations(
-            academy_id, student_id, amount, today
+            academy_id, student_id, amount, today, group
         )
 
         transaction = PaymentTransaction(
@@ -871,6 +918,7 @@ class BillingService:  # noqa: PLR0904
             received_at=paid_on,
             notes=notes,
             source=source,
+            charge_group=group,
         )
         self.db_session.add(transaction)
         await self.db_session.flush()
@@ -889,7 +937,7 @@ class BillingService:  # noqa: PLR0904
             _refresh_paid_status(row, paid_on)
 
         if source is PaymentSource.MANUAL:
-            await self._cancel_open_checkouts(academy_id, student_id)
+            await self._cancel_open_checkouts(academy_id, student_id, group)
 
         await self.db_session.flush()
         (payment,) = await self._payments(
@@ -1053,19 +1101,26 @@ class BillingService:  # noqa: PLR0904
 
         # O checkout aberto volta para o link antigo depois de pago (e cairia
         # em "Link inválido"): o próximo "Pagar" cria outro
-        await self._cancel_open_checkouts(academy_id, student_id)
+        await self._cancel_open_checkouts(academy_id, student_id, None)
         return pay_url(token)
 
     async def _cancel_open_checkouts(
-        self, academy_id: int, student_id: int
+        self, academy_id: int, student_id: int, group: ChargeGroup | None
     ) -> None:
-        """Faz o Katsuflow parar de reaproveitar os links abertos do aluno."""
+        """Faz o Katsuflow parar de reaproveitar os links abertos do aluno
+        naquele grupo (None = todos)."""
+        filters = (
+            []
+            if group is None
+            else [InfinitePayCheckout.charge_group == group]
+        )
         await self.db_session.execute(
             update(InfinitePayCheckout)
             .where(
                 InfinitePayCheckout.academy_id == academy_id,
                 InfinitePayCheckout.student_id == student_id,
                 InfinitePayCheckout.status == CheckoutStatus.OPEN,
+                *filters,
             )
             .values(status=CheckoutStatus.CANCELED)
         )
@@ -1151,16 +1206,25 @@ class BillingService:  # noqa: PLR0904
         return (row.academy_id, row.id) if row else None
 
     async def payable_for_student(
-        self, academy_id: int, student_id: int, today: date
+        self,
+        academy_id: int,
+        student_id: int,
+        today: date,
+        *,
+        group: ChargeGroup = ChargeGroup.MONTHLY,
     ) -> list[ChargeRead]:
         """O que o aluno pode pagar hoje, do mais antigo ao mais novo: o
         vencido mais a cobrança em aberto que vence até o fim do mês de hoje.
         É o que a página /pagar mostra e o que o checkout cobra e confere."""
         return payable_charges(
             await self._charges(
-                academy_id, today, Enrollment.student_id == student_id
+                academy_id,
+                today,
+                Enrollment.student_id == student_id,
+                group=group,
             ),
             today,
+            group,
         )
 
     async def checkout_enabled(self, academy_id: int) -> bool:
@@ -1325,6 +1389,7 @@ class BillingService:  # noqa: PLR0904
         received = await self.db_session.scalar(
             select(func.sum(PaymentTransaction.gross_amount)).where(
                 PaymentTransaction.academy_id == academy_id,
+                PaymentTransaction.charge_group == ChargeGroup.MONTHLY,
                 PaymentTransaction.received_at >= month,
                 PaymentTransaction.received_at < first_monthly_month(month),
             )
@@ -1418,6 +1483,7 @@ class BillingService:  # noqa: PLR0904
                     Payment.public_id,
                     Payment.kind,
                     Payment.reference_month,
+                    Payment.description,
                 )
                 .join(Payment, Payment.id == PaymentAllocation.payment_id)
                 .where(
@@ -1450,7 +1516,10 @@ class BillingService:  # noqa: PLR0904
                 AllocationRead(
                     charge_public_id=row.public_id,
                     label=_charge_label(
-                        row.kind, row.reference_month, today.year
+                        row.kind,
+                        row.reference_month,
+                        today.year,
+                        row.description,
                     ),
                     amount=row.allocated_amount,
                 )

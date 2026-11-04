@@ -25,6 +25,8 @@ class ChargeRead(BaseModel):
     paid: Decimal
     status: ChargeStatus
     created_at: datetime
+    # Graduação: o nome da faixa-alvo (ex.: "Verde")
+    description: str | None = None
 
     @property
     def open_amount(self) -> Decimal:
