@@ -32,6 +32,7 @@ from dojoflow.schemas.billing import (
     BillingOverviewRead,
     ChargeRead,
     CheckoutReviewRead,
+    GraduationEntryBilling,
     OverviewFilter,
     PaymentRead,
     StudentBillingRead,
@@ -93,13 +94,23 @@ DEFAULT_MESSAGE_TEMPLATE = (
 ENROLLMENT_FEE_LABEL = 'taxa de matrícula'
 GRADUATION_LABEL = 'Graduação'
 CLOSED_STATUSES = {'paid', 'waived'}
+# Graduação: texto fixo (o modelo editável do mestre é só da mensalidade)
+GRADUATION_MESSAGE_TEMPLATE = (
+    'Olá, {nome}! Tudo bem?\n\n'
+    'O valor da graduação para a faixa {faixa} ({modalidade}) é {valor}, '
+    'com pagamento até {data}.\n\n'
+    'Para pagar, é só tocar aqui:\n{link}\n\n'
+    'Se já pagou, desconsidere. Obrigado!\n\n'
+    '*{mestre}*\n{academia}'
+)
 # Texto salvo sem {link}: o link entra no fim, para ninguém ficar sem ele
 LINK_FALLBACK = '\n\nPara pagar pelo Pix, toque aqui: {link}'
 
 
-def pay_url(token: str) -> str:
-    """Endereço da página pública de pagamento do aluno."""
-    return f'{app_settings.WEB_APP_URL}/pagar/{token}'
+def pay_url(token: str, group: ChargeGroup = ChargeGroup.MONTHLY) -> str:
+    """Endereço da página pública de pagamento do aluno (por grupo)."""
+    suffix = '/graduacao' if group is ChargeGroup.GRADUATION else ''
+    return f'{app_settings.WEB_APP_URL}/pagar/{token}{suffix}'
 
 
 def _months_from(start: date, end: date) -> list[date]:
@@ -299,6 +310,40 @@ def whatsapp_url(  # noqa: PLR0913, PLR0917
     if '{link}' not in text:
         text += LINK_FALLBACK
     # Troca simples: chaves que o mestre escrever no texto não quebram nada
+    for marker, value in values.items():
+        text = text.replace(marker, value)
+
+    return f'https://wa.me/{whatsapp_phone(contact.phone)}?text={quote(text)}'
+
+
+def graduation_whatsapp_url(
+    student: StudentContact,
+    charge: ChargeRead,
+    sender: MessageSender,
+    today: date,
+) -> str | None:
+    """Link wa.me cobrando a graduação desta cobrança; None sem telefone ou
+    sem valor em aberto."""
+    recipient = choose_recipient(student, today)
+    if (
+        recipient is None
+        or charge.status in CLOSED_STATUSES
+        or charge.open_amount <= 0
+    ):
+        return None
+
+    contact, _ = recipient
+    values = {
+        '{nome}': contact.name.split()[0],
+        '{faixa}': charge.description or '',
+        '{modalidade}': charge.modality_name,
+        '{valor}': format_brl(charge.open_amount),
+        '{data}': charge.due_date.strftime('%d/%m'),
+        '{link}': pay_url(student.pay_token, ChargeGroup.GRADUATION),
+        '{mestre}': sender.master,
+        '{academia}': sender.academy,
+    }
+    text = GRADUATION_MESSAGE_TEMPLATE
     for marker, value in values.items():
         text = text.replace(marker, value)
 
@@ -652,6 +697,8 @@ class BillingService:  # noqa: PLR0904
                     amount=amount,
                     paid=payment.amount_paid,
                     description=payment.description,
+                    graduation_entry_id=payment.graduation_entry_id,
+                    paid_at=payment.paid_at,
                     status=billing_status(
                         amount,
                         payment.amount_paid,
@@ -1204,6 +1251,53 @@ class BillingService:  # noqa: PLR0904
             )
         ).one_or_none()
         return (row.academy_id, row.id) if row else None
+
+    async def graduation_billing(
+        self, academy_id: int, entry_ids: list[int]
+    ) -> dict[int, GraduationEntryBilling]:
+        """Por entrada da lista: a cobrança de graduação, o atraso e o
+        WhatsApp (com o link /pagar da graduação)."""
+        if not entry_ids:
+            return {}
+
+        today = local_today()
+        charges = await self._charges(
+            academy_id,
+            today,
+            Payment.graduation_entry_id.in_(entry_ids),
+            group=ChargeGroup.GRADUATION,
+        )
+        if not charges:
+            return {}
+
+        contacts = await self.contacts(
+            academy_id, {c.student_id for c in charges}
+        )
+        sender = await self._sender(academy_id)
+        result = {}
+
+        for charge in charges:
+            contact = contacts[charge.student_id]
+            message_url = graduation_whatsapp_url(
+                contact, charge, sender, today
+            )
+            recipient = choose_recipient(contact, today)
+            result[charge.graduation_entry_id] = GraduationEntryBilling(
+                charge=charge,
+                days_late=(
+                    (today - charge.due_date).days
+                    if charge.status == 'overdue'
+                    else 0
+                ),
+                whatsapp_url=message_url,
+                responsible_name=(
+                    recipient[0].name
+                    if recipient and recipient[1] and message_url
+                    else None
+                ),
+            )
+
+        return result
 
     async def payable_for_student(
         self,

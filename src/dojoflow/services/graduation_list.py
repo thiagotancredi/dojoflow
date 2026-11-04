@@ -25,6 +25,7 @@ from dojoflow.schemas.graduation_list import (
 )
 from dojoflow.services.belt import BeltService, next_in_sequence
 from dojoflow.services.belt_rules import evaluate_eligibility
+from dojoflow.services.billing import BillingService
 from dojoflow.services.enrollment_belt import EnrollmentBeltService
 from dojoflow.services.graduation_billing import GraduationBillingService
 from dojoflow.shared.enums import EnrollmentStatus
@@ -153,7 +154,7 @@ class GraduationListService:
         return GraduationListDetail(
             summary=summary,
             belts=belts,
-            entries=await self._entries(summary, belts),
+            entries=await self._entries(academy_id, summary, belts),
             candidates=await self._candidates(academy_id, summary, belts),
         )
 
@@ -319,6 +320,7 @@ class GraduationListService:
 
     async def _entries(
         self,
+        academy_id: int,
         summary: GraduationListSummary,
         belts: list[BeltRead],
     ) -> list[GraduationEntry]:
@@ -332,6 +334,7 @@ class GraduationListService:
                 GraduationListEntry.snapshot_graduated_on,
                 Enrollment.public_id.label('enrollment_public_id'),
                 Student.name.label('student_name'),
+                Student.public_id.label('student_public_id'),
             )
             .join(
                 Enrollment, Enrollment.id == GraduationListEntry.enrollment_id
@@ -343,6 +346,9 @@ class GraduationListService:
         rows = (await self.db_session.execute(stmt)).mappings().all()
         # Faixas do retrato e pretendida são sempre da modalidade da lista
         belts_by_id = {belt.id: belt for belt in belts}
+        billing = await BillingService(self.db_session).graduation_billing(
+            academy_id, [row['id'] for row in rows]
+        )
 
         entries = []
 
@@ -364,6 +370,8 @@ class GraduationListService:
                         summary.exam_date,
                     ),
                     target_belt=belts_by_id[row['target_belt_id']],
+                    student_public_id=row['student_public_id'],
+                    billing=billing.get(row['id']),
                 )
             )
 

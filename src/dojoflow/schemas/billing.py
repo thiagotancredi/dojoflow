@@ -27,10 +27,21 @@ class ChargeRead(BaseModel):
     created_at: datetime
     # Graduação: o nome da faixa-alvo (ex.: "Verde")
     description: str | None = None
+    graduation_entry_id: int | None = None
+    paid_at: date | None = None
 
     @property
     def open_amount(self) -> Decimal:
         return self.amount - self.paid
+
+
+class GraduationEntryBilling(BaseModel):
+    """A cobrança de graduação de um aluno da lista e como cobrá-la."""
+
+    charge: ChargeRead
+    days_late: int
+    whatsapp_url: str | None
+    responsible_name: str | None
 
 
 class AllocationRead(BaseModel):

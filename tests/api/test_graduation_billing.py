@@ -4,19 +4,26 @@ preço)."""
 from datetime import date
 from decimal import Decimal
 from http import HTTPStatus
+from urllib.parse import unquote
+from uuid import UUID
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dojoflow.models.graduation_list import GraduationList
+from dojoflow.models.modality import Modality
 from dojoflow.models.payment import Payment
+from dojoflow.models.student import Student
+from dojoflow.services import billing as billing_module
 from dojoflow.shared.enums import PaymentKind, PaymentStatus
 from tests.helpers.auth import auth_headers
 from tests.helpers.scenario import (
     add_belt,
     add_graduation_list,
     add_modality,
+    add_responsible,
     add_student,
 )
 
@@ -72,6 +79,17 @@ async def _add(
         e['id']
         for e in detail.json()['entries']
         if e['student_name'] == student
+    )
+
+
+async def _modality_id(db_session: AsyncSession, ctx: dict) -> str:
+    list_id = UUID(ctx['list_url'].rsplit('/', 1)[1])
+    return str(
+        await db_session.scalar(
+            select(Modality.public_id)
+            .join(GraduationList, GraduationList.modality_id == Modality.id)
+            .where(GraduationList.public_id == list_id)
+        )
     )
 
 
@@ -354,3 +372,102 @@ async def test_belt_price_round_trip_and_validation(
         json={'name': 'Branca', 'primary_color': '#ffffff', 'price': '-1'},
     )
     assert rejected.status_code == HTTPStatus.UNPROCESSABLE_CONTENT
+
+
+async def _detail_entries(client: AsyncClient, ctx: dict) -> dict:
+    detail = await client.get(ctx['list_url'], headers=ctx['headers'])
+    assert detail.status_code == HTTPStatus.OK, detail.text
+    return {e['student_name']: e for e in detail.json()['entries']}
+
+
+@pytest.fixture
+def freeze_today(monkeypatch: pytest.MonkeyPatch):
+    def freeze(day: date) -> None:
+        monkeypatch.setattr(billing_module, 'local_today', lambda: day)
+
+    return freeze
+
+
+@pytest.mark.asyncio
+async def test_detail_shows_charge_per_entry(
+    client: AsyncClient, db_session: AsyncSession, freeze_today
+) -> None:
+    freeze_today(date(2026, 11, 20))
+    ctx = await _setup(client, db_session)
+    await _add(client, ctx, 'Ana Lima')
+    await _add(client, ctx, 'Bruno Costa')
+    await _add(client, ctx, 'Caio Souza', belt='Branca')
+    _, bruno = await _charges(db_session)
+    await _mark_paid(db_session, bruno.id, '100')
+    await db_session.execute(
+        update(Payment)
+        .where(Payment.id == bruno.id)
+        .values(paid_at=date(2026, 11, 18))
+    )
+    await db_session.commit()
+
+    entries = await _detail_entries(client, ctx)
+
+    ana = entries['Ana Lima']['charge']
+    assert ana['open_amount'] == '100.00'
+    assert ana['status'] == 'upcoming'
+    assert ana['due_date'] == DEADLINE
+    assert ana['days_late'] == 0
+    paid = entries['Bruno Costa']['charge']
+    assert paid['status'] == 'paid'
+    assert paid['paid_at'] == '2026-11-18'
+    assert entries['Bruno Costa']['whatsapp_url'] is None
+    assert entries['Caio Souza']['charge'] is None
+    assert entries['Ana Lima']['student_id'] == ctx['students']['Ana Lima'][0]
+
+
+@pytest.mark.asyncio
+async def test_overdue_entry_has_days_late(
+    client: AsyncClient, db_session: AsyncSession, freeze_today
+) -> None:
+    freeze_today(date(2026, 12, 8))
+    ctx = await _setup(client, db_session)
+    await _add(client, ctx, 'Ana Lima')
+
+    charge = (await _detail_entries(client, ctx))['Ana Lima']['charge']
+
+    assert charge['status'] == 'overdue'
+    assert charge['days_late'] == 3  # noqa: PLR2004
+
+
+@pytest.mark.asyncio
+async def test_graduation_whatsapp_text(
+    client: AsyncClient, db_session: AsyncSession, freeze_today
+) -> None:
+    freeze_today(date(2026, 11, 20))
+    ctx = await _setup(client, db_session)
+    await db_session.execute(
+        update(Student)
+        .where(Student.public_id == UUID(ctx['students']['Ana Lima'][0]))
+        .values(phone='62999990001')
+    )
+    minor = await add_student(
+        db_session,
+        await _modality_id(db_session, ctx),
+        'Duda Reis',
+        birth_date='2015-03-01',
+    )
+    ctx['students']['Duda Reis'] = minor
+    await add_responsible(db_session, minor[0], name='Inimar Reis')
+    await db_session.commit()
+    await _add(client, ctx, 'Ana Lima')
+    await _add(client, ctx, 'Duda Reis')
+
+    entries = await _detail_entries(client, ctx)
+
+    url = entries['Ana Lima']['whatsapp_url']
+    assert url.startswith('https://wa.me/5562999990001?text=')
+    text = unquote(url.split('?text=', 1)[1])
+    assert text.startswith('Olá, Ana! Tudo bem?')
+    assert (
+        'O valor da graduação para a faixa Verde (Taekwondo) é R$ 100,00, '
+        'com pagamento até 05/12.'
+    ) in text
+    assert '/graduacao\n' in text
+    assert entries['Duda Reis']['responsible_name'] == 'Inimar Reis'
+    assert 'Olá, Inimar!' in unquote(entries['Duda Reis']['whatsapp_url'])

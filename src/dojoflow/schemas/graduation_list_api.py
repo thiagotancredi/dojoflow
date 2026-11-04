@@ -1,9 +1,11 @@
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel
 
 from dojoflow.schemas.belt_api import BeltApiRead
+from dojoflow.schemas.billing import ChargeStatus
 from dojoflow.schemas.enrollment_belt_api import BeltRecordApiRead
 from dojoflow.schemas.graduation_list import (
     GraduationCandidate,
@@ -92,23 +94,58 @@ class GraduationCandidateApiRead(BaseModel):
         )
 
 
+class GraduationChargeApiRead(BaseModel):
+    """Cobrança da graduação de um aluno da lista."""
+
+    id: UUID
+    amount: Decimal
+    paid: Decimal
+    open_amount: Decimal
+    status: ChargeStatus
+    due_date: date
+    paid_at: date | None
+    days_late: int
+
+
 class GraduationEntryApiRead(BaseModel):
     id: UUID
     enrollment_id: UUID
+    student_id: UUID
     student_name: str
     snapshot_belt: BeltApiRead | None
     snapshot_graduated_on: date | None
     eligibility: Eligibility
     target_belt: BeltApiRead
+    charge: GraduationChargeApiRead | None
+    whatsapp_url: str | None
+    # Quem recebe a cobrança, quando é um responsável
+    responsible_name: str | None
 
     @classmethod
     def from_internal(cls, entry: GraduationEntry) -> 'GraduationEntryApiRead':
         snapshot = entry.snapshot_belt
+        billing = entry.billing
+        charge = billing.charge if billing else None
 
         return cls(
             id=entry.public_id,
             enrollment_id=entry.enrollment_public_id,
+            student_id=entry.student_public_id,
             student_name=entry.student_name,
+            charge=GraduationChargeApiRead(
+                id=charge.public_id,
+                amount=charge.amount,
+                paid=charge.paid,
+                open_amount=charge.open_amount,
+                status=charge.status,
+                due_date=charge.due_date,
+                paid_at=charge.paid_at,
+                days_late=billing.days_late,
+            )
+            if billing and charge
+            else None,
+            whatsapp_url=billing.whatsapp_url if billing else None,
+            responsible_name=billing.responsible_name if billing else None,
             snapshot_belt=BeltApiRead.from_internal(snapshot)
             if snapshot
             else None,
