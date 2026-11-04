@@ -1011,7 +1011,7 @@ export interface paths {
         put?: never;
         /**
          * Create Public Checkout
-         * @description "Pagar mensalidade": devolve o checkout da InfinitePay.
+         * @description "Pagar": devolve o checkout da InfinitePay (só do grupo).
          */
         post: operations["create_public_checkout_api_v1_public_pay__token__checkout_post"];
         delete?: never;
@@ -1266,6 +1266,8 @@ export interface components {
             min_time_unit: components["schemas"]["DurationUnit"] | null;
             /** Position */
             position: number;
+            /** Price */
+            price: string;
         };
         /** BeltOrderRequest */
         BeltOrderRequest: {
@@ -1295,6 +1297,11 @@ export interface components {
             /** Min Time Amount */
             min_time_amount?: number | null;
             min_time_unit?: components["schemas"]["DurationUnit"] | null;
+            /**
+             * Price
+             * @default 0.00
+             */
+            price: number | string;
         };
         /** BeltRecordApiRead */
         BeltRecordApiRead: {
@@ -1422,6 +1429,8 @@ export interface components {
              */
             paid_on: string;
             method?: components["schemas"]["PaymentMethod"] | null;
+            /** @default monthly */
+            group: components["schemas"]["ChargeGroup"];
             /** Items */
             items: components["schemas"]["BulkPaymentItemApi"][];
         };
@@ -1493,6 +1502,13 @@ export interface components {
             status: "paid" | "partial" | "overdue" | "upcoming" | "waived";
         };
         /**
+         * ChargeGroup
+         * @description Cobranças que nunca se misturam: cada grupo tem o seu link, a sua
+         *     baixa e os seus números.
+         * @enum {string}
+         */
+        ChargeGroup: "monthly" | "graduation";
+        /**
          * CheckoutReviewApiRead
          * @description Pagamento da InfinitePay "a conferir" (o valor em aberto mudou).
          */
@@ -1524,6 +1540,8 @@ export interface components {
             method?: components["schemas"]["PaymentMethod"] | null;
             /** Notes */
             notes?: string | null;
+            /** @default monthly */
+            group: components["schemas"]["ChargeGroup"];
         };
         /** DashboardSummaryRead */
         DashboardSummaryRead: {
@@ -1700,6 +1718,37 @@ export interface components {
             eligibility: components["schemas"]["Eligibility"];
             suggested_target: components["schemas"]["BeltApiRead"] | null;
         };
+        /**
+         * GraduationChargeApiRead
+         * @description Cobrança da graduação de um aluno da lista.
+         */
+        GraduationChargeApiRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Amount */
+            amount: string;
+            /** Paid */
+            paid: string;
+            /** Open Amount */
+            open_amount: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "paid" | "partial" | "overdue" | "upcoming" | "waived";
+            /**
+             * Due Date
+             * Format: date
+             */
+            due_date: string;
+            /** Paid At */
+            paid_at: string | null;
+            /** Days Late */
+            days_late: number;
+        };
         /** GraduationEntryApiCreate */
         GraduationEntryApiCreate: {
             /**
@@ -1722,6 +1771,11 @@ export interface components {
              * Format: uuid
              */
             enrollment_id: string;
+            /**
+             * Student Id
+             * Format: uuid
+             */
+            student_id: string;
             /** Student Name */
             student_name: string;
             snapshot_belt: components["schemas"]["BeltApiRead"] | null;
@@ -1729,6 +1783,11 @@ export interface components {
             snapshot_graduated_on: string | null;
             eligibility: components["schemas"]["Eligibility"];
             target_belt: components["schemas"]["BeltApiRead"];
+            charge: components["schemas"]["GraduationChargeApiRead"] | null;
+            /** Whatsapp Url */
+            whatsapp_url: string | null;
+            /** Responsible Name */
+            responsible_name: string | null;
         };
         /** GraduationEntryApiUpdate */
         GraduationEntryApiUpdate: {
@@ -1752,6 +1811,8 @@ export interface components {
              * Format: date
              */
             exam_date: string;
+            /** Payment Due Date */
+            payment_due_date?: string | null;
         };
         /** GraduationListDetailApiRead */
         GraduationListDetailApiRead: {
@@ -1778,6 +1839,8 @@ export interface components {
              * Format: date
              */
             exam_date: string;
+            /** Payment Due Date */
+            payment_due_date: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1792,6 +1855,8 @@ export interface components {
             name?: string | null;
             /** Exam Date */
             exam_date?: string | null;
+            /** Payment Due Date */
+            payment_due_date?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2048,7 +2113,7 @@ export interface components {
          * PaymentKind
          * @enum {string}
          */
-        PaymentKind: "monthly" | "enrollment_fee";
+        PaymentKind: "monthly" | "enrollment_fee" | "graduation";
         /**
          * PaymentMethod
          * @enum {string}
@@ -2058,6 +2123,8 @@ export interface components {
         PaymentPreviewApiPayload: {
             /** Amount */
             amount: number | string;
+            /** @default monthly */
+            group: components["schemas"]["ChargeGroup"];
         };
         /** PaymentPreviewApiRead */
         PaymentPreviewApiRead: {
@@ -2151,6 +2218,8 @@ export interface components {
              * @default false
              */
             checkout_enabled: boolean;
+            /** @default monthly */
+            group: components["schemas"]["ChargeGroup"];
         };
         /** RecentEnrollmentRead */
         RecentEnrollmentRead: {
@@ -4621,7 +4690,9 @@ export interface operations {
     };
     read_public_payment_api_v1_public_pay__token__get: {
         parameters: {
-            query?: never;
+            query?: {
+                group?: components["schemas"]["ChargeGroup"];
+            };
             header?: never;
             path: {
                 token: string;
@@ -4652,7 +4723,9 @@ export interface operations {
     };
     create_public_checkout_api_v1_public_pay__token__checkout_post: {
         parameters: {
-            query?: never;
+            query?: {
+                group?: components["schemas"]["ChargeGroup"];
+            };
             header?: never;
             path: {
                 token: string;

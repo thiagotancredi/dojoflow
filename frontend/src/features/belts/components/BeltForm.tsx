@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select'
 import type { Belt, BeltPayload } from '@/features/belts/api'
 import { BeltDrawing } from '@/features/belts/components/BeltDrawing'
+import { moneyToInput, parseMoney } from '@/lib/money'
 import { cn } from '@/lib/utils'
 
 // Paleta da spec; "outra cor" abre o seletor do navegador
@@ -54,6 +55,12 @@ const beltFormSchema = z.object({
       error: `De 1 a ${MAX_MIN_TIME}.`,
     }),
   min_time_unit: z.enum(['days', 'months', 'years']),
+  // Vazio = sem cobrança da graduação
+  price: z
+    .string()
+    .refine((value) => value.trim() === '' || parseMoney(value) !== null, {
+      error: 'Valor inválido.',
+    }),
 })
 
 type BeltFormValues = z.infer<typeof beltFormSchema>
@@ -68,6 +75,7 @@ function toFormValues(belt: Belt | null): BeltFormValues {
     tip_color: belt?.tip_color ?? '',
     min_time_amount: belt?.min_time_amount?.toString() ?? '3',
     min_time_unit: belt?.min_time_unit ?? 'months',
+    price: belt && Number(belt.price) > 0 ? moneyToInput(belt.price) : '',
   }
 }
 
@@ -84,6 +92,7 @@ function toPayload(values: BeltFormValues): BeltPayload {
     tip_color: values.tip_color || null,
     min_time_amount: amount,
     min_time_unit: amount === null ? null : values.min_time_unit,
+    price: parseMoney(values.price) ?? '0',
   }
 }
 
@@ -174,6 +183,23 @@ export function BeltForm({ belt, isPending, onSubmit, onCancel }: BeltFormProps)
                   </SelectContent>
                 </Select>
               )}
+            />
+          </div>
+        </FormField>
+        <FormField
+          label="Preço da faixa"
+          htmlFor="belt-price"
+          error={errors.price?.message}
+          hint="Opcional. Vazio = sem cobrança."
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">R$</span>
+            <Input
+              id="belt-price"
+              inputMode="decimal"
+              placeholder="0,00"
+              className="w-32 rounded-xl"
+              {...register('price')}
             />
           </div>
         </FormField>

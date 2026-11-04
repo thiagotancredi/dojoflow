@@ -18,6 +18,8 @@ export type LaunchChargePayload = Schemas['LaunchChargeApiPayload']
 export type UpdateChargePayload = Schemas['UpdateChargeApiPayload']
 export type CreatePaymentPayload = Schemas['CreatePaymentApiPayload']
 export type BulkPaymentPayload = Schemas['BulkPaymentApiPayload']
+// Mensalidade ou graduação: a baixa só abate cobranças do próprio grupo
+export type ChargeGroup = Schemas['ChargeGroup']
 
 export type OverviewFilter = 'overdue' | 'upcoming' | 'paid' | 'all'
 
@@ -87,12 +89,13 @@ export function unwaiveCharge(studentId: string, chargeId: string) {
 export function previewPayment(
   studentId: string,
   amount: string,
+  group: ChargeGroup,
   signal?: AbortSignal,
 ) {
   return unwrap(
     api.POST('/api/v1/students/{student_id}/billing/payments/preview', {
       params: { path: { student_id: studentId } },
-      body: { amount },
+      body: { amount, group },
       signal,
     }),
   )

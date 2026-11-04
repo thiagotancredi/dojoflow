@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select'
 import { todayIso } from '@/features/belts/rules'
 import { createBulkPayments } from '@/features/billing/api'
-import type { BillingOverviewItem } from '@/features/billing/api'
+import type { ChargeGroup } from '@/features/billing/api'
 import { PAYMENT_METHOD_LABELS } from '@/features/billing/labels'
 import type { PaymentMethod } from '@/features/billing/labels'
 import { showApiError } from '@/lib/api/errors'
@@ -29,11 +29,20 @@ import { formatMoney } from '@/lib/money'
 
 const NO_METHOD = 'none'
 
+// O mínimo de cada aluno: Mensalidades e a lista de graduação usam
+export type BulkPaymentItem = {
+  student_id: string
+  name: string
+  open_amount: string
+}
+
 type BulkPaymentDialogProps = {
   // Alunos selecionados; vazio = fechado
-  items: BillingOverviewItem[]
+  items: BulkPaymentItem[]
   onClose: () => void
   onDone: () => void
+  // Mensalidade (padrão) ou graduação
+  group?: ChargeGroup
 }
 
 // Baixa em lote: para quem pagou exatamente o que estava em aberto. Os
@@ -42,6 +51,7 @@ export function BulkPaymentDialog({
   items,
   onClose,
   onDone,
+  group = 'monthly',
 }: BulkPaymentDialogProps) {
   const [paidOn, setPaidOn] = useState(todayIso)
   const [method, setMethod] = useState<string>('pix')
@@ -53,6 +63,7 @@ export function BulkPaymentDialog({
       const result = await bulk.mutate({
         paid_on: paidOn,
         method: method === NO_METHOD ? null : (method as PaymentMethod),
+        group,
         items: items.map((item) => ({
           student_id: item.student_id,
           amount: item.open_amount,

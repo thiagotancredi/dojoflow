@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { todayIso } from '@/features/belts/rules'
-import { previewPayment } from '@/features/billing/api'
+import { type ChargeGroup, previewPayment } from '@/features/billing/api'
 import type { PaymentPreview } from '@/features/billing/api'
 import { useCreatePayment } from '@/features/billing/hooks'
 import { PAYMENT_METHOD_LABELS, capitalize } from '@/features/billing/labels'
@@ -60,6 +60,8 @@ type PaymentDialogProps = {
   onOpenChange: (open: boolean) => void
   // Depois de gravar: a tela busca os dados de novo
   onDone: () => void
+  // Mensalidade (padrão) ou graduação: a baixa só abate o próprio grupo
+  group?: ChargeGroup
 }
 
 // Janela "Dar baixa": valor, data, forma e a prévia do abatimento
@@ -69,6 +71,7 @@ export function PaymentDialog({
   open,
   onOpenChange,
   onDone,
+  group = 'monthly',
 }: PaymentDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -79,6 +82,7 @@ export function PaymentDialog({
         {/* O formulário só existe com a janela aberta: abre sempre limpo */}
         <PaymentForm
           studentId={studentId}
+          group={group}
           onCancel={() => onOpenChange(false)}
           onSaved={() => {
             onDone()
@@ -92,10 +96,12 @@ export function PaymentDialog({
 
 function PaymentForm({
   studentId,
+  group,
   onCancel,
   onSaved,
 }: {
   studentId: string
+  group: ChargeGroup
   onCancel: () => void
   onSaved: () => void
 }) {
@@ -115,7 +121,7 @@ function PaymentForm({
     formState: { errors },
   } = form
   const amount = parseMoney(useWatch({ control, name: 'amount' }) ?? '')
-  const preview = usePaymentPreview(studentId, amount)
+  const preview = usePaymentPreview(studentId, amount, group)
 
   async function save(values: PaymentValues) {
     try {
@@ -127,6 +133,7 @@ function PaymentForm({
             ? null
             : (values.method as PaymentMethod),
         notes: values.notes || null,
+        group,
       })
       toast.success('Baixa registrada')
       onSaved()
@@ -240,6 +247,7 @@ type PreviewState =
 function usePaymentPreview(
   studentId: string,
   amount: string | null,
+  group: ChargeGroup,
 ): PreviewState {
   const [result, setResult] = useState<{
     amount: string
@@ -251,7 +259,7 @@ function usePaymentPreview(
 
     const controller = new AbortController()
     const timer = setTimeout(() => {
-      previewPayment(studentId, amount, controller.signal)
+      previewPayment(studentId, amount, group, controller.signal)
         .then((data) =>
           setResult({ amount, outcome: { state: 'ready', data } }),
         )
@@ -268,7 +276,7 @@ function usePaymentPreview(
       clearTimeout(timer)
       controller.abort()
     }
-  }, [studentId, amount])
+  }, [studentId, amount, group])
 
   if (amount === null || Number(amount) <= 0) return { state: 'empty' }
   if (result?.amount !== amount) return { state: 'loading' }
