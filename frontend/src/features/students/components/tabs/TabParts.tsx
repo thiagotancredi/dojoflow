@@ -68,7 +68,7 @@ export function AddCard({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed text-sm font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground',
+        'flex w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-foreground/25 text-sm font-medium text-muted-foreground transition-colors hover:border-foreground/45 hover:text-foreground',
         className,
       )}
     >

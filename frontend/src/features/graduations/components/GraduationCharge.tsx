@@ -1,8 +1,7 @@
-import { CircleAlert } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import type { GraduationEntry } from '@/features/belts/api'
 import { todayIso } from '@/features/belts/rules'
 import { WhatsAppButton } from '@/features/billing/components/WhatsAppButton'
@@ -12,40 +11,83 @@ import { cn } from '@/lib/utils'
 
 // Cobrança da graduação na lista: mesmo visual da linha de Mensalidades
 
-// Alerta no topo: quem ainda não pagou (some quando ninguém deve)
-export function UnpaidAlert({
+// Números do topo: quem já acertou, quem deve e quanto falta receber
+export function ChargeStats({
   entries,
   deadline,
 }: {
   entries: GraduationEntry[]
   deadline: string
 }) {
-  const unpaid = entries.filter((entry) => openAmount(entry) > 0)
-  if (unpaid.length === 0) return null
-
-  const total = unpaid.reduce((sum, entry) => sum + openAmount(entry), 0)
-  const passed = deadline < todayIso()
-  const count = unpaid.length
+  const settled = entries.filter(
+    (entry) => entry.charge?.status === 'paid' || entry.charge?.status === 'waived',
+  ).length
+  const open = entries.filter((entry) => openAmount(entry) > 0).length
+  const total = entries.reduce((sum, entry) => sum + openAmount(entry), 0)
+  const passed = open > 0 && deadline < todayIso()
 
   return (
-    <p
-      role="status"
-      className={cn(
-        'flex items-start gap-2 rounded-2xl px-3 py-2 text-sm',
-        passed
-          ? 'bg-status-critical-soft text-status-critical'
-          : 'bg-status-warning-soft text-foreground',
+    <>
+      <Stat value={settled} label="quites" className="text-sidebar-primary" />
+      <Stat value={open} label="em aberto" className="text-status-pending" />
+      <Stat
+        value={formatMoney(total.toFixed(2))}
+        label={passed ? 'total a receber · prazo passou' : 'total a receber'}
+        className={passed ? 'text-status-critical' : undefined}
+      />
+    </>
+  )
+}
+
+// Computador: número grande com a legenda embaixo.
+// Celular: uma linha de extrato (legenda à esquerda, número à direita).
+export function Stat({
+  value,
+  label,
+  className,
+}: {
+  value: ReactNode
+  label: string
+  className?: string
+}) {
+  return (
+    <div className="flex min-w-0 flex-row-reverse items-baseline justify-between gap-3 py-2 md:block md:py-0 md:text-center">
+      <p
+        className={cn(
+          'font-semibold whitespace-nowrap md:text-xl md:tracking-tight',
+          className,
+        )}
+      >
+        {value}
+      </p>
+      <p className="text-sm text-muted-foreground first-letter:uppercase md:text-xs md:first-letter:normal-case">
+        {label}
+      </p>
+    </div>
+  )
+}
+
+// Linha do celular: valor (ou "✓ Pago") e o atraso em vermelho embaixo
+export function ChargeShort({ entry }: { entry: GraduationEntry }) {
+  const charge = entry.charge
+  if (!charge) return null
+  if (charge.status === 'paid') {
+    return <span className="font-semibold whitespace-nowrap text-sidebar-primary">✓ Pago</span>
+  }
+  if (charge.status === 'waived') {
+    return <span className="text-xs text-muted-foreground">Dispensada</span>
+  }
+
+  const days = charge.days_late
+  return (
+    <span className="text-right leading-tight whitespace-nowrap">
+      <span className="block font-semibold">{formatMoney(charge.open_amount)}</span>
+      {days > 0 && (
+        <span className="block text-xs text-status-critical">
+          {days} {days === 1 ? 'dia' : 'dias'} de atraso
+        </span>
       )}
-    >
-      <CircleAlert className="mt-0.5 size-4 shrink-0" />
-      <span>
-        <span className="font-semibold">
-          {count} {count === 1 ? 'aluno ainda não pagou' : 'alunos ainda não pagaram'}
-        </span>{' '}
-        a graduação · {formatMoney(total.toFixed(2))}
-        {passed && ` · a data limite passou (${dayMonth(deadline)})`}
-      </span>
-    </p>
+    </span>
   )
 }
 
@@ -66,37 +108,38 @@ export function EntryName({ entry }: { entry: GraduationEntry }) {
   )
 }
 
-// "Em aberto": valor, "✓ Pago em dd/mm" ou "Sem cobrança"
-export function ChargeOpen({ entry }: { entry: GraduationEntry }) {
+// Coluna "Graduação": valor e, embaixo, até quando pagar ou o atraso
+export function ChargeCell({ entry }: { entry: GraduationEntry }) {
   const charge = entry.charge
   if (!charge) return <span className="text-muted-foreground">Sem cobrança</span>
+  if (charge.status === 'waived') return <span className="text-muted-foreground">Dispensada</span>
   if (charge.status === 'paid') {
     return (
-      <span className="font-semibold whitespace-nowrap text-sidebar-primary">
-        ✓ Pago{charge.paid_at ? ` em ${dayMonth(charge.paid_at)}` : ''}
-      </span>
+      <div className="leading-tight whitespace-nowrap">
+        <p className="font-semibold text-sidebar-primary">✓ Pago</p>
+        {charge.paid_at && (
+          <p className="text-xs text-muted-foreground">em {dayMonth(charge.paid_at)}</p>
+        )}
+      </div>
     )
   }
-  if (charge.status === 'waived') return <span className="text-muted-foreground">Dispensada</span>
 
-  return <span className="whitespace-nowrap">{formatMoney(charge.open_amount)}</span>
-}
-
-// "Atraso": dias depois da data limite
-export function ChargeLate({ entry }: { entry: GraduationEntry }) {
-  const days = entry.charge?.days_late ?? 0
-  if (days <= 0 || openAmount(entry) <= 0) {
-    return <span className="text-muted-foreground">—</span>
-  }
-
+  const days = charge.days_late
   return (
-    <span className="whitespace-nowrap text-status-critical">
-      {days} {days === 1 ? 'dia' : 'dias'}
-    </span>
+    <div className="leading-tight whitespace-nowrap">
+      <p className="font-semibold">{formatMoney(charge.open_amount)}</p>
+      {days > 0 ? (
+        <p className="text-xs text-status-critical">
+          {days} {days === 1 ? 'dia' : 'dias'} de atraso
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">até {dayMonth(charge.due_date)}</p>
+      )}
+    </div>
   )
 }
 
-// WhatsApp e Dar baixa, como na linha de Mensalidades
+// WhatsApp (só o ícone) e Dar baixa, colados ao valor
 export function ChargeActions({
   entry,
   onPay,
@@ -107,38 +150,17 @@ export function ChargeActions({
   if (openAmount(entry) <= 0) return null
 
   return (
-    <div className="flex justify-end gap-2">
+    <div className="flex items-center justify-end gap-1.5">
       <WhatsAppButton
         url={entry.whatsapp_url}
         studentName={entry.student_name}
         responsibleName={entry.responsible_name}
         size="sm"
+        iconOnly
       />
       <Button size="sm" className="rounded-full" onClick={() => onPay(entry)}>
         Dar baixa
       </Button>
     </div>
-  )
-}
-
-// Caixinha da baixa em lote (só para quem tem algo em aberto)
-export function ChargeSelect({
-  entry,
-  selected,
-  onToggle,
-}: {
-  entry: GraduationEntry
-  selected: Map<string, GraduationEntry>
-  onToggle: (entry: GraduationEntry) => void
-}) {
-  if (openAmount(entry) <= 0) return <span className="block size-4" />
-
-  return (
-    <Checkbox
-      aria-label={`Selecionar ${entry.student_name}`}
-      checked={selected.has(entry.id)}
-      onCheckedChange={() => onToggle(entry)}
-      className="mt-0.5"
-    />
   )
 }
