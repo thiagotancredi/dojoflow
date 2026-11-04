@@ -165,7 +165,7 @@ async def preview_payment(
     billing_service_dep: BillingServiceDep,
 ) -> PaymentPreviewApiRead:
     allocations = await billing_service_dep.preview_payment(
-        current_master.academy_id, student_id, data.amount
+        current_master.academy_id, student_id, data.amount, group=data.group
     )
 
     return PaymentPreviewApiRead(
@@ -189,6 +189,7 @@ async def create_payment(
         data.paid_on,
         data.method,
         data.notes,
+        group=data.group,
     )
 
     return PaymentApiRead.from_internal(payment)
@@ -234,7 +235,11 @@ async def create_bulk_payments(
         for item in data.items
     ]
     total = await billing_service_dep.create_bulk_payments(
-        current_master.academy_id, items, data.paid_on, data.method
+        current_master.academy_id,
+        items,
+        data.paid_on,
+        data.method,
+        group=data.group,
     )
 
     return BulkPaymentApiRead(count=len(items), total=total)
