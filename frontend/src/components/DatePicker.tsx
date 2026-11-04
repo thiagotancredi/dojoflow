@@ -125,7 +125,7 @@ function FieldButton({
       type="button"
       className={cn(
         'flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-input bg-transparent px-2.5 text-left text-base whitespace-nowrap outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 md:text-sm dark:bg-input/30',
-        empty && 'text-muted-foreground',
+        empty && 'text-placeholder italic',
         className,
       )}
       {...props}
