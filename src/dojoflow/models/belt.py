@@ -1,4 +1,6 @@
-from sqlalchemy import String, UniqueConstraint
+from decimal import Decimal
+
+from sqlalchemy import Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dojoflow.database.helper_mapped_columns import (
@@ -47,3 +49,11 @@ class Belt(BaseModel):
     )
 
     position: Mapped[int] = int_column()
+
+    # Valor da graduação para esta faixa; 0 = sem cobrança
+    price: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        default=Decimal('0.00'),
+        server_default='0',
+        nullable=False,
+    )

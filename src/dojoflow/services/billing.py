@@ -70,6 +70,13 @@ from dojoflow.shared.exceptions import ConflictError, NotFoundError
 from dojoflow.shared.text import name_sort_key
 
 CENTS = Decimal('0.01')
+# Colunas do índice único das mensalidades (a graduação fica de fora)
+MONTHLY_UNIQUE_COLUMNS = [
+    Payment.academy_id,
+    Payment.enrollment_id,
+    Payment.kind,
+    Payment.reference_month,
+]
 ZERO = Decimal('0.00')
 # Sem "da/do {academia}" (o artigo depende do nome) e sem "sua mensalidade"
 # (no aluno menor, quem lê é o responsável); assinada pelo mestre, com o
@@ -409,7 +416,8 @@ class BillingService:  # noqa: PLR0904
             insert(Payment)
             .values(values)
             .on_conflict_do_nothing(
-                constraint='uq_payment_enrollment_kind_month'
+                index_elements=MONTHLY_UNIQUE_COLUMNS,
+                index_where=Payment.kind != PaymentKind.GRADUATION,
             )
             .returning(Payment.id)
         )
@@ -680,7 +688,8 @@ class BillingService:  # noqa: PLR0904
                 amount_paid=Decimal(0),
             )
             .on_conflict_do_nothing(
-                constraint='uq_payment_enrollment_kind_month'
+                index_elements=MONTHLY_UNIQUE_COLUMNS,
+                index_where=Payment.kind != PaymentKind.GRADUATION,
             )
             .returning(Payment.id)
         )

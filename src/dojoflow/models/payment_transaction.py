@@ -12,7 +12,7 @@ from dojoflow.database.helper_mapped_columns import (
     str_column,
 )
 from dojoflow.models.base_model import BaseModel
-from dojoflow.shared.enums import PaymentMethod, PaymentSource
+from dojoflow.shared.enums import ChargeGroup, PaymentMethod, PaymentSource
 
 
 class PaymentTransaction(BaseModel):
@@ -46,5 +46,17 @@ class PaymentTransaction(BaseModel):
         ),
         default=PaymentSource.MANUAL,
         server_default=PaymentSource.MANUAL.value,
+        nullable=False,
+    )
+
+    # Mensalidade ou graduação: a baixa só abate cobranças do próprio grupo
+    charge_group: Mapped[ChargeGroup] = mapped_column(
+        SQLEnum(
+            ChargeGroup,
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
+            native_enum=False,
+        ),
+        default=ChargeGroup.MONTHLY,
+        server_default=ChargeGroup.MONTHLY.value,
         nullable=False,
     )

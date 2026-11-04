@@ -1,7 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy.orm import Mapped
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.orm import Mapped, mapped_column
 
 from dojoflow.database.helper_mapped_columns import (
     datetime_column,
@@ -12,7 +13,7 @@ from dojoflow.database.helper_mapped_columns import (
     str_column,
 )
 from dojoflow.models.base_model import BaseModel
-from dojoflow.shared.enums import CheckoutStatus
+from dojoflow.shared.enums import ChargeGroup, CheckoutStatus
 
 
 class InfinitePayCheckout(BaseModel):
@@ -45,4 +46,15 @@ class InfinitePayCheckout(BaseModel):
     paid_at: Mapped[datetime | None] = datetime_column(nullable=True)
     payment_transaction_id: Mapped[int | None] = int_fk(
         'payment_transaction.id', nullable=True
+    )
+    # O que este link paga: só mensalidades ou só graduações
+    charge_group: Mapped[ChargeGroup] = mapped_column(
+        SQLEnum(
+            ChargeGroup,
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
+            native_enum=False,
+        ),
+        default=ChargeGroup.MONTHLY,
+        server_default=ChargeGroup.MONTHLY.value,
+        nullable=False,
     )

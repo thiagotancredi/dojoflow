@@ -50,6 +50,15 @@ class PaymentStatus(str, enum.Enum):
 class PaymentKind(str, enum.Enum):
     MONTHLY = 'monthly'
     ENROLLMENT_FEE = 'enrollment_fee'
+    GRADUATION = 'graduation'
+
+
+class ChargeGroup(str, enum.Enum):
+    """Cobranças que nunca se misturam: cada grupo tem o seu link, a sua
+    baixa e os seus números."""
+
+    MONTHLY = 'monthly'  # mensalidade e taxa de matrícula
+    GRADUATION = 'graduation'
 
 
 class ImportStatus(str, enum.Enum):

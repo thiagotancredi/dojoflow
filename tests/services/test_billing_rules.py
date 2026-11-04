@@ -11,9 +11,12 @@ from dojoflow.services.billing_rules import (
     due_date_for,
     first_monthly_month,
     format_brl,
+    group_of,
+    kinds_of,
     months_label,
     whatsapp_phone,
 )
+from dojoflow.shared.enums import ChargeGroup, PaymentKind
 
 T0 = datetime(2026, 10, 1, tzinfo=UTC)
 T1 = datetime(2026, 10, 2, tzinfo=UTC)
@@ -158,3 +161,13 @@ def test_age_on():
     assert age_on(date(2010, 10, 21), date(2026, 10, 20)) == 15  # noqa: PLR2004
     assert age_on(date(2010, 10, 21), date(2026, 10, 21)) == 16  # noqa: PLR2004
     assert age_on(date(2008, 2, 29), date(2026, 2, 28)) == 17  # noqa: PLR2004
+
+
+def test_kinds_of_groups() -> None:
+    assert kinds_of(ChargeGroup.MONTHLY) == (
+        PaymentKind.MONTHLY,
+        PaymentKind.ENROLLMENT_FEE,
+    )
+    assert kinds_of(ChargeGroup.GRADUATION) == (PaymentKind.GRADUATION,)
+    assert group_of(PaymentKind.GRADUATION) is ChargeGroup.GRADUATION
+    assert group_of(PaymentKind.ENROLLMENT_FEE) is ChargeGroup.MONTHLY

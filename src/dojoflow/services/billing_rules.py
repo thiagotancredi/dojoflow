@@ -4,6 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from dojoflow.services.belt_rules import local_today
+from dojoflow.shared.enums import ChargeGroup, PaymentKind
 
 DECEMBER = 12
 
@@ -145,3 +146,19 @@ def age_on(birth_date: date, today: date) -> int:
         birth_date.day,
     )
     return today.year - birth_date.year - (0 if had_birthday else 1)
+
+
+_GROUP_KINDS = {
+    ChargeGroup.MONTHLY: (PaymentKind.MONTHLY, PaymentKind.ENROLLMENT_FEE),
+    ChargeGroup.GRADUATION: (PaymentKind.GRADUATION,),
+}
+
+
+def kinds_of(group: ChargeGroup) -> tuple[PaymentKind, ...]:
+    """Tipos de cobrança de um grupo."""
+    return _GROUP_KINDS[group]
+
+
+def group_of(kind: PaymentKind) -> ChargeGroup:
+    """Grupo a que um tipo de cobrança pertence."""
+    return next(g for g, kinds in _GROUP_KINDS.items() if kind in kinds)

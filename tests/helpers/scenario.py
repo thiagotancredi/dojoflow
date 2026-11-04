@@ -37,6 +37,11 @@ async def _one(session: AsyncSession, model: type, value: str) -> Any:
     )
 
 
+async def db_id(session: AsyncSession, model: type, public_id: str) -> int:
+    """Id interno a partir do id público (para montar linhas no banco)."""
+    return (await _one(session, model, public_id)).id
+
+
 async def add_modality(
     session: AsyncSession,
     name: str,
