@@ -34,6 +34,8 @@ export const router = createBrowserRouter([
   { path: '/suporte', element: <SupportEntryPage /> },
   // Página pública de pagamento (link da cobrança do WhatsApp, sem login)
   { path: '/pagar/:token', element: <PayPage /> },
+  // Link da graduação: só a graduação, separado da mensalidade
+  { path: '/pagar/:token/graduacao', element: <PayPage group="graduation" /> },
   // Prévia visual da instalação: só no ambiente local, nunca em produção
   ...(import.meta.env.DEV
     ? [

@@ -32,6 +32,8 @@ class ChargeApiRead(BaseModel):
     amount: Decimal
     paid: Decimal
     status: ChargeStatus
+    # Graduação: o nome da faixa-alvo (ex.: "Verde")
+    description: str | None
 
     @classmethod
     def from_internal(cls, charge: ChargeRead) -> 'ChargeApiRead':
@@ -45,6 +47,7 @@ class ChargeApiRead(BaseModel):
             amount=charge.amount,
             paid=charge.paid,
             status=charge.status,
+            description=charge.description,
         )
 
 

@@ -3,29 +3,35 @@ import { useResource } from '@/lib/hooks/useResource'
 
 export type PublicPayment = Schemas['PublicPaymentRead']
 export type PayConfirm = Schemas['PayConfirmApi']
+// Mensalidade (/pagar/:token) ou graduação (/pagar/:token/graduacao)
+export type PayGroup = Schemas['ChargeGroup']
 
 // Página pública /pagar/:token (sem login: o código do link é o segredo)
-export function getPublicPayment(token: string, signal?: AbortSignal) {
+export function getPublicPayment(
+  token: string,
+  group: PayGroup,
+  signal?: AbortSignal,
+) {
   return unwrap(
     api.GET('/api/v1/public/pay/{token}', {
-      params: { path: { token } },
+      params: { path: { token }, query: { group } },
       signal,
     }),
   )
 }
 
-export function usePublicPayment(token: string | undefined) {
-  return useResource(token ? `public-pay:${token}` : null, (signal) =>
-    getPublicPayment(token ?? '', signal),
+export function usePublicPayment(token: string | undefined, group: PayGroup) {
+  return useResource(token ? `public-pay:${group}:${token}` : null, (signal) =>
+    getPublicPayment(token ?? '', group, signal),
   )
 }
 
 // "Pagar mensalidade": o endereço do checkout da InfinitePay com tudo o
 // que está em aberto
-export function createCheckout(token: string) {
+export function createCheckout(token: string, group: PayGroup) {
   return unwrap(
     api.POST('/api/v1/public/pay/{token}/checkout', {
-      params: { path: { token } },
+      params: { path: { token }, query: { group } },
     }),
   )
 }

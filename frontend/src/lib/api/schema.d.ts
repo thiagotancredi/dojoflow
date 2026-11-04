@@ -1500,6 +1500,8 @@ export interface components {
              * @enum {string}
              */
             status: "paid" | "partial" | "overdue" | "upcoming" | "waived";
+            /** Description */
+            description: string | null;
         };
         /**
          * ChargeGroup

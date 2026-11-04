@@ -5,6 +5,9 @@ import { formatMonth } from '@/features/billing/labels'
 export type ChargePayment = { payment: Payment; amount: string }
 
 export function chargeTitle(charge: Charge) {
+  if (charge.kind === 'graduation') {
+    return `Graduação · ${charge.description ?? ''} · ${charge.modality_name}`
+  }
   const what =
     charge.kind === 'enrollment_fee' ? 'Taxa de matrícula' : charge.modality_name
   return `${formatMonth(charge.reference_month)} · ${what}`

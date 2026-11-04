@@ -320,3 +320,22 @@ async def test_bulk_graduation_payments_api(
     assert statuses[('Bruno Costa', graduation)] is PaymentStatus.PAID
     assert statuses[('Ana Lima', monthly)] is PaymentStatus.PENDING
     assert statuses[('Bruno Costa', monthly)] is PaymentStatus.PENDING
+
+
+@pytest.mark.asyncio
+async def test_student_sheet_shows_graduation_charge(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    ctx = await _scenario(db_session)
+    student = await _student_public_id(db_session, ctx['student_id'])
+
+    response = await client.get(
+        f'/api/v1/students/{student}/billing',
+        headers=await auth_headers(client),
+    )
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    body = response.json()
+    graduation = next(c for c in body['charges'] if c['kind'] == 'graduation')
+    assert graduation['description'] == 'Verde'
+    assert body['open_total'] == '110.00'

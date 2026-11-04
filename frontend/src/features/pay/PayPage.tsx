@@ -16,11 +16,18 @@ import {
   createCheckout,
   isInvalidLink,
   type PayConfirm,
+  type PayGroup,
   type PublicPayment,
   usePublicPayment,
 } from '@/features/pay/api'
 import { messageFor } from '@/lib/api/errors'
 import { formatMoney } from '@/lib/money'
+
+// "mensalidade(s)" ou "graduação(ões)", conforme o link
+function chargeNoun(group: PayGroup, count: number) {
+  if (group === 'graduation') return count === 1 ? 'graduação' : 'graduações'
+  return count === 1 ? 'mensalidade' : 'mensalidades'
+}
 
 // Volta do checkout: confere a cada 2 s, por até 30 s
 const CONFIRM_POLL_MS = 2000
@@ -30,9 +37,9 @@ const CONFIRM_TIMEOUT_MS = 30000
 // está em aberto até este mês (o vencido mais a mensalidade do mês) e como
 // pagar — o código Pix (copia e cola) ou, com a baixa
 // automática ligada, o botão que leva ao checkout da InfinitePay
-export function PayPage() {
+export function PayPage({ group = 'monthly' }: { group?: PayGroup }) {
   const { token } = useParams()
-  const payment = usePublicPayment(token)
+  const payment = usePublicPayment(token, group)
   const stillOpen = payment.data?.status !== 'clear'
   const confirming = useReturnFromCheckout(token, payment.refetch, !stillOpen)
   useLightMode()
@@ -187,9 +194,13 @@ function PaymentView({
               {justPaid ? 'Pagamento recebido!' : 'Tudo em dia!'}
             </p>
             <p className="text-sm text-muted-foreground">
-              {justPaid
-                ? 'Obrigado! Sua mensalidade está em dia.'
-                : 'Nenhuma mensalidade pendente.'}
+              {data.group === 'graduation'
+                ? justPaid
+                  ? 'Obrigado! Sua graduação está paga.'
+                  : 'Nenhuma graduação pendente.'
+                : justPaid
+                  ? 'Obrigado! Sua mensalidade está em dia.'
+                  : 'Nenhuma mensalidade pendente.'}
             </p>
           </section>
         ) : (
@@ -203,7 +214,7 @@ function PaymentView({
                 {formatMoney(data.total)}
               </p>
               <span className="inline-block rounded-full border border-chip-active-border bg-chip-active px-2.5 py-0.5 text-xs font-bold text-chip-active-foreground">
-                {count} {count === 1 ? 'mensalidade' : 'mensalidades'}
+                {count} {chargeNoun(data.group, count)}
               </span>
             </section>
 
@@ -261,6 +272,7 @@ function PaymentView({
                 <CheckoutButton
                   token={token}
                   count={count}
+                  group={data.group}
                   onError={onCheckoutError}
                 />
               </>
@@ -282,10 +294,12 @@ function PaymentView({
 function CheckoutButton({
   token,
   count,
+  group,
   onError,
 }: {
   token: string
   count: number
+  group: PayGroup
   onError: () => void
 }) {
   const [isPending, setIsPending] = useState(false)
@@ -295,7 +309,7 @@ function CheckoutButton({
     setIsPending(true)
     setError(null)
     try {
-      const { url } = await createCheckout(token)
+      const { url } = await createCheckout(token, group)
       // Sai do Katsuflow para a página segura da InfinitePay
       window.location.assign(url)
     } catch (caught) {
@@ -316,7 +330,7 @@ function CheckoutButton({
         onClick={goToCheckout}
       >
         {isPending ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
-        {count > 1 ? 'Pagar mensalidades' : 'Pagar mensalidade'}
+        {`Pagar ${chargeNoun(group, count)}`}
       </Button>
       {error && (
         <p role="alert" className="text-center text-sm text-destructive">

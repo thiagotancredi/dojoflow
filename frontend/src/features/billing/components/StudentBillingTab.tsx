@@ -61,9 +61,13 @@ export function StudentBillingTab({ student: detail }: { student: StudentDetail 
   }
 
   const hasOpen = Number(data.open_total) > 0
-  // O que forma o "em aberto": tudo que não está pago nem isento
+  // O que forma o "em aberto": mensalidades e taxa não pagas nem isentas
+  // (a graduação aparece no extrato, mas é cobrada pela lista)
   const openCharges = data.charges.filter(
-    (charge) => charge.status !== 'paid' && charge.status !== 'waived',
+    (charge) =>
+      charge.kind !== 'graduation' &&
+      charge.status !== 'paid' &&
+      charge.status !== 'waived',
   )
 
   async function setWaived(charge: Charge, waived: boolean) {
