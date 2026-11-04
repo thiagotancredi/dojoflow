@@ -42,7 +42,20 @@ import {
 } from '@/features/belts/components/EligibilityBadge'
 import { useGraduationList } from '@/features/belts/hooks'
 import { eligibleOn, shortTimeSince, timeLeft } from '@/features/belts/rules'
+import { BulkPaymentDialog } from '@/features/billing/components/BulkPaymentDialog'
+import type { BulkPaymentItem } from '@/features/billing/components/BulkPaymentDialog'
+import { PaymentDialog } from '@/features/billing/components/PaymentDialog'
+import { openAmount } from '@/features/graduations/charge'
+import {
+  ChargeActions,
+  ChargeLate,
+  ChargeOpen,
+  ChargeSelect,
+  EntryName,
+  UnpaidAlert,
+} from '@/features/graduations/components/GraduationCharge'
 import { messageFor, showApiError } from '@/lib/api/errors'
+import { formatMoney } from '@/lib/money'
 
 // Detalhe da lista de graduação: quem está nela + quem pode entrar.
 // "Apto" e tempo são medidos na data do exame (mudar a data recalcula tudo).
@@ -59,6 +72,10 @@ export function GraduationListPage() {
   const [retargeting, setRetargeting] = useState<GraduationEntry | null>(null)
   // Travado enquanto salva e até a lista nova chegar
   const busy = saving || isLoading
+  // Cobrança da graduação: baixa de um aluno ou de vários marcados
+  const [paying, setPaying] = useState<GraduationEntry | null>(null)
+  const [selected, setSelected] = useState<Map<string, GraduationEntry>>(new Map())
+  const [bulkPaying, setBulkPaying] = useState<BulkPaymentItem[]>([])
 
   if (!data) {
     return (
@@ -116,6 +133,28 @@ export function GraduationListPage() {
     )
   }
 
+  // Sem data limite a lista não cobra: as colunas de cobrança somem
+  const deadline = summary.payment_due_date
+  const charging = Boolean(deadline)
+  const selectedTotal = [...selected.values()].reduce(
+    (sum, entry) => sum + openAmount(entry),
+    0,
+  )
+
+  function toggle(entry: GraduationEntry) {
+    setSelected((current) => {
+      const next = new Map(current)
+      if (next.has(entry.id)) next.delete(entry.id)
+      else next.set(entry.id, entry)
+      return next
+    })
+  }
+
+  function afterPayment() {
+    setSelected(new Map())
+    refetch()
+  }
+
   const aptCount = data.entries.filter(
     (entry) => entry.eligibility === 'eligible' || entry.eligibility === 'no_requirement',
   ).length
@@ -140,6 +179,12 @@ export function GraduationListPage() {
         onExamDate={(exam_date) =>
           void run(() => updateGraduationList(id, { exam_date }), 'Data do exame salva')
         }
+        onPaymentDueDate={(payment_due_date) =>
+          void run(
+            () => updateGraduationList(id, { payment_due_date }),
+            payment_due_date ? 'Data limite salva' : 'Data limite removida',
+          )
+        }
         onDelete={() => setConfirmDelete(true)}
       />
 
@@ -151,6 +196,15 @@ export function GraduationListPage() {
             ele graduar depois.
           </p>
         </div>
+        {deadline ? (
+          <UnpaidAlert entries={data.entries} deadline={deadline} />
+        ) : (
+          data.entries.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Defina a data limite de pagamento para cobrar a graduação.
+            </p>
+          )
+        )}
         {data.entries.length === 0 ? (
           <p className="text-sm text-muted-foreground">Adicione alunos abaixo.</p>
         ) : (
@@ -160,6 +214,7 @@ export function GraduationListPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-xs text-muted-foreground">
+                    {charging && <th className="w-8 py-2 pr-2" />}
                     <th className="py-2 pr-3 font-medium">Aluno</th>
                     <th className="py-2 pr-3 font-medium">
                       <span className="inline-flex items-center gap-1">
@@ -172,13 +227,27 @@ export function GraduationListPage() {
                         Situação <SituationTip />
                       </span>
                     </th>
+                    {charging && (
+                      <>
+                        <th className="py-2 pr-3 font-medium">Em aberto</th>
+                        <th className="py-2 pr-3 font-medium">Atraso</th>
+                        <th />
+                      </>
+                    )}
                     <th />
                   </tr>
                 </thead>
                 <tbody>
                   {data.entries.map((entry) => (
                     <tr key={entry.id} className="border-b last:border-0">
-                      <td className="py-2.5 pr-3 font-medium">{entry.student_name}</td>
+                      {charging && (
+                        <td className="py-2.5 pr-2">
+                          <ChargeSelect entry={entry} selected={selected} onToggle={toggle} />
+                        </td>
+                      )}
+                      <td className="py-2.5 pr-3">
+                        <EntryName entry={entry} />
+                      </td>
                       <td className="py-2.5 pr-3">
                         <BeltPath
                           entry={entry}
@@ -192,6 +261,19 @@ export function GraduationListPage() {
                       <td className="py-2.5 pr-3">
                         <EntryBadge entry={entry} examDate={examDate} />
                       </td>
+                      {charging && (
+                        <>
+                          <td className="py-2.5 pr-3">
+                            <ChargeOpen entry={entry} />
+                          </td>
+                          <td className="py-2.5 pr-3">
+                            <ChargeLate entry={entry} />
+                          </td>
+                          <td className="py-2.5 pr-3">
+                            <ChargeActions entry={entry} onPay={setPaying} />
+                          </td>
+                        </>
+                      )}
                       <td className="py-2.5 text-right">
                         <EntryMenu
                           entry={entry}
@@ -213,7 +295,12 @@ export function GraduationListPage() {
                 {data.entries.map((entry) => (
                   <li key={entry.id} className="space-y-2 rounded-2xl border bg-popover p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="min-w-0 truncate font-medium">{entry.student_name}</p>
+                      {charging && (
+                        <ChargeSelect entry={entry} selected={selected} onToggle={toggle} />
+                      )}
+                      <div className="min-w-0 flex-1 truncate">
+                        <EntryName entry={entry} />
+                      </div>
                       <EntryMenu
                         entry={entry}
                         busy={busy}
@@ -232,11 +319,58 @@ export function GraduationListPage() {
                       </span>
                     </div>
                     <EntryBadge entry={entry} examDate={examDate} />
+                    {charging && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm">
+                        <span className="flex items-center gap-2">
+                          <ChargeOpen entry={entry} />
+                          <ChargeLate entry={entry} />
+                        </span>
+                        <ChargeActions entry={entry} onPay={setPaying} />
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
             </div>
           </>
+        )}
+
+        {/* Barra da baixa em lote (aparece ao marcar alunos) */}
+        {selected.size > 0 && (
+          <div className="sticky bottom-24 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-3 text-sm text-primary-foreground shadow-lg md:bottom-4">
+            <span>
+              <span className="font-semibold">
+                {selected.size} {selected.size === 1 ? 'selecionado' : 'selecionados'}
+              </span>{' '}
+              · {formatMoney(selectedTotal.toFixed(2))}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-full text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                onClick={() => setSelected(new Map())}
+              >
+                Limpar
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="rounded-full"
+                onClick={() =>
+                  setBulkPaying(
+                    [...selected.values()].map((entry) => ({
+                      student_id: entry.student_id,
+                      name: entry.student_name,
+                      open_amount: openAmount(entry).toFixed(2),
+                    })),
+                  )
+                }
+              >
+                Dar baixa em todos
+              </Button>
+            </div>
+          </div>
         )}
       </section>
 
@@ -383,6 +517,23 @@ export function GraduationListPage() {
         </DialogContent>
       </Dialog>
 
+      {paying && (
+        <PaymentDialog
+          studentId={paying.student_id}
+          studentName={paying.student_name}
+          open
+          onOpenChange={(open) => !open && setPaying(null)}
+          onDone={afterPayment}
+          group="graduation"
+        />
+      )}
+      <BulkPaymentDialog
+        items={bulkPaying}
+        onClose={() => setBulkPaying([])}
+        onDone={afterPayment}
+        group="graduation"
+      />
+
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
@@ -415,6 +566,7 @@ function ListHeader({
   summaryLine,
   onRename,
   onExamDate,
+  onPaymentDueDate,
   onDelete,
 }: {
   detail: GraduationListDetail
@@ -422,11 +574,13 @@ function ListHeader({
   summaryLine: string
   onRename: (name: string) => void
   onExamDate: (date: string) => void
+  onPaymentDueDate: (date: string | null) => void
   onDelete: () => void
 }) {
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(summary.name)
   const [examDate, setExamDate] = useState(summary.exam_date)
+  const [deadline, setDeadline] = useState(summary.payment_due_date ?? '')
 
   return (
     <header className="space-y-2 rounded-3xl bg-card p-4 md:p-5">
@@ -505,6 +659,34 @@ function ListHeader({
           className="w-40"
         />
         <span className="text-xs">· {summaryLine}</span>
+      </div>
+      {/* Data limite de pagamento: sem ela, a lista não cobra */}
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <span>Data limite de pagamento</span>
+        <DateField
+          aria-label="Data limite de pagamento"
+          value={deadline}
+          onChange={(date) => {
+            setDeadline(date)
+            if (date !== summary.payment_due_date) onPaymentDueDate(date)
+          }}
+          className="w-40"
+        />
+        {deadline && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="rounded-full"
+            disabled={busy}
+            onClick={() => {
+              setDeadline('')
+              onPaymentDueDate(null)
+            }}
+          >
+            Remover
+          </Button>
+        )}
       </div>
     </header>
   )

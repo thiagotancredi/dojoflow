@@ -119,6 +119,8 @@ const newListSchema = z.object({
     .max(120, { error: 'Até 120 caracteres.' }),
   modality_id: z.string().min(1, { error: 'Escolha a modalidade.' }),
   exam_date: z.string().min(1, { error: 'Informe a data do exame.' }),
+  // Opcional: sem data, a lista não gera cobrança
+  payment_due_date: z.string().nullish(),
 })
 
 function NewListForm({ onClose }: { onClose: () => void }) {
@@ -136,6 +138,7 @@ function NewListForm({ onClose }: { onClose: () => void }) {
       name: `Alunos aptos a graduar em ${MONTHS[now.getMonth()]}/${now.getFullYear()}`,
       modality_id: '',
       exam_date: '',
+      payment_due_date: '',
     },
   })
   const {
@@ -146,7 +149,10 @@ function NewListForm({ onClose }: { onClose: () => void }) {
 
   async function save(values: GraduationListCreate) {
     try {
-      const created = await create.mutate(values)
+      const created = await create.mutate({
+        ...values,
+        payment_due_date: values.payment_due_date || null,
+      })
       toast.success('Lista criada')
       navigate(`/app/graduacoes/${created.id}`)
     } catch (error) {
@@ -210,6 +216,23 @@ function NewListForm({ onClose }: { onClose: () => void }) {
           />
         </FormField>
       </div>
+      <FormField
+        label="Data limite de pagamento"
+        htmlFor="payment-due-date"
+        hint="Opcional. Sem data, a lista não gera cobrança."
+      >
+        <Controller
+          control={control}
+          name="payment_due_date"
+          render={({ field }) => (
+            <DateField
+              id="payment-due-date"
+              value={field.value ?? ''}
+              onChange={field.onChange}
+            />
+          )}
+        />
+      </FormField>
       <p className="text-xs text-muted-foreground">
         "Apto" e o tempo de faixa de cada aluno são medidos na data do exame.
       </p>
