@@ -3,6 +3,7 @@ import {
   deletePayment,
   getBillingOverview,
   getBillingSettings,
+  getGraduationOverview,
   getStudentBilling,
   launchPastCharge,
   renewPayLink,
@@ -35,6 +36,13 @@ export function useBillingOverview(filters: OverviewFilters) {
     JSON.stringify(filters),
     (signal) => getBillingOverview(filters, signal),
     { keepPrevious: true },
+  )
+}
+
+// Financeiro, aba Graduação (busca de novo quando o mês muda)
+export function useGraduationOverview(month: string) {
+  return useResource(`graduation-overview-${month}`, (signal) =>
+    getGraduationOverview(month, signal),
   )
 }
 

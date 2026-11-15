@@ -1,10 +1,11 @@
 import { MonthField } from '@/components/DatePicker'
 import { PageHeader } from '@/components/PageHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { GraduationTab } from '@/features/billing/components/finance/GraduationTab'
 import { MonthlyTab } from '@/features/billing/components/finance/MonthlyTab'
 import { useFinanceParams } from '@/features/billing/components/finance/useFinanceParams'
 import type { FinanceTab } from '@/features/billing/components/finance/useFinanceParams'
-import { useBillingOverview } from '@/features/billing/hooks'
+import { useBillingOverview, useGraduationOverview } from '@/features/billing/hooks'
 import { currentMonth } from '@/features/billing/labels'
 
 // As mesmas classes das abas da ficha do aluno (pílula, ativa em verde-musgo)
@@ -16,6 +17,7 @@ const TRIGGER =
 export function FinancePage() {
   const { tab, filters, updateParams, listKey } = useFinanceParams()
   const overview = useBillingOverview(filters)
+  const graduation = useGraduationOverview(filters.month)
 
   function setTab(value: string) {
     updateParams({
@@ -49,6 +51,7 @@ export function FinancePage() {
           </TabsTrigger>
           <TabsTrigger value={'graduation' satisfies FinanceTab} className={`flex-1 ${TRIGGER}`}>
             Graduação
+            {graduation.data && <TabCount count={graduation.data.unpaid_students} />}
           </TabsTrigger>
         </TabsList>
 
@@ -60,7 +63,9 @@ export function FinancePage() {
             updateParams={updateParams}
           />
         </TabsContent>
-        <TabsContent value="graduation" className="pt-2" />
+        <TabsContent value="graduation" className="pt-2">
+          <GraduationTab overview={graduation} />
+        </TabsContent>
       </Tabs>
     </div>
   )
