@@ -51,3 +51,28 @@ export function currentMonth() {
   const month = String(today.getMonth() + 1).padStart(2, '0')
   return `${today.getFullYear()}-${month}`
 }
+
+// Dias de hoje até a data ("2026-11-20"): 0 = hoje, negativo = passou
+export function daysFromToday(isoDate: string) {
+  const [year, month, day] = isoDate.split('-').map(Number)
+  const today = new Date()
+  const start = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
+  return Math.round((Date.UTC(year, month - 1, day) - start) / 86_400_000)
+}
+
+// "em 5 dias", "amanhã", "hoje"
+export function dueIn(isoDate: string) {
+  const days = daysFromToday(isoDate)
+  if (days <= 0) return 'hoje'
+  if (days === 1) return 'amanhã'
+  return `em ${days} dias`
+}
+
+// "R$ 1.450" (sem centavos), para os blocos do Financeiro
+export function formatMoneyShort(value: string | number) {
+  return Number(value).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  })
+}

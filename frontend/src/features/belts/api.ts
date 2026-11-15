@@ -5,6 +5,7 @@ export type Belt = Schemas['BeltApiRead']
 export type BeltPayload = Schemas['BeltPayload']
 export type DurationUnit = Schemas['DurationUnit']
 export type Eligibility = Schemas['Eligibility']
+export type ExamResult = Schemas['ExamResult']
 export type EnrollmentBelts = Schemas['EnrollmentBeltsApiRead']
 export type BeltRecord = Schemas['BeltRecordApiRead']
 export type EnrollmentBeltPayload = Schemas['EnrollmentBeltApiPayload']
@@ -224,6 +225,33 @@ export function updateGraduationEntry(
 export function removeGraduationEntry(listId: string, entryId: string) {
   return unwrap(
     api.DELETE('/api/v1/graduation-lists/{list_id}/entries/{entry_id}', {
+      params: { path: { list_id: listId, entry_id: entryId } },
+    }),
+  )
+}
+
+// Resultado do exame: aprovar grava a faixa (e as puladas) na ficha
+export function approveGraduationEntry(listId: string, entryId: string, approvedOn: string) {
+  return unwrap(
+    api.POST('/api/v1/graduation-lists/{list_id}/entries/{entry_id}/approve', {
+      params: { path: { list_id: listId, entry_id: entryId } },
+      body: { approved_on: approvedOn },
+    }),
+  )
+}
+
+export function failGraduationEntry(listId: string, entryId: string) {
+  return unwrap(
+    api.POST('/api/v1/graduation-lists/{list_id}/entries/{entry_id}/fail', {
+      params: { path: { list_id: listId, entry_id: entryId } },
+    }),
+  )
+}
+
+// Volta para "aguardando"; se era aprovado, tira da ficha as faixas gravadas
+export function undoGraduationResult(listId: string, entryId: string) {
+  return unwrap(
+    api.DELETE('/api/v1/graduation-lists/{list_id}/entries/{entry_id}/result', {
       params: { path: { list_id: listId, entry_id: entryId } },
     }),
   )

@@ -28,7 +28,7 @@ from dojoflow.services.belt_rules import evaluate_eligibility
 from dojoflow.services.billing import BillingService
 from dojoflow.services.enrollment_belt import EnrollmentBeltService
 from dojoflow.services.graduation_billing import GraduationBillingService
-from dojoflow.shared.enums import EnrollmentStatus
+from dojoflow.shared.enums import EnrollmentStatus, ExamResult
 from dojoflow.shared.exceptions import ConflictError, NotFoundError
 
 
@@ -182,6 +182,17 @@ class GraduationListService:
     async def delete(self, academy_id: int, list_id: int) -> None:
         await self.get_summary(academy_id, list_id)
 
+        if await self.graduation_list_entry_repository.exists(
+            filters=[
+                GraduationListEntry.graduation_list_id == list_id,
+                GraduationListEntry.result == ExamResult.APPROVED,
+            ],
+        ):
+            raise ConflictError(
+                'Undo the approvals before deleting this list.',
+                code='LIST_HAS_APPROVED',
+            )
+
         entry_ids = await self.db_session.scalars(
             select(GraduationListEntry.id).where(
                 GraduationListEntry.graduation_list_id == list_id
@@ -272,6 +283,7 @@ class GraduationListService:
         target_belt_id: int,
     ) -> None:
         summary = await self.get_summary(academy_id, list_id)
+        await self._ensure_not_approved(entry_id)
         target = await self._resolve_target(
             academy_id, summary, None, target_belt_id
         )
@@ -291,8 +303,22 @@ class GraduationListService:
         entry_id: int,
     ) -> None:
         await self.get_summary(academy_id, list_id)
+        await self._ensure_not_approved(entry_id)
         await self.graduation_billing.drop_open_charges(academy_id, [entry_id])
         await self.graduation_list_entry_repository.delete_by_id(entry_id)
+
+    async def _ensure_not_approved(self, entry_id: int) -> None:
+        # Aprovado já gravou faixa na ficha: desfazer antes de mexer
+        if await self.graduation_list_entry_repository.exists(
+            filters=[
+                GraduationListEntry.id == entry_id,
+                GraduationListEntry.result == ExamResult.APPROVED,
+            ],
+        ):
+            raise ConflictError(
+                'Undo the approval before changing this student.',
+                code='ENTRY_APPROVED',
+            )
 
     async def _resolve_target(
         self,
@@ -340,6 +366,8 @@ class GraduationListService:
                 GraduationListEntry.target_belt_id,
                 GraduationListEntry.snapshot_belt_id,
                 GraduationListEntry.snapshot_graduated_on,
+                GraduationListEntry.result,
+                GraduationListEntry.result_on,
                 Enrollment.public_id.label('enrollment_public_id'),
                 Student.name.label('student_name'),
                 Student.public_id.label('student_public_id'),
@@ -357,11 +385,15 @@ class GraduationListService:
         billing = await BillingService(self.db_session).graduation_billing(
             academy_id, [row['id'] for row in rows]
         )
+        current_belts = await self.enrollment_belt_service.current_belts(
+            academy_id, [row['enrollment_id'] for row in rows]
+        )
 
         entries = []
 
         for row in rows:
             snapshot = belts_by_id.get(row['snapshot_belt_id'])
+            current = current_belts.get(row['enrollment_id'])
             entries.append(
                 GraduationEntry(
                     id=row['id'],
@@ -380,6 +412,12 @@ class GraduationListService:
                     target_belt=belts_by_id[row['target_belt_id']],
                     student_public_id=row['student_public_id'],
                     billing=billing.get(row['id']),
+                    current_belt=current.belt if current else None,
+                    current_graduated_on=current.graduated_on
+                    if current
+                    else None,
+                    result=row['result'],
+                    result_on=row['result_on'],
                 )
             )
 

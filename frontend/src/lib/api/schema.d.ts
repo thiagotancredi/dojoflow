@@ -751,6 +751,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/billing/graduation-overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Graduation Overview */
+        get: operations["read_graduation_overview_api_v1_billing_graduation_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/billing/bulk-payments": {
         parameters: {
             query?: never;
@@ -858,6 +875,57 @@ export interface paths {
         head?: never;
         /** Update Graduation Entry */
         patch: operations["update_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/graduation-lists/{list_id}/entries/{entry_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Graduation Entry */
+        post: operations["approve_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/graduation-lists/{list_id}/entries/{entry_id}/fail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fail Graduation Entry */
+        post: operations["fail_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__fail_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/graduation-lists/{list_id}/entries/{entry_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Undo Graduation Result */
+        delete: operations["undo_graduation_result_api_v1_graduation_lists__list_id__entries__entry_id__result_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/cep/{zip_code}": {
@@ -1269,6 +1337,46 @@ export interface components {
             /** Price */
             price: string;
         };
+        /** BeltCountRead */
+        BeltCountRead: {
+            /** Name */
+            name: string;
+            /** Primary Color */
+            primary_color: string;
+            /** Stripe Color */
+            stripe_color: string | null;
+            /** Marks */
+            marks: number;
+            /** Marks Color */
+            marks_color: string;
+            /** Tip Color */
+            tip_color: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Count */
+            count: number;
+        };
+        /**
+         * BeltLookApiRead
+         * @description O que é preciso para desenhar a faixa.
+         */
+        BeltLookApiRead: {
+            /** Name */
+            name: string;
+            /** Primary Color */
+            primary_color: string;
+            /** Stripe Color */
+            stripe_color: string | null;
+            /** Marks */
+            marks: number;
+            /** Marks Color */
+            marks_color: string;
+            /** Tip Color */
+            tip_color: string | null;
+        };
         /** BeltOrderRequest */
         BeltOrderRequest: {
             /** Belt Ids */
@@ -1336,6 +1444,8 @@ export interface components {
             days_late: number | null;
             /** Whatsapp Url */
             whatsapp_url: string | null;
+            /** Due Date */
+            due_date?: string | null;
         };
         /** BillingOverviewRead */
         BillingOverviewRead: {
@@ -1351,6 +1461,20 @@ export interface components {
             due_soon_total: string;
             /** Due Soon Students */
             due_soon_students: number;
+            /** Month Open Total */
+            month_open_total: string;
+            /** Unpaid Students */
+            unpaid_students: number;
+            /** By Method */
+            by_method: components["schemas"]["MethodTotalRead"][];
+            /** By Modality */
+            by_modality: components["schemas"]["ModalityTotalRead"][];
+            /** Longest Overdue */
+            longest_overdue: components["schemas"]["OverdueStudentRead"][];
+            /** Filter Counts */
+            filter_counts: {
+                [key: string]: number;
+            };
             /** Items */
             items: components["schemas"]["BillingOverviewItemRead"][];
             /** Total */
@@ -1504,6 +1628,30 @@ export interface components {
             status: "paid" | "partial" | "overdue" | "upcoming" | "waived";
             /** Description */
             description: string | null;
+            graduation?: components["schemas"]["ChargeGraduationApiRead"] | null;
+        };
+        /**
+         * ChargeGraduationApiRead
+         * @description Cobrança de graduação: o exame, a faixa-alvo e como cobrar.
+         */
+        ChargeGraduationApiRead: {
+            /**
+             * List Id
+             * Format: uuid
+             */
+            list_id: string;
+            /** List Name */
+            list_name: string;
+            /**
+             * Exam Date
+             * Format: date
+             */
+            exam_date: string;
+            belt: components["schemas"]["BeltLookApiRead"];
+            /** Whatsapp Url */
+            whatsapp_url: string | null;
+            /** Pay Url */
+            pay_url: string;
         };
         /**
          * ChargeGroup
@@ -1555,44 +1703,16 @@ export interface components {
             active_students: number;
             /** Students By Modality */
             students_by_modality: components["schemas"]["ModalityCountRead"][];
-            /** Recent Enrollments */
-            recent_enrollments: components["schemas"]["RecentEnrollmentRead"][];
-            /** Registration Pending */
-            registration_pending: components["schemas"]["PendingEnrollmentRead"][];
-            /** Overdue */
-            overdue: components["schemas"]["OverdueStudentRead"][];
-            /** Due Soon */
-            due_soon: components["schemas"]["DueSoonChargeRead"][];
-            /** Overdue Students */
-            overdue_students: number;
-            /** Due Soon Students */
-            due_soon_students: number;
-            /** Overdue Total */
-            overdue_total: string;
             age_groups: components["schemas"]["AgeGroupsRead"];
             /** Birthdays */
             birthdays: components["schemas"]["BirthdayRead"][];
             /** New Students By Month */
             new_students_by_month: components["schemas"]["MonthCountRead"][];
-        };
-        /** DueSoonChargeRead */
-        DueSoonChargeRead: {
-            /**
-             * Student Id
-             * Format: uuid
-             */
-            student_id: string;
-            /** Name */
-            name: string;
-            /** Modality */
-            modality: string;
-            /** Amount */
-            amount: string;
-            /**
-             * Due Date
-             * Format: date
-             */
-            due_date: string;
+            /** By Belt */
+            by_belt: components["schemas"]["ModalityBeltsRead"][];
+            /** By Sex */
+            by_sex: components["schemas"]["SexCountRead"][];
+            incomplete: components["schemas"]["IncompleteCountsRead"];
         };
         /**
          * DurationUnit
@@ -1711,6 +1831,47 @@ export interface components {
          * @enum {string}
          */
         EnrollmentStatus: "active" | "inactive";
+        /**
+         * ExamBillingRead
+         * @description Uma lista de graduação que cobra no mês (ou que ainda tem dívida).
+         */
+        ExamBillingRead: {
+            /**
+             * List Id
+             * Format: uuid
+             */
+            list_id: string;
+            /** Name */
+            name: string;
+            /** Modality Name */
+            modality_name: string;
+            /**
+             * Exam Date
+             * Format: date
+             */
+            exam_date: string;
+            /**
+             * Payment Due Date
+             * Format: date
+             */
+            payment_due_date: string;
+            /** Total */
+            total: string;
+            /** Received */
+            received: string;
+            /** Owing */
+            owing: number;
+            /** Days Late */
+            days_late: number | null;
+            /** Days To Due */
+            days_to_due: number | null;
+        };
+        /**
+         * ExamResult
+         * @description Resultado do aluno no exame da lista de graduação.
+         * @enum {string}
+         */
+        ExamResult: "pending" | "approved" | "failed";
         /** GraduationCandidateApiRead */
         GraduationCandidateApiRead: {
             /**
@@ -1755,6 +1916,14 @@ export interface components {
             /** Days Late */
             days_late: number;
         };
+        /** GraduationEntryApiApprove */
+        GraduationEntryApiApprove: {
+            /**
+             * Approved On
+             * Format: date
+             */
+            approved_on: string;
+        };
         /** GraduationEntryApiCreate */
         GraduationEntryApiCreate: {
             /**
@@ -1794,6 +1963,12 @@ export interface components {
             whatsapp_url: string | null;
             /** Responsible Name */
             responsible_name: string | null;
+            current_belt: components["schemas"]["BeltApiRead"] | null;
+            /** Current Graduated On */
+            current_graduated_on: string | null;
+            result: components["schemas"]["ExamResult"];
+            /** Result On */
+            result_on: string | null;
         };
         /** GraduationEntryApiUpdate */
         GraduationEntryApiUpdate: {
@@ -1864,10 +2039,37 @@ export interface components {
             /** Payment Due Date */
             payment_due_date?: string | null;
         };
+        /** GraduationOverviewRead */
+        GraduationOverviewRead: {
+            /** Expected */
+            expected: string;
+            /** Received */
+            received: string;
+            /** Open Total */
+            open_total: string;
+            /** Unpaid Students */
+            unpaid_students: number;
+            /** Exams */
+            exams: components["schemas"]["ExamBillingRead"][];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * IncompleteCountsRead
+         * @description Alunos ativos com o cadastro incompleto, por motivo.
+         */
+        IncompleteCountsRead: {
+            /** No Phone */
+            no_phone: number;
+            /** No Birth Date */
+            no_birth_date: number;
+            /** No Email */
+            no_email: number;
+            /** Minor Without Responsible */
+            minor_without_responsible: number;
         };
         /**
          * InfinitePayConnectApi
@@ -1944,6 +2146,15 @@ export interface components {
             /** Support Mode */
             support_mode: boolean;
         };
+        /**
+         * MethodTotalRead
+         * @description Quanto entrou no mês por forma de pagamento.
+         */
+        MethodTotalRead: {
+            method: components["schemas"]["PaymentMethod"] | null;
+            /** Amount */
+            amount: string;
+        };
         /** ModalityAgeGroupsRead */
         ModalityAgeGroupsRead: {
             /**
@@ -1967,6 +2178,23 @@ export interface components {
             name: string;
             /** Emoji */
             emoji: string;
+        };
+        /**
+         * ModalityBeltsRead
+         * @description Matrículas ativas pela faixa atual, na ordem das faixas.
+         */
+        ModalityBeltsRead: {
+            /**
+             * Modality Id
+             * Format: uuid
+             */
+            modality_id: string;
+            /** Modality Name */
+            modality_name: string;
+            /** Belts */
+            belts: components["schemas"]["BeltCountRead"][];
+            /** Without Belt */
+            without_belt: number;
         };
         /** ModalityCountRead */
         ModalityCountRead: {
@@ -2018,6 +2246,18 @@ export interface components {
         ModalityToggleRead: {
             /** Is Selected */
             is_selected: boolean;
+        };
+        /**
+         * ModalityTotalRead
+         * @description Recebido de previsto, nas cobranças do mês de uma modalidade.
+         */
+        ModalityTotalRead: {
+            /** Modality Name */
+            modality_name: string;
+            /** Expected */
+            expected: string;
+            /** Received */
+            received: string;
         };
         /** MonthCountRead */
         MonthCountRead: {
@@ -2160,23 +2400,6 @@ export interface components {
             /** Student Name */
             student_name: string;
         };
-        /** PendingEnrollmentRead */
-        PendingEnrollmentRead: {
-            /**
-             * Enrollment Id
-             * Format: uuid
-             */
-            enrollment_id: string;
-            /**
-             * Student Id
-             * Format: uuid
-             */
-            student_id: string;
-            /** Student Name */
-            student_name: string;
-            /** Modality Name */
-            modality_name: string;
-        };
         /**
          * PixKeyType
          * @enum {string}
@@ -2229,23 +2452,6 @@ export interface components {
             /** @default monthly */
             group: components["schemas"]["ChargeGroup"];
         };
-        /** RecentEnrollmentRead */
-        RecentEnrollmentRead: {
-            /**
-             * Student Id
-             * Format: uuid
-             */
-            student_id: string;
-            /** Student Name */
-            student_name: string;
-            /** Modality Name */
-            modality_name: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
         /** ResponsibleLinkApiRead */
         ResponsibleLinkApiRead: {
             /**
@@ -2276,6 +2482,12 @@ export interface components {
             password: string;
             /** Current Password */
             current_password?: string | null;
+        };
+        /** SexCountRead */
+        SexCountRead: {
+            sex: components["schemas"]["StudentSex"] | null;
+            /** Count */
+            count: number;
         };
         /** StudentAddressPayload */
         StudentAddressPayload: {
@@ -3142,6 +3354,7 @@ export interface operations {
                 modality_id?: string | null;
                 status?: components["schemas"]["EnrollmentStatus"] | null;
                 missing_email?: boolean;
+                incomplete?: ("no_phone" | "no_birth_date" | "no_email" | "minor_without_responsible") | null;
                 page?: number;
                 page_size?: number;
             };
@@ -4153,6 +4366,37 @@ export interface operations {
             };
         };
     };
+    read_graduation_overview_api_v1_billing_graduation_overview_get: {
+        parameters: {
+            query?: {
+                month?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraduationOverviewRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_bulk_payments_api_v1_billing_bulk_payments_post: {
         parameters: {
             query?: never;
@@ -4430,6 +4674,100 @@ export interface operations {
                 "application/json": components["schemas"]["GraduationEntryApiUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_id: string;
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GraduationEntryApiApprove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fail_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__fail_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_id: string;
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_graduation_result_api_v1_graduation_lists__list_id__entries__entry_id__result_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_id: string;
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             204: {

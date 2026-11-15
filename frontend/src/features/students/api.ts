@@ -10,11 +10,15 @@ export type ResponsibleLink = Schemas['ResponsibleLinkApiRead']
 
 export const PAGE_SIZE = 20
 
+// Cadastro incompleto (Estatísticas): sem telefone, sem nascimento…
+export type IncompleteKind = keyof Schemas['IncompleteCountsRead']
+
 export type StudentFilters = {
   search: string
   status: EnrollmentStatus
   modalityId: string | null
   missingEmail: boolean
+  incomplete: IncompleteKind | null
   page: number
 }
 
@@ -28,6 +32,7 @@ export function listStudents(filters: StudentFilters, signal?: AbortSignal) {
           status: filters.status,
           modality_id: filters.modalityId ?? undefined,
           missing_email: filters.missingEmail || undefined,
+          incomplete: filters.incomplete ?? undefined,
           page: filters.page,
           page_size: PAGE_SIZE,
         },

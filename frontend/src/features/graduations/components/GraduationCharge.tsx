@@ -75,7 +75,7 @@ export function ChargeShort({ entry }: { entry: GraduationEntry }) {
     return <span className="font-semibold whitespace-nowrap text-sidebar-primary">✓ Pago</span>
   }
   if (charge.status === 'waived') {
-    return <span className="text-xs text-muted-foreground">Dispensada</span>
+    return <span className="text-xs text-muted-foreground">Isenta</span>
   }
 
   const days = charge.days_late
@@ -112,7 +112,7 @@ export function EntryName({ entry }: { entry: GraduationEntry }) {
 export function ChargeCell({ entry }: { entry: GraduationEntry }) {
   const charge = entry.charge
   if (!charge) return <span className="text-muted-foreground">Sem cobrança</span>
-  if (charge.status === 'waived') return <span className="text-muted-foreground">Dispensada</span>
+  if (charge.status === 'waived') return <span className="text-muted-foreground">Isenta</span>
   if (charge.status === 'paid') {
     return (
       <div className="leading-tight whitespace-nowrap">

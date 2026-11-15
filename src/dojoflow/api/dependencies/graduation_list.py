@@ -11,6 +11,7 @@ from dojoflow.repositories.graduation_list_entry import (
     GraduationListEntryRepository,
 )
 from dojoflow.services.graduation_list import GraduationListService
+from dojoflow.services.graduation_result import GraduationResultService
 
 
 def _get_graduation_list_service(
@@ -37,4 +38,22 @@ def _get_graduation_list_service(
 GraduationListServiceDep = Annotated[
     GraduationListService,
     Depends(_get_graduation_list_service),
+]
+
+
+def _get_graduation_result_service(
+    belt_service_dep: BeltServiceDep,
+    enrollment_belt_service_dep: EnrollmentBeltServiceDep,
+    db_session_dep: DbSessionDep,
+) -> GraduationResultService:
+    return GraduationResultService(
+        db_session=db_session_dep,
+        belt_service=belt_service_dep,
+        enrollment_belt_service=enrollment_belt_service_dep,
+    )
+
+
+GraduationResultServiceDep = Annotated[
+    GraduationResultService,
+    Depends(_get_graduation_result_service),
 ]

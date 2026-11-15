@@ -8,6 +8,7 @@ from pydantic import AfterValidator, BaseModel, Field, field_validator
 from dojoflow.schemas.billing import (
     AllocationPreview,
     AllocationRead,
+    ChargeGraduationApiRead,
     ChargeRead,
     ChargeStatus,
     CheckoutReviewRead,
@@ -34,6 +35,8 @@ class ChargeApiRead(BaseModel):
     status: ChargeStatus
     # Graduação: o nome da faixa-alvo (ex.: "Verde")
     description: str | None
+    # Graduação: exame, faixa e como cobrar (None nas outras cobranças)
+    graduation: ChargeGraduationApiRead | None = None
 
     @classmethod
     def from_internal(cls, charge: ChargeRead) -> 'ChargeApiRead':
@@ -48,6 +51,7 @@ class ChargeApiRead(BaseModel):
             paid=charge.paid,
             status=charge.status,
             description=charge.description,
+            graduation=charge.graduation,
         )
 
 

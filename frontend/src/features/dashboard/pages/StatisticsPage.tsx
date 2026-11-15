@@ -1,18 +1,17 @@
-import { AlertCircle, CalendarClock } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
-import { useAuth } from '@/features/auth/useAuth'
-import { formatDayMonth } from '@/features/billing/labels'
 import { useDashboardSummary } from '@/features/dashboard/api'
 import type { DashboardSummary } from '@/features/dashboard/api'
+import { BeltCountsCard } from '@/features/dashboard/components/BeltCountsCard'
 import { DashboardCard } from '@/features/dashboard/components/DashboardCard'
 import { HorizontalBars } from '@/features/dashboard/components/HorizontalBars'
+import { IncompleteCard } from '@/features/dashboard/components/IncompleteCard'
 import { NewStudentsChart } from '@/features/dashboard/components/NewStudentsChart'
+import { SexCard } from '@/features/dashboard/components/SexCard'
 import { StudentRow } from '@/features/dashboard/components/StudentRow'
-import { formatMoney } from '@/lib/money'
+import { useMediaQuery } from '@/lib/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 
 type AgeGroup = DashboardSummary['age_groups']['all'][number]
@@ -25,11 +24,9 @@ const AGE_LABELS: Record<AgeGroup['group'], string> = {
   unknown: 'Sem data de nascimento',
 }
 
-// Dashboard em três blocos: Financeiro, Alunos e Crescimento.
-export function DashboardPage() {
-  const { master } = useAuth()
-  // Primeiro nome do mestre logado (ex.: "Mestre Teste" → "Mestre")
-  const firstName = master?.name.split(' ')[0]
+// Estatísticas dos alunos (o dinheiro fica no Financeiro), versão "sem
+// títulos": três linhas de cartões, sem números no topo.
+export function StatisticsPage() {
   const summary = useDashboardSummary()
   const data = summary.data
   // Estado comum dos cartões enquanto o resumo não chega
@@ -37,123 +34,17 @@ export function DashboardPage() {
     <CardState loading={summary.isLoading} />
   ) : null
   const monthName = new Date().toLocaleDateString('pt-BR', { month: 'long' })
+  const isMobile = useMediaQuery('(max-width: 767px)')
+
+  const newStudents = data?.new_students_by_month ?? []
+  const noNewStudents = newStudents.every((item) => item.count === 0)
 
   return (
     <div className="space-y-4">
-      <PageHeader title={firstName ? `Olá, ${firstName}` : 'Dashboard'} />
+      <PageHeader title="Estatísticas" />
 
-      <SectionTitle>Financeiro</SectionTitle>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <DashboardCard
-          title={
-            <>
-              Inadimplentes
-              {data && <Count tone="critical">{data.overdue_students}</Count>}
-            </>
-          }
-          subtitle={
-            data && Number(data.overdue_total) > 0
-              ? `Vencidas e não pagas · ${formatMoney(data.overdue_total)} em aberto`
-              : 'Mensalidades vencidas e não pagas'
-          }
-          action={<SeeAll to="/app/mensalidades" />}
-        >
-          {pending ??
-            (data!.overdue.length === 0 ? (
-              <Empty>Ninguém em atraso 🎉</Empty>
-            ) : (
-              <ul className="space-y-1">
-                {data!.overdue.map((student) => (
-                  <StudentRow
-                    key={student.student_id}
-                    studentId={student.student_id}
-                    tab="billing"
-                    name={student.name}
-                    detail={student.modality}
-                    trailing={
-                      <>
-                        <p className="text-sm font-medium">
-                          {formatMoney(student.amount)}
-                        </p>
-                        <p className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                          <AlertCircle className="size-3.5 text-status-critical" />
-                          {student.days_late}{' '}
-                          {student.days_late === 1 ? 'dia' : 'dias'} em atraso
-                        </p>
-                      </>
-                    }
-                  />
-                ))}
-              </ul>
-            ))}
-        </DashboardCard>
-
-        <DashboardCard
-          title={
-            <>
-              Vencem em 7 dias
-              {data && <Count tone="warning">{data.due_soon_students}</Count>}
-            </>
-          }
-          subtitle="Para lembrar antes de atrasar"
-          action={<SeeAll to="/app/mensalidades?filtro=a-vencer" />}
-        >
-          {pending ??
-            (data!.due_soon.length === 0 ? (
-              <Empty>Nenhum vencimento nos próximos 7 dias</Empty>
-            ) : (
-              <ul className="space-y-1">
-                {data!.due_soon.map((charge, index) => (
-                  <StudentRow
-                    // O mesmo aluno pode ter duas cobranças (duas modalidades)
-                    key={`${charge.student_id}-${index}`}
-                    studentId={charge.student_id}
-                    tab="billing"
-                    name={charge.name}
-                    detail={charge.modality}
-                    trailing={
-                      <>
-                        <p className="text-sm font-medium">
-                          {formatMoney(charge.amount)}
-                        </p>
-                        <p className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                          <CalendarClock className="size-3.5 text-status-warning" />
-                          vence {formatDayMonth(charge.due_date)}
-                        </p>
-                      </>
-                    }
-                  />
-                ))}
-              </ul>
-            ))}
-        </DashboardCard>
-      </div>
-
-      <SectionTitle>Alunos</SectionTitle>
+      {/* Linha 1: aniversariantes, faixa etária, por modalidade */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <DashboardCard
-          title={
-            data
-              ? `${data.active_students} ${data.active_students === 1 ? 'aluno ativo' : 'alunos ativos'}`
-              : 'Alunos ativos'
-          }
-          subtitle="Por modalidade"
-        >
-          {pending ??
-            (data!.students_by_modality.length === 0 ? (
-              <Empty>Nenhum aluno ativo ainda.</Empty>
-            ) : (
-              <HorizontalBars
-                data={data!.students_by_modality.map((item) => ({
-                  label: item.modality_name,
-                  count: item.count,
-                }))}
-              />
-            ))}
-        </DashboardCard>
-
-        <AgeGroupsCard data={data} pending={pending} />
-
         <DashboardCard
           title={
             <>
@@ -191,18 +82,56 @@ export function DashboardPage() {
               </ul>
             ))}
         </DashboardCard>
+
+        <AgeGroupsCard data={data} pending={pending} />
+
+        <DashboardCard
+          title="Por modalidade"
+          subtitle={
+            data
+              ? `${data.active_students} ${data.active_students === 1 ? 'aluno ativo' : 'alunos ativos'}`
+              : 'Alunos ativos'
+          }
+        >
+          {pending ??
+            (data!.students_by_modality.length === 0 ? (
+              <Empty>Nenhum aluno ativo ainda.</Empty>
+            ) : (
+              <HorizontalBars
+                data={data!.students_by_modality.map((item) => ({
+                  label: item.modality_name,
+                  count: item.count,
+                }))}
+              />
+            ))}
+        </DashboardCard>
       </div>
 
-      <SectionTitle>Crescimento</SectionTitle>
+      {/* Linha 2: alunos por faixa e, ao lado, sexo e cadastro incompleto */}
+      {data ? (
+        <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+          <BeltCountsCard data={data.by_belt} />
+          <div className="space-y-4">
+            <SexCard data={data.by_sex} />
+            <IncompleteCard data={data.incomplete} />
+          </div>
+        </div>
+      ) : (
+        <DashboardCard title="Alunos por faixa">{pending}</DashboardCard>
+      )}
+
+      {/* Linha 3: novos alunos (12 meses; no celular, os 6 últimos) */}
       <DashboardCard
         title="Novos alunos por mês"
-        subtitle="Últimos 6 meses"
+        subtitle={isMobile ? 'Últimos 6 meses' : 'Últimos 12 meses'}
       >
         {pending ??
-          (data!.new_students_by_month.every((item) => item.count === 0) ? (
-            <Empty>Nenhum aluno novo nos últimos 6 meses.</Empty>
+          (noNewStudents ? (
+            <Empty>Nenhum aluno novo no período.</Empty>
           ) : (
-            <NewStudentsChart data={data!.new_students_by_month} />
+            <NewStudentsChart
+              data={isMobile ? newStudents.slice(-6) : newStudents}
+            />
           ))}
       </DashboardCard>
     </div>
@@ -296,17 +225,6 @@ function FilterChip({
 }
 
 // Título de bloco: "FINANCEIRO ———"
-function SectionTitle({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex items-center gap-3 px-1 pt-2">
-      <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-        {children}
-      </h2>
-      <hr className="flex-1 border-border" />
-    </div>
-  )
-}
-
 // Número ao lado do título do cartão ("Inadimplentes · 5")
 function Count({
   children,
@@ -339,16 +257,5 @@ function CardState({ loading }: { loading: boolean }) {
     <p role="alert" className="text-sm text-destructive">
       Não foi possível carregar.
     </p>
-  )
-}
-
-function SeeAll({ to }: { to: string }) {
-  return (
-    <Link
-      to={to}
-      className="shrink-0 text-xs font-medium text-sidebar-primary hover:underline"
-    >
-      Ver todos
-    </Link>
   )
 }

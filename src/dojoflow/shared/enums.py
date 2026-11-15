@@ -107,6 +107,14 @@ class DurationUnit(str, enum.Enum):
     YEARS = 'years'
 
 
+class ExamResult(str, enum.Enum):
+    """Resultado do aluno no exame da lista de graduação."""
+
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    FAILED = 'failed'
+
+
 class Eligibility(str, enum.Enum):
     ELIGIBLE = 'eligible'
     NOT_YET = 'not_yet'

@@ -8,9 +8,10 @@ import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage'
 import { SupportEntryPage } from '@/features/auth/pages/SupportEntryPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { BulkBeltsPage } from '@/features/belts/pages/BulkBeltsPage'
-import { BillingPage } from '@/features/billing/pages/BillingPage'
+import { FinancePage } from '@/features/billing/pages/FinancePage'
+import { StudentHistoryPage } from '@/features/billing/pages/StudentHistoryPage'
 import { ModalityBeltsPage } from '@/features/belts/pages/ModalityBeltsPage'
-import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
+import { StatisticsPage } from '@/features/dashboard/pages/StatisticsPage'
 import { GraduationListPage } from '@/features/graduations/pages/GraduationListPage'
 import { GraduationListsPage } from '@/features/graduations/pages/GraduationListsPage'
 import { PayPage } from '@/features/pay/PayPage'
@@ -55,7 +56,9 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <DashboardPage /> },
+      // O app abre no Financeiro (a página principal)
+      { index: true, element: <Navigate to="/app/financeiro" replace /> },
+      { path: 'estatisticas', element: <StatisticsPage /> },
       // Cadastro em tela própria (fora do mestre-detalhe da lista)
       { path: 'alunos/novo', element: <NewStudentPage /> },
       {
@@ -71,7 +74,14 @@ export const router = createBrowserRouter([
         path: 'modalidades',
         element: <Navigate to="/app/configuracoes" replace />,
       },
-      { path: 'mensalidades', element: <BillingPage /> },
+      { path: 'financeiro', element: <FinancePage /> },
+      // Histórico de pagamentos de um aluno (aberto pela ficha)
+      { path: 'financeiro/alunos/:studentId', element: <StudentHistoryPage /> },
+      // Endereço antigo (favoritos, atalhos no celular)
+      {
+        path: 'mensalidades',
+        element: <Navigate to="/app/financeiro" replace />,
+      },
       { path: 'graduacoes', element: <GraduationListsPage /> },
       { path: 'graduacoes/:listId', element: <GraduationListPage /> },
       { path: 'configuracoes', element: <SettingsPage /> },

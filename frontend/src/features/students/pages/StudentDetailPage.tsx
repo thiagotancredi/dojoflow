@@ -4,7 +4,7 @@ import { Link, useLocation, useOutletContext, useParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { StudentBillingTab } from '@/features/billing/components/StudentBillingTab'
+import { StudentFinanceTab } from '@/features/billing/components/StudentFinanceTab'
 import { StudentAvatar } from '@/features/students/components/StudentAvatar'
 import { AddressTab } from '@/features/students/components/tabs/AddressTab'
 import { BasicDataTab } from '@/features/students/components/tabs/BasicDataTab'
@@ -154,7 +154,7 @@ export function StudentDetailPage() {
       </div>
 
       {/* key: ao trocar de aluno, as abas voltam ao estado inicial
-          (sempre em Mensalidades, o que o mestre mais usa) */}
+          (sempre em Financeiro, o que o mestre mais usa) */}
       <StudentSections
         key={student.id}
         student={data}
@@ -210,8 +210,8 @@ function StudentSections({
           className="space-y-4 pt-4 @max-xl/ficha:pt-0"
         >
           {/* As outras abas têm o TabHeader dentro delas; esta, aqui */}
-          <TabHeader title="Mensalidades" />
-          <StudentBillingTab student={student} />
+          <TabHeader title="Financeiro" />
+          <StudentFinanceTab student={student} />
         </TabsContent>
         <TabsContent value="data" className="pt-4 @max-xl/ficha:pt-0">
           <BasicDataTab student={student} onChanged={onChanged} />

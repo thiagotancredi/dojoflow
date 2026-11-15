@@ -11,12 +11,16 @@ import {
   Trash2,
   Search,
   Star,
+  Undo2,
+  BadgePercent,
+  RotateCcw,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
+import { BottomSheet, SheetBlock, SheetRow } from '@/components/BottomSheet'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { DateField } from '@/components/DatePicker'
 import { InfoTip } from '@/components/InfoTip'
@@ -36,7 +40,10 @@ import {
 import { Input } from '@/components/ui/input'
 import {
   addGraduationEntry,
+  approveGraduationEntry,
   deleteGraduationList,
+  failGraduationEntry,
+  undoGraduationResult,
   removeGraduationEntry,
   updateGraduationEntry,
   updateGraduationList,
@@ -56,6 +63,7 @@ import {
 } from '@/features/belts/components/EligibilityBadge'
 import { useGraduationList } from '@/features/belts/hooks'
 import { eligibleOn, shortTimeSince, timeLeft } from '@/features/belts/rules'
+import { unwaiveCharge, waiveCharge } from '@/features/billing/api'
 import { PaymentDialog } from '@/features/billing/components/PaymentDialog'
 import { WhatsAppDialog } from '@/features/billing/components/WhatsAppButton'
 import { openAmount } from '@/features/graduations/charge'
@@ -67,6 +75,15 @@ import {
   EntryName,
   Stat,
 } from '@/features/graduations/components/GraduationCharge'
+import { ApproveDialog } from '@/features/graduations/components/ApproveDialog'
+import {
+  ResultBlock,
+  ResultCell,
+  ResultMark,
+  ResultTip,
+  SkipHint,
+} from '@/features/graduations/components/ExamResult'
+import { beltsBetween, canUnwaive, canWaive } from '@/features/graduations/results'
 import { AddCard } from '@/features/students/components/tabs/TabParts'
 import { messageFor, showApiError } from '@/lib/api/errors'
 import { formatDate } from '@/lib/format'
@@ -95,6 +112,10 @@ export function GraduationListPage() {
   const [whatsAppFor, setWhatsAppFor] = useState<GraduationEntry | null>(null)
   // "Adicionar alunos" abre numa janela por cima da lista
   const [adding, setAdding] = useState(false)
+  // Resultado do exame: pop-up de aprovar e confirmações (reprovar,
+  // desfazer, isentar)
+  const [approving, setApproving] = useState<GraduationEntry | null>(null)
+  const [confirming, setConfirming] = useState<Confirming | null>(null)
 
   if (!data) {
     return (
@@ -150,6 +171,24 @@ export function GraduationListPage() {
     void run(() =>
       addGraduationEntry(id, candidate.enrollment_id, candidate.suggested_target?.id),
     )
+  }
+
+  // Faixas puladas entre a ATUAL e a alvo ("pula 1 faixa"): a aprovação
+  // parte da faixa atual do histórico, que pode ter mudado depois da foto
+  function skippedFor(entry: GraduationEntry) {
+    return beltsBetween(data!.belts, entry.current_belt, entry.target_belt)
+  }
+
+  function confirmAction() {
+    const current = confirming
+    setConfirming(null)
+    if (!current) return
+    const { kind, entry } = current
+    const chargeId = entry.charge?.id ?? ''
+    if (kind === 'fail') void run(() => failGraduationEntry(id, entry.id))
+    if (kind === 'undo') void run(() => undoGraduationResult(id, entry.id))
+    if (kind === 'waive') void run(() => waiveCharge(entry.student_id, chargeId))
+    if (kind === 'unwaive') void run(() => unwaiveCharge(entry.student_id, chargeId))
   }
 
   // Sem data limite a lista não cobra: as colunas de cobrança somem
@@ -208,6 +247,11 @@ export function GraduationListPage() {
                         Situação <SituationTip />
                       </span>
                     </th>
+                    <th className="py-2 pr-3 font-medium">
+                      <span className="inline-flex items-center gap-1">
+                        Resultado <ResultTip />
+                      </span>
+                    </th>
                     {charging && <th className="py-2 pr-3 font-medium">Graduação</th>}
                     <th />
                   </tr>
@@ -227,9 +271,18 @@ export function GraduationListPage() {
                           busy={busy}
                           onTarget={() => setRetargeting(entry)}
                         />
+                        <SkipHint skipped={skippedFor(entry)} />
                       </td>
                       <td className="py-2.5 pr-3">
                         <EntryBadge entry={entry} examDate={examDate} />
+                      </td>
+                      <td className="py-2.5 pr-3">
+                        <ResultCell
+                          entry={entry}
+                          busy={busy}
+                          onApprove={() => setApproving(entry)}
+                          onFail={() => setConfirming({ kind: 'fail', entry })}
+                        />
                       </td>
                       {charging && (
                         <td className="py-2.5 pr-3">
@@ -244,6 +297,7 @@ export function GraduationListPage() {
                             busy={busy}
                             onTarget={() => setRetargeting(entry)}
                             onRemove={() => void run(() => removeGraduationEntry(id, entry.id))}
+                            onConfirm={(kind) => setConfirming({ kind, entry })}
                           />
                         </div>
                       </td>
@@ -278,14 +332,18 @@ export function GraduationListPage() {
                           className="w-11"
                         />
                       </span>
-                      <span className="min-w-0 flex-1 truncate font-medium">
-                        {entry.student_name}
-                        {entry.eligibility === 'not_yet' && (
-                          <Star
-                            aria-label="Liberado pelo mestre"
-                            className="ml-1 inline size-3.5 fill-status-pending align-[-2px] text-status-pending"
-                          />
-                        )}
+                      {/* O ✓/✕ do resultado fica fora do "…" do nome */}
+                      <span className="flex min-w-0 flex-1 items-center">
+                        <span className="min-w-0 truncate font-medium">
+                          {entry.student_name}
+                          {entry.eligibility === 'not_yet' && (
+                            <Star
+                              aria-label="Liberado pelo mestre"
+                              className="ml-1 inline size-3.5 fill-status-pending align-[-2px] text-status-pending"
+                            />
+                          )}
+                        </span>
+                        <ResultMark entry={entry} />
                       </span>
                       {charging && <ChargeShort entry={entry} />}
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
@@ -397,6 +455,15 @@ export function GraduationListPage() {
             setDetail(null)
             void run(() => removeGraduationEntry(id, detail.id))
           }}
+          busy={busy}
+          onApprove={() => {
+            setDetail(null)
+            setApproving(detail)
+          }}
+          onConfirm={(kind) => {
+            setDetail(null)
+            setConfirming({ kind, entry: detail })
+          }}
         />
       )}
       {whatsAppFor?.whatsapp_url && (
@@ -419,6 +486,30 @@ export function GraduationListPage() {
           chargeId={paying.charge?.id}
         />
       )}
+
+      {approving && (
+        <ApproveDialog
+          entry={approving}
+          skipped={skippedFor(approving)}
+          examDate={examDate}
+          busy={busy}
+          onOpenChange={(open) => !open && setApproving(null)}
+          onConfirm={(approvedOn) => {
+            const entry = approving
+            setApproving(null)
+            void run(
+              () => approveGraduationEntry(id, entry.id, approvedOn),
+              `${entry.student_name} aprovado(a)`,
+            )
+          }}
+        />
+      )}
+      <ConfirmDialog
+        open={confirming !== null}
+        onOpenChange={(open) => !open && setConfirming(null)}
+        {...(confirming ? confirmText(confirming) : { title: '' })}
+        onConfirm={confirmAction}
+      />
 
       <ConfirmDialog
         open={confirmDelete}
@@ -683,12 +774,16 @@ function EntryMenu({
   busy,
   onTarget,
   onRemove,
+  onConfirm,
 }: {
   entry: GraduationEntry
   busy: boolean
   onTarget: () => void
   onRemove: () => void
+  onConfirm: (kind: ConfirmKind) => void
 }) {
+  // Aprovado já gravou faixa na ficha: só dá para desfazer
+  const approved = entry.result === 'approved'
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -703,12 +798,31 @@ function EntryMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={onTarget}>
-          <Pencil /> Trocar próxima graduação
-        </DropdownMenuItem>
-        <DropdownMenuItem variant="destructive" onSelect={onRemove}>
-          <Trash2 /> Remover da lista
-        </DropdownMenuItem>
+        {canWaive(entry) && (
+          <DropdownMenuItem onSelect={() => onConfirm('waive')}>
+            <BadgePercent /> Isentar graduação
+          </DropdownMenuItem>
+        )}
+        {canUnwaive(entry) && (
+          <DropdownMenuItem onSelect={() => onConfirm('unwaive')}>
+            <RotateCcw /> Desfazer isenção
+          </DropdownMenuItem>
+        )}
+        {entry.result !== 'pending' && (
+          <DropdownMenuItem onSelect={() => onConfirm('undo')}>
+            <Undo2 /> Desfazer resultado
+          </DropdownMenuItem>
+        )}
+        {!approved && (
+          <>
+            <DropdownMenuItem onSelect={onTarget}>
+              <Pencil /> Trocar próxima graduação
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onSelect={onRemove}>
+              <Trash2 /> Remover da lista
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -724,6 +838,9 @@ function EntrySheet({
   onPay,
   onTarget,
   onRemove,
+  busy,
+  onApprove,
+  onConfirm,
 }: {
   entry: GraduationEntry
   examDate: string
@@ -733,32 +850,34 @@ function EntrySheet({
   onPay: () => void
   onTarget: () => void
   onRemove: () => void
+  busy: boolean
+  onApprove: () => void
+  onConfirm: (kind: ConfirmKind) => void
 }) {
   const charge = entry.charge
   const owes = openAmount(entry) > 0
+  // Aprovado já gravou faixa na ficha: trocar/remover só depois de desfazer
+  const approved = entry.result === 'approved'
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent showCloseButton={false}>
-        <DialogHeader className="flex-row items-start justify-between gap-3 text-left">
-          <div className="min-w-0">
-            <DialogTitle className="leading-snug">{entry.student_name}</DialogTitle>
-            {charging && (
-              <p className="text-xs text-muted-foreground">
-                {entry.responsible_name
-                  ? `Cobrança vai para ${entry.responsible_name} (responsável)`
-                  : 'Cobrança vai para o próprio aluno'}
-              </p>
-            )}
-          </div>
-          <Link
-            to={`/app/alunos/${entry.student_id}`}
-            className="shrink-0 text-xs font-semibold whitespace-nowrap underline"
-          >
-            Ver ficha ›
-          </Link>
-        </DialogHeader>
-
+    <BottomSheet
+      title={entry.student_name}
+      subtitle={
+        charging &&
+        (entry.responsible_name
+          ? `Cobrança vai para ${entry.responsible_name} (responsável)`
+          : 'Cobrança vai para o próprio aluno')
+      }
+      action={
+        <Link
+          to={`/app/alunos/${entry.student_id}`}
+          className="shrink-0 text-xs font-semibold whitespace-nowrap underline"
+        >
+          Ver ficha ›
+        </Link>
+      }
+      onClose={onClose}
+    >
         {charging && (
           <SheetBlock title="Cobrança">
             {!charge ? (
@@ -773,7 +892,7 @@ function EntrySheet({
                 </SheetRow>
               </>
             ) : charge.status === 'waived' ? (
-              <SheetRow label="Situação">Dispensada</SheetRow>
+              <SheetRow label="Situação">Isenta</SheetRow>
             ) : (
               <>
                 <SheetRow label="Valor da graduação">{formatMoney(charge.amount)}</SheetRow>
@@ -812,6 +931,14 @@ function EntrySheet({
           </div>
         </SheetBlock>
 
+        <ResultBlock
+          entry={entry}
+          busy={busy}
+          onApprove={onApprove}
+          onFail={() => onConfirm('fail')}
+          onUndo={() => onConfirm('undo')}
+        />
+
         {charging && owes && (
           <div className="grid grid-cols-2 gap-2">
             <Button
@@ -827,41 +954,39 @@ function EntrySheet({
             </Button>
           </div>
         )}
-        <div className="flex justify-around gap-2">
-          <Button variant="ghost" size="sm" className="rounded-full" onClick={onTarget}>
-            <Pencil /> Trocar próxima faixa
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="rounded-full text-destructive hover:text-destructive"
-            onClick={onRemove}
-          >
-            <Trash2 /> Remover da lista
-          </Button>
+        <div className="flex flex-wrap justify-around gap-2">
+          {canWaive(entry) && (
+            <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onConfirm('waive')}>
+              <BadgePercent /> Isentar graduação
+            </Button>
+          )}
+          {canUnwaive(entry) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full"
+              onClick={() => onConfirm('unwaive')}
+            >
+              <RotateCcw /> Desfazer isenção
+            </Button>
+          )}
+          {!approved && (
+            <>
+              <Button variant="ghost" size="sm" className="rounded-full" onClick={onTarget}>
+                <Pencil /> Trocar próxima faixa
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full text-destructive hover:text-destructive"
+                onClick={onRemove}
+              >
+                <Trash2 /> Remover da lista
+              </Button>
+            </>
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function SheetBlock({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="rounded-2xl border bg-card p-3">
-      <p className="mb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-        {title}
-      </p>
-      {children}
-    </section>
-  )
-}
-
-function SheetRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 py-1 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right">{children}</span>
-    </div>
+    </BottomSheet>
   )
 }
 
@@ -1149,4 +1274,43 @@ function BeltCell({
       <BeltDrawing belt={belt} width={90} height={16} className={className} />
     </span>
   )
+}
+
+// Confirmações do resultado do exame e da isenção
+type ConfirmKind = 'fail' | 'undo' | 'waive' | 'unwaive'
+type Confirming = { kind: ConfirmKind; entry: GraduationEntry }
+
+function confirmText({ kind, entry }: Confirming) {
+  const name = entry.student_name
+  if (kind === 'fail') {
+    return {
+      title: `Reprovar ${name}?`,
+      description: 'A faixa não muda e a cobrança da graduação continua como está.',
+      confirmLabel: 'Reprovar',
+    }
+  }
+  if (kind === 'undo') {
+    return {
+      title: `Desfazer o resultado de ${name}?`,
+      description:
+        entry.result === 'approved'
+          ? 'As faixas gravadas por esta aprovação saem da ficha do aluno.'
+          : 'O aluno volta para aguardando resultado.',
+      confirmLabel: 'Desfazer',
+    }
+  }
+  if (kind === 'waive') {
+    return {
+      title: `Isentar a graduação de ${name}?`,
+      description: 'O aluno não vai pagar esta graduação e o Aprovar fica liberado.',
+      confirmLabel: 'Isentar',
+      tone: 'default' as const,
+    }
+  }
+  return {
+    title: `Desfazer a isenção de ${name}?`,
+    description: 'A graduação volta a ser cobrada.',
+    confirmLabel: 'Desfazer isenção',
+    tone: 'default' as const,
+  }
 }

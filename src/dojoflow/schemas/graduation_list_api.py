@@ -14,7 +14,7 @@ from dojoflow.schemas.graduation_list import (
     GraduationListSummary,
     ListName,
 )
-from dojoflow.shared.enums import Eligibility
+from dojoflow.shared.enums import Eligibility, ExamResult
 
 
 class GraduationListApiCreate(BaseModel):
@@ -22,6 +22,10 @@ class GraduationListApiCreate(BaseModel):
     modality_id: UUID
     exam_date: date
     payment_due_date: date | None = None
+
+
+class GraduationEntryApiApprove(BaseModel):
+    approved_on: date
 
 
 class GraduationEntryApiCreate(BaseModel):
@@ -120,6 +124,10 @@ class GraduationEntryApiRead(BaseModel):
     whatsapp_url: str | None
     # Quem recebe a cobrança, quando é um responsável
     responsible_name: str | None
+    current_belt: BeltApiRead | None
+    current_graduated_on: date | None
+    result: ExamResult
+    result_on: date | None
 
     @classmethod
     def from_internal(cls, entry: GraduationEntry) -> 'GraduationEntryApiRead':
@@ -152,6 +160,12 @@ class GraduationEntryApiRead(BaseModel):
             snapshot_graduated_on=entry.snapshot_graduated_on,
             eligibility=entry.eligibility,
             target_belt=BeltApiRead.from_internal(entry.target_belt),
+            current_belt=BeltApiRead.from_internal(entry.current_belt)
+            if entry.current_belt
+            else None,
+            current_graduated_on=entry.current_graduated_on,
+            result=entry.result,
+            result_on=entry.result_on,
         )
 
 

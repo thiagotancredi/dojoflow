@@ -2,30 +2,39 @@ from calendar import isleap
 from datetime import date, datetime, time
 from typing import Any
 
-from sqlalchemy import distinct, func, or_, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dojoflow.models.belt import Belt
 from dojoflow.models.enrollment import Enrollment
+from dojoflow.models.enrollment_belt import EnrollmentBelt
 from dojoflow.models.modality import Modality
 from dojoflow.models.student import Student
 from dojoflow.schemas.dashboard import (
     AgeGroup,
     AgeGroupCountRead,
     AgeGroupsRead,
+    BeltCountRead,
     BirthdayRead,
     DashboardSummaryRead,
+    IncompleteCountsRead,
     ModalityAgeGroupsRead,
+    ModalityBeltsRead,
     ModalityCountRead,
     MonthCountRead,
-    PendingEnrollmentRead,
-    RecentEnrollmentRead,
+    SexCountRead,
 )
 from dojoflow.services.belt_rules import ACADEMY_TIMEZONE, local_today
-from dojoflow.services.billing import BillingService
-from dojoflow.shared.enums import EnrollmentStatus
+from dojoflow.services.incomplete_records import incomplete_counts
+from dojoflow.shared.enums import EnrollmentStatus, StudentSex
 
-RECENT_ENROLLMENTS_LIMIT = 5
-NEW_STUDENTS_MONTHS = 6
+NEW_STUDENTS_MONTHS = 12
+SEX_ORDER: tuple[StudentSex | None, ...] = (
+    StudentSex.FEMALE,
+    StudentSex.MALE,
+    StudentSex.OTHER,
+    None,
+)
 AGE_GROUPS: tuple[AgeGroup, ...] = (
     'kids',
     'juvenile',
@@ -86,25 +95,20 @@ class DashboardService:
         self.db_session = db_session
 
     async def summary(self, academy_id: int) -> DashboardSummaryRead:
-        billing = BillingService(self.db_session)
-        lists = await billing.dashboard_lists(academy_id)
-
         today = local_today()
         active = await self._active_rows(academy_id)
 
         return DashboardSummaryRead(
             active_students=await self._active_students(academy_id),
             students_by_modality=await self._by_modality(academy_id),
-            recent_enrollments=await self._recent(academy_id),
-            registration_pending=await self._pending(academy_id),
-            overdue=lists.overdue,
-            due_soon=lists.due_soon,
-            overdue_students=lists.overdue_students,
-            due_soon_students=lists.due_soon_students,
-            overdue_total=lists.overdue_total,
             age_groups=self._age_groups(active, today),
             birthdays=self._birthdays(active, today),
             new_students_by_month=await self._new_students(academy_id, today),
+            by_belt=await self._by_belt(academy_id),
+            by_sex=self._by_sex(active),
+            incomplete=IncompleteCountsRead(
+                **await incomplete_counts(self.db_session, academy_id, today)
+            ),
         )
 
     async def _active_rows(self, academy_id: int) -> list[dict[str, Any]]:
@@ -115,6 +119,7 @@ class DashboardService:
                 Student.public_id.label('student_public_id'),
                 Student.name,
                 Student.birth_date,
+                Student.sex,
                 Modality.public_id.label('modality_id'),
                 Modality.name.label('modality_name'),
             )
@@ -241,45 +246,90 @@ class DashboardService:
 
         return [ModalityCountRead(**row) for row in result.mappings()]
 
-    async def _recent(self, academy_id: int) -> list[RecentEnrollmentRead]:
-        stmt = (
-            select(
-                Student.public_id.label('student_id'),
-                Student.name.label('student_name'),
-                Modality.name.label('modality_name'),
-                Enrollment.created_at,
+    @staticmethod
+    def _by_sex(rows: list[dict[str, Any]]) -> list[SexCountRead]:
+        students = {row['student_id']: row['sex'] for row in rows}
+        counts = dict.fromkeys(SEX_ORDER, 0)
+        for sex in students.values():
+            counts[sex] += 1
+        return [
+            SexCountRead(sex=sex, count=count)
+            for sex, count in counts.items()
+            if count > 0
+        ]
+
+    async def _by_belt(self, academy_id: int) -> list[ModalityBeltsRead]:
+        """Matrículas ativas pela faixa atual (o registro mais recente)."""
+        current = (
+            select(EnrollmentBelt.enrollment_id, EnrollmentBelt.belt_id)
+            .where(EnrollmentBelt.academy_id == academy_id)
+            .distinct(EnrollmentBelt.enrollment_id)
+            .order_by(
+                EnrollmentBelt.enrollment_id,
+                EnrollmentBelt.graduated_on.desc(),
+                EnrollmentBelt.id.desc(),
             )
-            .join(Student, Student.id == Enrollment.student_id)
-            .join(Modality, Modality.id == Enrollment.modality_id)
-            .where(Enrollment.academy_id == academy_id)
-            .order_by(Enrollment.created_at.desc(), Enrollment.id.desc())
-            .limit(RECENT_ENROLLMENTS_LIMIT)
+            .subquery()
         )
-        result = await self.db_session.execute(stmt)
-
-        return [RecentEnrollmentRead(**row) for row in result.mappings()]
-
-    async def _pending(self, academy_id: int) -> list[PendingEnrollmentRead]:
-        stmt = (
-            select(
-                Enrollment.public_id.label('enrollment_id'),
-                Student.public_id.label('student_id'),
-                Student.name.label('student_name'),
-                Modality.name.label('modality_name'),
+        rows = (
+            await self.db_session.execute(
+                select(Enrollment.modality_id, current.c.belt_id)
+                .outerjoin(current, current.c.enrollment_id == Enrollment.id)
+                .where(
+                    Enrollment.academy_id == academy_id,
+                    Enrollment.status == EnrollmentStatus.ACTIVE,
+                )
             )
-            .join(Student, Student.id == Enrollment.student_id)
-            .join(Modality, Modality.id == Enrollment.modality_id)
-            .where(
-                Enrollment.academy_id == academy_id,
-                Enrollment.status == EnrollmentStatus.ACTIVE,
-                Enrollment.is_exempt.is_(False),
-                or_(
-                    Enrollment.monthly_fee.is_(None),
-                    Enrollment.due_day.is_(None),
-                ),
-            )
-            .order_by(Student.name, Modality.name)
-        )
-        result = await self.db_session.execute(stmt)
+        ).all()
+        if not rows:
+            return []
 
-        return [PendingEnrollmentRead(**row) for row in result.mappings()]
+        counts: dict[int | None, int] = {}
+        without: dict[int, int] = {}
+        for modality_id, belt_id in rows:
+            if belt_id is None:
+                without[modality_id] = without.get(modality_id, 0) + 1
+            else:
+                counts[belt_id] = counts.get(belt_id, 0) + 1
+
+        modality_ids = {modality_id for modality_id, _ in rows}
+        modalities = (
+            await self.db_session.execute(
+                select(Modality.id, Modality.public_id, Modality.name)
+                .where(Modality.id.in_(modality_ids))
+                .order_by(Modality.name)
+            )
+        ).all()
+        belts = (
+            await self.db_session.scalars(
+                select(Belt)
+                .where(
+                    Belt.academy_id == academy_id,
+                    Belt.modality_id.in_(modality_ids),
+                )
+                .order_by(Belt.position, Belt.id)
+            )
+        ).all()
+
+        return [
+            ModalityBeltsRead(
+                modality_id=public_id,
+                modality_name=name,
+                belts=[
+                    BeltCountRead(
+                        id=belt.public_id,
+                        name=belt.name,
+                        primary_color=belt.primary_color,
+                        stripe_color=belt.stripe_color,
+                        marks=belt.marks,
+                        marks_color=belt.marks_color,
+                        tip_color=belt.tip_color,
+                        count=counts.get(belt.id, 0),
+                    )
+                    for belt in belts
+                    if belt.modality_id == modality_id
+                ],
+                without_belt=without.get(modality_id, 0),
+            )
+            for modality_id, public_id, name in modalities
+        ]

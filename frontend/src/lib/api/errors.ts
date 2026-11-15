@@ -26,6 +26,13 @@ export const ERROR_MESSAGES: Record<string, string> = {
   GRADUATION_LIST_NOT_FOUND: 'Lista de graduação não encontrada.',
   GRADUATION_ENTRY_NOT_FOUND: 'Esse aluno não está mais na lista.',
   ALREADY_IN_LIST: 'Esse aluno já está na lista.',
+  GRADUATION_NOT_PAID: 'Dê baixa ou isente a graduação antes de aprovar.',
+  RESULT_ALREADY_SET: 'O resultado desse aluno já foi lançado.',
+  APPROVAL_DATE_IN_FUTURE: 'A data da aprovação não pode ser depois de hoje.',
+  APPROVAL_DATE_BEFORE_CURRENT_BELT:
+    'A data da aprovação não pode ser antes da faixa atual do aluno.',
+  ENTRY_APPROVED: 'Desfaça a aprovação antes de mudar esse aluno.',
+  LIST_HAS_APPROVED: 'Desfaça as aprovações antes de excluir a lista.',
   ENROLLMENT_NOT_CANDIDATE:
     'Só alunos com matrícula ativa nesta modalidade podem entrar na lista.',
   TARGET_BELT_REQUIRED:

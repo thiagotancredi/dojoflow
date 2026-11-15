@@ -61,5 +61,6 @@ frase = "frase"
 credencial = "credencial"
 condicional = "condicional"
 quites = "quites"
+importante = "importante"
 # id da migration dbe8655d2208
 dbe = "dbe"

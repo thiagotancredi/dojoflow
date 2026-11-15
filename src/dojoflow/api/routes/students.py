@@ -37,6 +37,11 @@ from dojoflow.schemas.student_api import (
     StudentListItemRead,
     StudentPageRead,
 )
+from dojoflow.services.email_billing import EmailBillingService
+from dojoflow.services.incomplete_records import (
+    IncompleteKind,
+    incomplete_student_ids,
+)
 from dojoflow.shared.enums import EnrollmentStatus
 
 router = APIRouter(prefix='/students', tags=['Students'])
@@ -72,6 +77,24 @@ async def _to_internal_current_belt(
     )
 
 
+async def _filter_ids(
+    email_billing_service: EmailBillingService,
+    db_session: AsyncSession,
+    academy_id: int,
+    *,
+    missing_email: bool,
+    incomplete: IncompleteKind | None,
+) -> set[int] | None:
+    """Alunos que os filtros especiais deixam passar (None = todos)."""
+    if missing_email:
+        return await email_billing_service.students_without_email_ids(
+            academy_id
+        )
+    if incomplete is not None:
+        return await incomplete_student_ids(db_session, academy_id, incomplete)
+    return None
+
+
 @router.get(
     path='',
     status_code=http_status.HTTP_200_OK,
@@ -85,6 +108,7 @@ async def list_students(  # noqa: PLR0913, PLR0917
     modality_id: UUID | None = None,
     status: EnrollmentStatus | None = None,
     missing_email: bool = False,
+    incomplete: IncompleteKind | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> StudentPageRead:
@@ -107,12 +131,12 @@ async def list_students(  # noqa: PLR0913, PLR0917
         status=status,
         page=page,
         page_size=page_size,
-        student_ids=(
-            await email_billing_service_dep.students_without_email_ids(
-                current_master.academy_id
-            )
-            if missing_email
-            else None
+        student_ids=await _filter_ids(
+            email_billing_service_dep,
+            db_session_dep,
+            current_master.academy_id,
+            missing_email=missing_email,
+            incomplete=incomplete,
         ),
     )
     modality_names = await student_service_dep.get_active_modality_names(

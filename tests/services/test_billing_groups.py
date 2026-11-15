@@ -108,7 +108,6 @@ async def test_overview_ignores_graduation(db_session: AsyncSession) -> None:
     await generate_charges(db_session, TODAY)
     service = BillingService(db_session)
     before = await _overview(service)
-    dashboard_before = await service.dashboard_lists(SEED.academy_id)
 
     enrollment_id = await db_id(db_session, Enrollment, enrollment)
     # Uma graduação vencida e outra vencendo em 3 dias
@@ -119,11 +118,9 @@ async def test_overview_ignores_graduation(db_session: AsyncSession) -> None:
         db_session, enrollment_id, due=date(2026, 11, 18), description='Azul'
     )
     after = await _overview(service)
-    dashboard_after = await service.dashboard_lists(SEED.academy_id)
 
     assert after == before
     assert after.overdue_total == Decimal('110.00')
-    assert dashboard_after == dashboard_before
 
 
 @pytest.mark.asyncio

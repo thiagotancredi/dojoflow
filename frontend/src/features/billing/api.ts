@@ -13,6 +13,8 @@ export type PaymentPreview = Schemas['PaymentPreviewApiRead']
 export type BillingOverview = Schemas['BillingOverviewRead']
 export type BillingOverviewItem = Schemas['BillingOverviewItemRead']
 export type BillingSettings = Schemas['BillingSettingsApi']
+export type GraduationOverview = Schemas['GraduationOverviewRead']
+export type ExamBilling = Schemas['ExamBillingRead']
 
 export type LaunchChargePayload = Schemas['LaunchChargeApiPayload']
 export type UpdateChargePayload = Schemas['UpdateChargeApiPayload']
@@ -158,6 +160,16 @@ export function getBillingOverview(
           page_size: OVERVIEW_PAGE_SIZE,
         },
       },
+      signal,
+    }),
+  )
+}
+
+// Financeiro, aba Graduação: números do mês e os exames que cobram nele
+export function getGraduationOverview(month: string, signal?: AbortSignal) {
+  return unwrap(
+    api.GET('/api/v1/billing/graduation-overview', {
+      params: { query: { month } },
       signal,
     }),
   )
