@@ -77,7 +77,9 @@ import {
 } from '@/features/graduations/components/GraduationCharge'
 import { ApproveDialog } from '@/features/graduations/components/ApproveDialog'
 import {
+  ResultBlock,
   ResultCell,
+  ResultMark,
   ResultTip,
   SkipHint,
 } from '@/features/graduations/components/ExamResult'
@@ -329,14 +331,18 @@ export function GraduationListPage() {
                           className="w-11"
                         />
                       </span>
-                      <span className="min-w-0 flex-1 truncate font-medium">
-                        {entry.student_name}
-                        {entry.eligibility === 'not_yet' && (
-                          <Star
-                            aria-label="Liberado pelo mestre"
-                            className="ml-1 inline size-3.5 fill-status-pending align-[-2px] text-status-pending"
-                          />
-                        )}
+                      {/* O ✓/✕ do resultado fica fora do "…" do nome */}
+                      <span className="flex min-w-0 flex-1 items-center">
+                        <span className="min-w-0 truncate font-medium">
+                          {entry.student_name}
+                          {entry.eligibility === 'not_yet' && (
+                            <Star
+                              aria-label="Liberado pelo mestre"
+                              className="ml-1 inline size-3.5 fill-status-pending align-[-2px] text-status-pending"
+                            />
+                          )}
+                        </span>
+                        <ResultMark entry={entry} />
                       </span>
                       {charging && <ChargeShort entry={entry} />}
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
@@ -447,6 +453,15 @@ export function GraduationListPage() {
           onRemove={() => {
             setDetail(null)
             void run(() => removeGraduationEntry(id, detail.id))
+          }}
+          busy={busy}
+          onApprove={() => {
+            setDetail(null)
+            setApproving(detail)
+          }}
+          onConfirm={(kind) => {
+            setDetail(null)
+            setConfirming({ kind, entry: detail })
           }}
         />
       )}
@@ -822,6 +837,9 @@ function EntrySheet({
   onPay,
   onTarget,
   onRemove,
+  busy,
+  onApprove,
+  onConfirm,
 }: {
   entry: GraduationEntry
   examDate: string
@@ -831,9 +849,14 @@ function EntrySheet({
   onPay: () => void
   onTarget: () => void
   onRemove: () => void
+  busy: boolean
+  onApprove: () => void
+  onConfirm: (kind: ConfirmKind) => void
 }) {
   const charge = entry.charge
   const owes = openAmount(entry) > 0
+  // Aprovado já gravou faixa na ficha: trocar/remover só depois de desfazer
+  const approved = entry.result === 'approved'
 
   return (
     <BottomSheet
@@ -907,6 +930,14 @@ function EntrySheet({
           </div>
         </SheetBlock>
 
+        <ResultBlock
+          entry={entry}
+          busy={busy}
+          onApprove={onApprove}
+          onFail={() => onConfirm('fail')}
+          onUndo={() => onConfirm('undo')}
+        />
+
         {charging && owes && (
           <div className="grid grid-cols-2 gap-2">
             <Button
@@ -922,18 +953,37 @@ function EntrySheet({
             </Button>
           </div>
         )}
-        <div className="flex justify-around gap-2">
-          <Button variant="ghost" size="sm" className="rounded-full" onClick={onTarget}>
-            <Pencil /> Trocar próxima faixa
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="rounded-full text-destructive hover:text-destructive"
-            onClick={onRemove}
-          >
-            <Trash2 /> Remover da lista
-          </Button>
+        <div className="flex flex-wrap justify-around gap-2">
+          {canWaive(entry) && (
+            <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onConfirm('waive')}>
+              <BadgePercent /> Isentar graduação
+            </Button>
+          )}
+          {canUnwaive(entry) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full"
+              onClick={() => onConfirm('unwaive')}
+            >
+              <RotateCcw /> Desfazer isenção
+            </Button>
+          )}
+          {!approved && (
+            <>
+              <Button variant="ghost" size="sm" className="rounded-full" onClick={onTarget}>
+                <Pencil /> Trocar próxima faixa
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full text-destructive hover:text-destructive"
+                onClick={onRemove}
+              >
+                <Trash2 /> Remover da lista
+              </Button>
+            </>
+          )}
         </div>
     </BottomSheet>
   )

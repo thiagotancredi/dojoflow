@@ -1,5 +1,6 @@
 import { Check, X } from 'lucide-react'
 
+import { SheetBlock } from '@/components/BottomSheet'
 import { InfoTip } from '@/components/InfoTip'
 import { Button } from '@/components/ui/button'
 import type { Belt, GraduationEntry } from '@/features/belts/api'
@@ -108,4 +109,82 @@ export function SkipHint({ skipped }: { skipped: Belt[] }) {
         : `pula ${skipped.length} faixas`}
     </p>
   )
+}
+
+// Celular: bloco "Resultado do exame" na janela do aluno
+export function ResultBlock({
+  entry,
+  busy,
+  onApprove,
+  onFail,
+  onUndo,
+}: {
+  entry: GraduationEntry
+  busy: boolean
+  onApprove: () => void
+  onFail: () => void
+  onUndo: () => void
+}) {
+  if (entry.result !== 'pending') {
+    return (
+      <SheetBlock title="Resultado do exame">
+        <div className="flex items-center justify-between gap-2">
+          {entry.result === 'approved' ? <ApprovedSeal entry={entry} long /> : <FailedSeal />}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onUndo}
+            className="text-xs font-medium underline underline-offset-2"
+          >
+            Desfazer
+          </button>
+        </div>
+        {entry.result === 'approved' && entry.result_on && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Ficha atualizada: faixa {entry.target_belt.name} desde {formatDate(entry.result_on)}.
+          </p>
+        )}
+      </SheetBlock>
+    )
+  }
+
+  const blocked = approveBlock(entry)
+  return (
+    <SheetBlock title="Resultado do exame">
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          variant="outline"
+          className="h-11 rounded-full text-status-exempt"
+          disabled={busy || blocked !== null}
+          onClick={onApprove}
+        >
+          <Check /> Aprovar
+        </Button>
+        <Button
+          variant="outline"
+          className="h-11 rounded-full text-status-critical"
+          disabled={busy}
+          onClick={onFail}
+        >
+          <X /> Reprovar
+        </Button>
+      </div>
+      {blocked === 'unpaid' && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Falta pagar a graduação: dê baixa ou isente para aprovar.
+        </p>
+      )}
+    </SheetBlock>
+  )
+}
+
+// Celular: ✓ ou ✕ pequeno ao lado do nome, na lista
+export function ResultMark({ entry }: { entry: GraduationEntry }) {
+  if (entry.result === 'approved') {
+    return <Check aria-label="Aprovado" className="ml-1 size-4 shrink-0 text-status-exempt" />
+  }
+  if (entry.result === 'failed') {
+    return <X aria-label="Reprovado" className="ml-1 size-4 shrink-0 text-status-critical" />
+  }
+  return null
 }
