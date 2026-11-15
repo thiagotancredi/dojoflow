@@ -15,7 +15,12 @@ from dojoflow.models.student import Student
 from dojoflow.services import dashboard as dashboard_module
 from dojoflow.shared.enums import EnrollmentStatus
 from tests.helpers.auth import SEED, auth_headers, other_academy_headers
-from tests.helpers.scenario import add_modality, add_student
+from tests.helpers.scenario import (
+    add_belt,
+    add_belt_record,
+    add_modality,
+    add_student,
+)
 
 URL = '/api/v1/dashboard/summary'
 TODAY = date(2027, 3, 10)
@@ -47,23 +52,24 @@ async def _add_enrollment(
     student_public_id: str,
     modality_public_id: str,
     created_at: datetime | None = None,
-) -> None:
-    """Segunda matrícula para um aluno que já existe."""
+) -> str:
+    """Segunda matrícula para um aluno que já existe; devolve o id dela."""
     modality = await db_session.scalar(
         select(Modality).where(Modality.public_id == modality_public_id)
     )
     assert modality is not None
-    db_session.add(
-        Enrollment(
-            academy_id=SEED.academy_id,
-            student_id=await _student_id(db_session, student_public_id),
-            modality_id=modality.id,
-            status=EnrollmentStatus.ACTIVE,
-            is_exempt=True,
-            **({'created_at': created_at} if created_at else {}),
-        )
+    enrollment = Enrollment(
+        academy_id=SEED.academy_id,
+        student_id=await _student_id(db_session, student_public_id),
+        modality_id=modality.id,
+        status=EnrollmentStatus.ACTIVE,
+        is_exempt=True,
+        **({'created_at': created_at} if created_at else {}),
     )
+    db_session.add(enrollment)
     await db_session.commit()
+
+    return str(enrollment.public_id)
 
 
 async def _set_created_at(
@@ -199,7 +205,7 @@ async def test_leap_day_birthday_shows_on_feb_28(
 
 
 @pytest.mark.asyncio
-async def test_new_students_by_month_last_6_months(
+async def test_new_students_twelve_months(
     client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
@@ -226,10 +232,15 @@ async def test_new_students_by_month_last_6_months(
     await _set_created_at(
         db_session, october, datetime(2026, 11, 1, 1, 30, tzinfo=UTC)
     )
-    # Setembro: fora da janela de 6 meses
+    # Setembro: dentro da janela de 12 meses
     _, september = await add_student(db_session, tkd, 'Setembro')
     await _set_created_at(
         db_session, september, datetime(2026, 9, 20, 12, tzinfo=UTC)
+    )
+    # Março do ano passado: fora da janela
+    _, old = await add_student(db_session, tkd, 'Antigo')
+    await _set_created_at(
+        db_session, old, datetime(2026, 3, 20, 12, tzinfo=UTC)
     )
     # Aluno que já saiu continua contando no mês em que entrou
     _, left = await add_student(db_session, tkd, 'Saiu', status='inactive')
@@ -239,7 +250,16 @@ async def test_new_students_by_month_last_6_months(
 
     body = await _summary(client)
 
-    assert body['new_students_by_month'] == [
+    assert len(body['new_students_by_month']) == 12  # noqa: PLR2004
+    assert body['new_students_by_month'][:5] == [
+        {'month': '2026-04-01', 'count': 0},
+        {'month': '2026-05-01', 'count': 0},
+        {'month': '2026-06-01', 'count': 0},
+        {'month': '2026-07-01', 'count': 0},
+        {'month': '2026-08-01', 'count': 0},
+    ]
+    assert body['new_students_by_month'][5:] == [
+        {'month': '2026-09-01', 'count': 1},
         {'month': '2026-10-01', 'count': 1},
         {'month': '2026-11-01', 'count': 0},
         {'month': '2026-12-01', 'count': 1},
@@ -274,3 +294,84 @@ async def test_insights_are_isolated_per_academy(
     assert _groups(body['age_groups']['all'])['adult'] == 0
     assert body['age_groups']['by_modality'] == []
     assert sum(m['count'] for m in body['new_students_by_month']) == 0
+
+
+@pytest.mark.asyncio
+async def test_students_by_belt(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    tkd = await add_modality(db_session, 'Taekwondo')
+    kick = await add_modality(db_session, 'Kickboxing')
+    tkd_white = await add_belt(db_session, tkd, 'Branca')
+    tkd_green = await add_belt(
+        db_session, tkd, 'Verde', primary_color='#2e8b3a'
+    )
+    kick_green = await add_belt(db_session, kick, 'Verde')
+    # Ana: Verde nas duas modalidades (era Branca no Taekwondo)
+    ana_tkd = await add_student(db_session, tkd, 'Ana')
+    await add_belt_record(db_session, ana_tkd, tkd_white, '2026-01-10')
+    await add_belt_record(db_session, ana_tkd, tkd_green, '2026-12-10')
+    ana_kick = (
+        ana_tkd[0],
+        await _add_enrollment(db_session, ana_tkd[0], kick),
+    )
+    await add_belt_record(db_session, ana_kick, kick_green, '2026-11-01')
+    # Inativa não conta
+    gone = await add_student(db_session, tkd, 'Saiu', status='inactive')
+    await add_belt_record(db_session, gone, tkd_green, '2026-11-01')
+    # Sem faixa
+    await add_student(db_session, tkd, 'Novo')
+
+    body = await _summary(client)
+    by_modality = {m['modality_name']: m for m in body['by_belt']}
+
+    assert [
+        (b['name'], b['count']) for b in by_modality['Taekwondo']['belts']
+    ] == [('Branca', 0), ('Verde', 1)]
+    assert by_modality['Taekwondo']['belts'][1]['primary_color'] == '#2e8b3a'
+    assert by_modality['Taekwondo']['without_belt'] == 1
+    assert [
+        (b['name'], b['count']) for b in by_modality['Kickboxing']['belts']
+    ] == [('Verde', 1)]
+    assert by_modality['Kickboxing']['without_belt'] == 0
+
+
+@pytest.mark.asyncio
+async def test_students_by_sex(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    tkd = await add_modality(db_session, 'Taekwondo')
+    for name, sex in (
+        ('Ana', 'female'),
+        ('Bia', 'female'),
+        ('Caio', 'male'),
+        ('Dani', None),
+    ):
+        await add_student(db_session, tkd, name, sex=sex)
+    await add_student(db_session, tkd, 'Saiu', 'inactive', sex='male')
+
+    body = await _summary(client)
+
+    assert body['by_sex'] == [
+        {'sex': 'female', 'count': 2},
+        {'sex': 'male', 'count': 1},
+        {'sex': None, 'count': 1},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_summary_has_no_money(client: AsyncClient) -> None:
+    body = await _summary(client)
+
+    for field in (
+        'overdue',
+        'due_soon',
+        'overdue_students',
+        'due_soon_students',
+        'overdue_total',
+        'recent_enrollments',
+        'registration_pending',
+    ):
+        assert field not in body

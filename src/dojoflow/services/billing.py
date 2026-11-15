@@ -45,7 +45,6 @@ from dojoflow.schemas.billing import (
     StudentBillingRead,
 )
 from dojoflow.schemas.billing_settings_api import BillingSettingsApi
-from dojoflow.schemas.dashboard import DueSoonChargeRead
 from dojoflow.schemas.graduation_overview import (
     ExamBillingRead,
     GraduationOverviewRead,
@@ -190,18 +189,7 @@ def payable_charges(
 
 ADULT_AGE = 18
 DUE_SOON_DAYS = 7
-DASHBOARD_LIMIT = 5
-
-
-@dataclass(frozen=True)
-class DashboardBilling:
-    """Listas do dashboard (até 5 cada) e os totais de alunos."""
-
-    overdue: list[OverdueStudentRead]
-    due_soon: list[DueSoonChargeRead]
-    overdue_students: int
-    due_soon_students: int
-    overdue_total: Decimal
+LONGEST_OVERDUE_LIMIT = 5
 
 
 @dataclass(frozen=True)
@@ -1657,7 +1645,7 @@ class BillingService:  # noqa: PLR0904
             by_method=await self._received_by_method(academy_id, month),
             by_modality=by_modality(in_month),
             longest_overdue=longest_overdue(overdue, contacts, today)[
-                :DASHBOARD_LIMIT
+                :LONGEST_OVERDUE_LIMIT
             ],
             filter_counts={
                 name: len({c.student_id for c in charges_in_scope})
@@ -1820,45 +1808,6 @@ class BillingService:  # noqa: PLR0904
             )
         )
         return (received or ZERO).quantize(CENTS)
-
-    async def dashboard_lists(self, academy_id: int) -> DashboardBilling:
-        """Inadimplentes (mais atrasados primeiro) e vencem em 7 dias."""
-        today = local_today()
-        charges = await self._open_or_month_charges(
-            academy_id, today.replace(day=1), today
-        )
-        overdue = [c for c in charges if c.status == 'overdue']
-        due_soon = sorted(
-            (
-                c
-                for c in charges
-                if c.status in {'upcoming', 'partial'}
-                and c.due_date <= today + timedelta(days=DUE_SOON_DAYS)
-            ),
-            key=lambda c: (c.due_date, c.id),
-        )
-        contacts = await self.contacts(
-            academy_id, {c.student_id for c in [*overdue, *due_soon]}
-        )
-
-        overdue_students = longest_overdue(overdue, contacts, today)
-
-        return DashboardBilling(
-            overdue=overdue_students[:DASHBOARD_LIMIT],
-            due_soon=[
-                DueSoonChargeRead(
-                    student_id=contacts[c.student_id].public_id,
-                    name=contacts[c.student_id].name,
-                    modality=c.modality_name,
-                    amount=c.open_amount,
-                    due_date=c.due_date,
-                )
-                for c in due_soon[:DASHBOARD_LIMIT]
-            ],
-            overdue_students=len(overdue_students),
-            due_soon_students=len({c.student_id for c in due_soon}),
-            overdue_total=sum((c.open_amount for c in overdue), ZERO),
-        )
 
     async def _payments(
         self,

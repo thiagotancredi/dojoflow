@@ -26,6 +26,7 @@ from dojoflow.shared.enums import (
     DurationUnit,
     EnrollmentStatus,
     StudentResponsibleRelationship,
+    StudentSex,
 )
 from dojoflow.worker.tasks import generate_monthly_charges_job
 from tests.helpers.auth import SEED
@@ -111,6 +112,8 @@ async def add_student(  # noqa: PLR0913
     academy_id: int | None = None,
     phone: str | None = None,
     birth_date: str | None = None,
+    email: str | None = None,
+    sex: str | None = None,
 ) -> tuple[str, str]:
     """Aluno com matrícula; devolve (student_id, enrollment_id)."""
     academy_id = academy_id or SEED.academy_id
@@ -120,6 +123,8 @@ async def add_student(  # noqa: PLR0913
         name=name,
         phone=phone,
         birth_date=date.fromisoformat(birth_date) if birth_date else None,
+        email=email,
+        sex=StudentSex(sex) if sex else None,
     )
     session.add(student)
     await session.flush()

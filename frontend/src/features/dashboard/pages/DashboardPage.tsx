@@ -1,18 +1,14 @@
-import { AlertCircle, CalendarClock } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import { useAuth } from '@/features/auth/useAuth'
-import { formatDayMonth } from '@/features/billing/labels'
 import { useDashboardSummary } from '@/features/dashboard/api'
 import type { DashboardSummary } from '@/features/dashboard/api'
 import { DashboardCard } from '@/features/dashboard/components/DashboardCard'
 import { HorizontalBars } from '@/features/dashboard/components/HorizontalBars'
 import { NewStudentsChart } from '@/features/dashboard/components/NewStudentsChart'
 import { StudentRow } from '@/features/dashboard/components/StudentRow'
-import { formatMoney } from '@/lib/money'
 import { cn } from '@/lib/utils'
 
 type AgeGroup = DashboardSummary['age_groups']['all'][number]
@@ -25,7 +21,8 @@ const AGE_LABELS: Record<AgeGroup['group'], string> = {
   unknown: 'Sem data de nascimento',
 }
 
-// Dashboard em três blocos: Financeiro, Alunos e Crescimento.
+// Dashboard em dois blocos: Alunos e Crescimento (o dinheiro foi para o
+// Financeiro).
 export function DashboardPage() {
   const { master } = useAuth()
   // Primeiro nome do mestre logado (ex.: "Mestre Teste" → "Mestre")
@@ -41,93 +38,6 @@ export function DashboardPage() {
   return (
     <div className="space-y-4">
       <PageHeader title={firstName ? `Olá, ${firstName}` : 'Dashboard'} />
-
-      <SectionTitle>Financeiro</SectionTitle>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <DashboardCard
-          title={
-            <>
-              Inadimplentes
-              {data && <Count tone="critical">{data.overdue_students}</Count>}
-            </>
-          }
-          subtitle={
-            data && Number(data.overdue_total) > 0
-              ? `Vencidas e não pagas · ${formatMoney(data.overdue_total)} em aberto`
-              : 'Mensalidades vencidas e não pagas'
-          }
-          action={<SeeAll to="/app/mensalidades" />}
-        >
-          {pending ??
-            (data!.overdue.length === 0 ? (
-              <Empty>Ninguém em atraso 🎉</Empty>
-            ) : (
-              <ul className="space-y-1">
-                {data!.overdue.map((student) => (
-                  <StudentRow
-                    key={student.student_id}
-                    studentId={student.student_id}
-                    tab="billing"
-                    name={student.name}
-                    detail={student.modality}
-                    trailing={
-                      <>
-                        <p className="text-sm font-medium">
-                          {formatMoney(student.amount)}
-                        </p>
-                        <p className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                          <AlertCircle className="size-3.5 text-status-critical" />
-                          {student.days_late}{' '}
-                          {student.days_late === 1 ? 'dia' : 'dias'} em atraso
-                        </p>
-                      </>
-                    }
-                  />
-                ))}
-              </ul>
-            ))}
-        </DashboardCard>
-
-        <DashboardCard
-          title={
-            <>
-              Vencem em 7 dias
-              {data && <Count tone="warning">{data.due_soon_students}</Count>}
-            </>
-          }
-          subtitle="Para lembrar antes de atrasar"
-          action={<SeeAll to="/app/mensalidades?filtro=a-vencer" />}
-        >
-          {pending ??
-            (data!.due_soon.length === 0 ? (
-              <Empty>Nenhum vencimento nos próximos 7 dias</Empty>
-            ) : (
-              <ul className="space-y-1">
-                {data!.due_soon.map((charge, index) => (
-                  <StudentRow
-                    // O mesmo aluno pode ter duas cobranças (duas modalidades)
-                    key={`${charge.student_id}-${index}`}
-                    studentId={charge.student_id}
-                    tab="billing"
-                    name={charge.name}
-                    detail={charge.modality}
-                    trailing={
-                      <>
-                        <p className="text-sm font-medium">
-                          {formatMoney(charge.amount)}
-                        </p>
-                        <p className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                          <CalendarClock className="size-3.5 text-status-warning" />
-                          vence {formatDayMonth(charge.due_date)}
-                        </p>
-                      </>
-                    }
-                  />
-                ))}
-              </ul>
-            ))}
-        </DashboardCard>
-      </div>
 
       <SectionTitle>Alunos</SectionTitle>
       <div className="grid gap-4 lg:grid-cols-3">
@@ -339,16 +249,5 @@ function CardState({ loading }: { loading: boolean }) {
     <p role="alert" className="text-sm text-destructive">
       Não foi possível carregar.
     </p>
-  )
-}
-
-function SeeAll({ to }: { to: string }) {
-  return (
-    <Link
-      to={to}
-      className="shrink-0 text-xs font-medium text-sidebar-primary hover:underline"
-    >
-      Ver todos
-    </Link>
   )
 }
