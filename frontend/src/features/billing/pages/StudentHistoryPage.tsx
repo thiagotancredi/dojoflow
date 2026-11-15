@@ -10,6 +10,7 @@ import type { Charge, Payment } from '@/features/billing/api'
 import { ChargeStatusChip } from '@/features/billing/components/ChargeStatusChip'
 import { EditChargeDialog } from '@/features/billing/components/EditChargeDialog'
 import { HistoryList, Title } from '@/features/billing/components/finance/HistoryList'
+import { AutomaticInfo } from '@/features/billing/components/ChargeMenu'
 import { chargeActions, chargeDetail } from '@/features/billing/history'
 import type { ChargeHandlers } from '@/features/billing/history'
 import { MoneyTile } from '@/features/billing/components/finance/MoneyTile'
@@ -325,6 +326,11 @@ function ChargeSheet({
         <SheetRow label="Situação">
           <ChargeStatusChip status={charge.status} />
         </SheetRow>
+        {payments[0] && (
+          <div className="pt-1 text-xs">
+            <AutomaticInfo payment={payments[0].payment} />
+          </div>
+        )}
       </SheetBlock>
       {actions.length > 0 && (
         <div className="grid gap-2">

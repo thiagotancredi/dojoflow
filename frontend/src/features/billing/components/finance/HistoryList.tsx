@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 
 import { BeltDrawing } from '@/features/belts/components/BeltDrawing'
 import type { Charge } from '@/features/billing/api'
-import { ChargeMenu } from '@/features/billing/components/ChargeMenu'
+import { AutomaticInfo, ChargeMenu } from '@/features/billing/components/ChargeMenu'
 import type { ChargeHandlers } from '@/features/billing/history'
 import { ChargeStatusChip } from '@/features/billing/components/ChargeStatusChip'
 import { chargeDetail } from '@/features/billing/history'
@@ -49,6 +49,12 @@ export function HistoryList({
                   <p className="text-xs text-muted-foreground">
                     {chargeDetail(charge, payments)}
                   </p>
+                  {/* Baixa automática: selo da InfinitePay e o recibo */}
+                  {payments[0] && (
+                    <div className="mt-1 text-xs">
+                      <AutomaticInfo payment={payments[0].payment} />
+                    </div>
+                  )}
                 </div>
                 <ChargeStatusChip status={charge.status} />
                 <p className="w-28 text-right font-semibold tabular-nums">

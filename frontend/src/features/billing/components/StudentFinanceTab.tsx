@@ -173,32 +173,41 @@ function MonthlyCard({
   const monthly = data.charges.filter((charge) => charge.kind !== 'graduation')
   // Do mais antigo ao mais novo
   const open = monthly.filter(OPEN).sort((a, b) => a.due_date.localeCompare(b.due_date))
-  const current = monthly.find(
-    (charge) => charge.reference_month.slice(0, 7) === currentMonth(),
+  // Mensalidades do mês atual (uma por modalidade)
+  const current = monthly.filter(
+    (charge) =>
+      charge.kind === 'monthly' && charge.reference_month.slice(0, 7) === currentMonth(),
   )
 
   if (open.length === 0) {
-    const payment = current
-      ? paymentsByCharge(data.payments).get(current.id)?.[0]?.payment
-      : undefined
+    const paid = current.filter((charge) => charge.status === 'paid')
+    // A baixa mais recente entre as mensalidades do mês
+    const payment = paid
+      .flatMap((charge) => paymentsByCharge(data.payments).get(charge.id) ?? [])
+      .map((item) => item.payment)
+      .sort((a, b) => b.paid_on.localeCompare(a.paid_on))[0]
+    const total = current.reduce((sum, charge) => sum + Number(charge.amount), 0)
+    const allWaived =
+      current.length > 0 && current.every((charge) => charge.status === 'waived')
+
     return (
       <ChargeCard
-        title={current ? monthlyTitle(current) : 'Mensalidade'}
-        status={current?.status}
-        value={current ? formatMoney(current.amount) : undefined}
-        detail={current?.modality_name}
+        title={current[0] ? monthlyTitle(current[0]) : 'Mensalidade'}
+        status={paid.length > 0 ? 'paid' : allWaived ? 'waived' : undefined}
+        value={current.length > 0 ? formatMoney(total.toFixed(2)) : undefined}
+        detail={[...new Set(current.map((charge) => charge.modality_name))].join(' · ')}
       >
-        {current?.status === 'paid' && (
+        {paid.length > 0 && (
           <p className="text-sm font-semibold text-sidebar-primary">
             ✓ Paga
             {payment && ` em ${formatDayMonth(payment.paid_on)}`}
             {payment?.method && ` · ${PAYMENT_METHOD_LABELS[payment.method]}`}
           </p>
         )}
-        {current?.status === 'waived' && (
-          <p className="text-sm text-muted-foreground">Isenta neste mês</p>
+        {allWaived && <p className="text-sm text-muted-foreground">Isenta neste mês</p>}
+        {current.length === 0 && (
+          <p className="text-sm text-muted-foreground">Nada em aberto 🎉</p>
         )}
-        {!current && <p className="text-sm text-muted-foreground">Nada em aberto 🎉</p>}
       </ChargeCard>
     )
   }
