@@ -10,6 +10,28 @@ from dojoflow.shared.enums import PaymentKind, PaymentMethod, PaymentSource
 ChargeStatus = Literal['paid', 'partial', 'overdue', 'upcoming', 'waived']
 
 
+class BeltLookApiRead(BaseModel):
+    """O que é preciso para desenhar a faixa."""
+
+    name: str
+    primary_color: str
+    stripe_color: str | None
+    marks: int
+    marks_color: str
+    tip_color: str | None
+
+
+class ChargeGraduationApiRead(BaseModel):
+    """Cobrança de graduação: o exame, a faixa-alvo e como cobrar."""
+
+    list_id: UUID
+    list_name: str
+    exam_date: date
+    belt: BeltLookApiRead
+    whatsapp_url: str | None
+    pay_url: str
+
+
 class ChargeRead(BaseModel):
     """Cobrança (mensalidade ou taxa) como a ficha do aluno mostra."""
 
@@ -29,6 +51,8 @@ class ChargeRead(BaseModel):
     description: str | None = None
     graduation_entry_id: int | None = None
     paid_at: date | None = None
+    # Só na ficha do aluno, em cobranças de graduação ligadas a uma lista
+    graduation: ChargeGraduationApiRead | None = None
 
     @property
     def open_amount(self) -> Decimal:

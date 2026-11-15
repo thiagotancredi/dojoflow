@@ -15,6 +15,7 @@ from dojoflow.core.settings import settings as app_settings
 from dojoflow.database.transaction import transactional
 from dojoflow.models.academy import Academy
 from dojoflow.models.academy_billing_settings import AcademyBillingSettings
+from dojoflow.models.belt import Belt
 from dojoflow.models.enrollment import Enrollment
 from dojoflow.models.graduation_list import GraduationList, GraduationListEntry
 from dojoflow.models.infinitepay_checkout import InfinitePayCheckout
@@ -29,8 +30,10 @@ from dojoflow.models.student_responsible import StudentResponsible
 from dojoflow.schemas.billing import (
     AllocationPreview,
     AllocationRead,
+    BeltLookApiRead,
     BillingOverviewItemRead,
     BillingOverviewRead,
+    ChargeGraduationApiRead,
     ChargeRead,
     CheckoutReviewRead,
     GraduationEntryBilling,
@@ -663,6 +666,9 @@ class BillingService:  # noqa: PLR0904
             if c.status not in CLOSED_STATUSES and c.kind in monthly
         ]
         open_total = sum((c.amount - c.paid for c in open_charges), Decimal(0))
+        charges = await self._with_graduation(
+            academy_id, student_id, charges, today
+        )
 
         return StudentBillingRead(
             open_total=open_total.quantize(CENTS),
@@ -685,6 +691,73 @@ class BillingService:  # noqa: PLR0904
             ),
             reviews=await self._reviews(academy_id, student_id),
         )
+
+    async def _with_graduation(
+        self,
+        academy_id: int,
+        student_id: int,
+        charges: list[ChargeRead],
+        today: date,
+    ) -> list[ChargeRead]:
+        """Cobranças de graduação ganham o exame, a faixa-alvo, o link e o
+        WhatsApp da graduação."""
+        entry_ids = [
+            c.graduation_entry_id
+            for c in charges
+            if c.graduation_entry_id is not None
+        ]
+        if not entry_ids:
+            return charges
+
+        rows = (
+            await self.db_session.execute(
+                select(GraduationListEntry.id, GraduationList, Belt)
+                .join(
+                    GraduationList,
+                    GraduationList.id
+                    == GraduationListEntry.graduation_list_id,
+                )
+                .join(Belt, Belt.id == GraduationListEntry.target_belt_id)
+                .where(
+                    GraduationListEntry.academy_id == academy_id,
+                    GraduationListEntry.id.in_(entry_ids),
+                )
+            )
+        ).all()
+        by_entry = {
+            entry_id: (listing, belt) for entry_id, listing, belt in rows
+        }
+        contact = (await self.contacts(academy_id, {student_id}))[student_id]
+        sender = await self._sender(academy_id)
+        link = pay_url(contact.pay_token, ChargeGroup.GRADUATION)
+
+        result = []
+        for charge in charges:
+            found = by_entry.get(charge.graduation_entry_id or 0)
+            if found is None:
+                result.append(charge)
+                continue
+            listing, belt = found
+            result.append(
+                charge.model_copy(
+                    update={
+                        'graduation': ChargeGraduationApiRead(
+                            list_id=listing.public_id,
+                            list_name=listing.name,
+                            exam_date=listing.exam_date,
+                            belt=BeltLookApiRead.model_validate(
+                                belt, from_attributes=True
+                            ),
+                            whatsapp_url=graduation_whatsapp_url(
+                                contact, charge, sender, today
+                            ),
+                            pay_url=link,
+                        )
+                    }
+                )
+            )
+
+        return result
 
     async def _reviews(
         self, academy_id: int, student_id: int
