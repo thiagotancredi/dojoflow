@@ -7,7 +7,7 @@ from pydantic import BaseModel, StringConstraints, field_validator
 from dojoflow.schemas.belt import BeltRead
 from dojoflow.schemas.billing import GraduationEntryBilling
 from dojoflow.schemas.enrollment_belt import BeltRecord
-from dojoflow.shared.enums import Eligibility
+from dojoflow.shared.enums import Eligibility, ExamResult
 
 ListName = Annotated[
     str,
@@ -75,6 +75,9 @@ class GraduationEntry(BaseModel):
     student_public_id: UUID
     # Cobrança da graduação (None: lista sem data limite ou faixa sem preço)
     billing: GraduationEntryBilling | None = None
+    # Resultado do exame e data da aprovação
+    result: ExamResult = ExamResult.PENDING
+    result_on: date | None = None
 
 
 class GraduationListDetail(BaseModel):

@@ -2,7 +2,10 @@ from fastapi import APIRouter, status
 
 from dojoflow.api.dependencies.auth import CurrentMasterDep
 from dojoflow.api.dependencies.db_session import DbSessionDep
-from dojoflow.api.dependencies.graduation_list import GraduationListServiceDep
+from dojoflow.api.dependencies.graduation_list import (
+    GraduationListServiceDep,
+    GraduationResultServiceDep,
+)
 from dojoflow.api.dependencies.public_ids import (
     GraduationEntryIdDep,
     GraduationListIdDep,
@@ -15,6 +18,7 @@ from dojoflow.schemas.graduation_list import (
     GraduationListUpdate,
 )
 from dojoflow.schemas.graduation_list_api import (
+    GraduationEntryApiApprove,
     GraduationEntryApiCreate,
     GraduationEntryApiUpdate,
     GraduationListApiCreate,
@@ -152,5 +156,51 @@ async def remove_graduation_entry(
     graduation_list_service_dep: GraduationListServiceDep,
 ) -> None:
     await graduation_list_service_dep.remove_entry(
+        current_master.academy_id, list_id, entry_id
+    )
+
+
+@router.post(
+    path='/{list_id}/entries/{entry_id}/approve',
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def approve_graduation_entry(
+    list_id: GraduationListIdDep,
+    entry_id: GraduationEntryIdDep,
+    data: GraduationEntryApiApprove,
+    current_master: CurrentMasterDep,
+    graduation_result_service_dep: GraduationResultServiceDep,
+) -> None:
+    await graduation_result_service_dep.approve(
+        current_master.academy_id, list_id, entry_id, data.approved_on
+    )
+
+
+@router.post(
+    path='/{list_id}/entries/{entry_id}/fail',
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def fail_graduation_entry(
+    list_id: GraduationListIdDep,
+    entry_id: GraduationEntryIdDep,
+    current_master: CurrentMasterDep,
+    graduation_result_service_dep: GraduationResultServiceDep,
+) -> None:
+    await graduation_result_service_dep.fail(
+        current_master.academy_id, list_id, entry_id
+    )
+
+
+@router.delete(
+    path='/{list_id}/entries/{entry_id}/result',
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def undo_graduation_result(
+    list_id: GraduationListIdDep,
+    entry_id: GraduationEntryIdDep,
+    current_master: CurrentMasterDep,
+    graduation_result_service_dep: GraduationResultServiceDep,
+) -> None:
+    await graduation_result_service_dep.undo(
         current_master.academy_id, list_id, entry_id
     )
