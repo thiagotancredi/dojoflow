@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from dojoflow.schemas.billing import OverdueStudentRead
+
 
 class ModalityCountRead(BaseModel):
     modality_id: UUID
@@ -24,14 +26,6 @@ class PendingEnrollmentRead(BaseModel):
     student_id: UUID
     student_name: str
     modality_name: str
-
-
-class OverdueStudentRead(BaseModel):
-    student_id: UUID
-    name: str
-    modality: str
-    amount: Decimal
-    days_late: int
 
 
 class DueSoonChargeRead(BaseModel):

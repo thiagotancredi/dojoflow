@@ -33,12 +33,15 @@ from dojoflow.schemas.billing import (
     ChargeRead,
     CheckoutReviewRead,
     GraduationEntryBilling,
+    MethodTotalRead,
+    ModalityTotalRead,
+    OverdueStudentRead,
     OverviewFilter,
     PaymentRead,
     StudentBillingRead,
 )
 from dojoflow.schemas.billing_settings_api import BillingSettingsApi
-from dojoflow.schemas.dashboard import DueSoonChargeRead, OverdueStudentRead
+from dojoflow.schemas.dashboard import DueSoonChargeRead
 from dojoflow.schemas.public_pay import (
     PublicPaymentItemRead,
     PublicPaymentRead,
@@ -388,6 +391,56 @@ def refresh_paid_status(charge: Payment, paid_on: date | None) -> None:
 def local_date(moment: datetime) -> date:
     """Data em Brasília de um instante gravado em UTC."""
     return moment.astimezone(ACADEMY_TIMEZONE).date()
+
+
+def longest_overdue(
+    overdue: list[ChargeRead],
+    contacts: dict[int, StudentContact],
+    today: date,
+) -> list[OverdueStudentRead]:
+    """Alunos com cobrança atrasada, o mais atrasado primeiro."""
+    by_student: dict[int, list[ChargeRead]] = {}
+    for charge in overdue:
+        by_student.setdefault(charge.student_id, []).append(charge)
+
+    return sorted(
+        (
+            OverdueStudentRead(
+                student_id=contacts[student_id].public_id,
+                name=contacts[student_id].name,
+                modality=join_names(
+                    sorted({c.modality_name for c in student_charges})
+                ),
+                amount=sum((c.open_amount for c in student_charges), ZERO),
+                days_late=(
+                    today - min(c.due_date for c in student_charges)
+                ).days,
+            )
+            for student_id, student_charges in by_student.items()
+        ),
+        key=lambda item: (-item.days_late, item.name),
+    )
+
+
+def by_modality(in_month: list[ChargeRead]) -> list[ModalityTotalRead]:
+    totals: dict[str, tuple[Decimal, Decimal]] = {}
+    for charge in in_month:
+        if charge.status == 'waived':
+            continue
+        expected, received = totals.get(charge.modality_name, (ZERO, ZERO))
+        totals[charge.modality_name] = (
+            expected + charge.amount,
+            received + charge.paid,
+        )
+
+    return [
+        ModalityTotalRead(
+            modality_name=name,
+            expected=expected.quantize(CENTS),
+            received=received.quantize(CENTS),
+        )
+        for name, (expected, received) in sorted(totals.items())
+    ]
 
 
 class BillingService:  # noqa: PLR0904
@@ -1429,6 +1482,16 @@ class BillingService:  # noqa: PLR0904
             'all': in_month,
         }
         scope = scopes[status_filter]
+        # "Falta receber": o que falta do mês e o atrasado de antes dele
+        month_open = [
+            c
+            for c in charges
+            if c.status not in CLOSED_STATUSES
+            and (
+                c.reference_month == month
+                or (c.status == 'overdue' and c.reference_month < month)
+            )
+        ]
 
         by_student: dict[int, list[ChargeRead]] = {}
         for charge in scope:
@@ -1438,7 +1501,9 @@ class BillingService:  # noqa: PLR0904
         for charge in charges:
             loaded_by_student.setdefault(charge.student_id, []).append(charge)
 
-        contacts = await self.contacts(academy_id, set(by_student))
+        contacts = await self.contacts(
+            academy_id, set(by_student) | {c.student_id for c in overdue}
+        )
         # "Em aberto" é sempre o que o aluno deve (todos os meses); o filtro
         # só decide quais alunos aparecem
         owed: dict[int, Decimal] = {}
@@ -1485,6 +1550,14 @@ class BillingService:  # noqa: PLR0904
                         else None
                     ),
                     whatsapp_url=message_url,
+                    due_date=min(
+                        (
+                            c.due_date
+                            for c in student_charges
+                            if c.status not in CLOSED_STATUSES
+                        ),
+                        default=None,
+                    ),
                 )
             )
 
@@ -1501,11 +1574,46 @@ class BillingService:  # noqa: PLR0904
             overdue_students=len({c.student_id for c in overdue}),
             due_soon_total=sum((c.open_amount for c in due_soon), ZERO),
             due_soon_students=len({c.student_id for c in due_soon}),
+            month_open_total=sum((c.open_amount for c in month_open), ZERO),
+            unpaid_students=len({c.student_id for c in month_open}),
+            by_method=await self._received_by_method(academy_id, month),
+            by_modality=by_modality(in_month),
+            longest_overdue=longest_overdue(overdue, contacts, today)[
+                :DASHBOARD_LIMIT
+            ],
+            filter_counts={
+                name: len({c.student_id for c in charges_in_scope})
+                for name, charges_in_scope in scopes.items()
+            },
             items=items[start : start + page_size],
             total=len(items),
             page=page,
             page_size=page_size,
         )
+
+    async def _received_by_method(
+        self, academy_id: int, month: date
+    ) -> list[MethodTotalRead]:
+        total = func.sum(PaymentTransaction.gross_amount)
+        rows = (
+            await self.db_session.execute(
+                select(PaymentTransaction.payment_method, total)
+                .where(
+                    PaymentTransaction.academy_id == academy_id,
+                    PaymentTransaction.charge_group == ChargeGroup.MONTHLY,
+                    PaymentTransaction.received_at >= month,
+                    PaymentTransaction.received_at
+                    < first_monthly_month(month),
+                )
+                .group_by(PaymentTransaction.payment_method)
+                .order_by(total.desc())
+            )
+        ).all()
+        return [
+            MethodTotalRead(method=method, amount=amount.quantize(CENTS))
+            for method, amount in rows
+            if amount > 0
+        ]
 
     async def _received_in(self, academy_id: int, month: date) -> Decimal:
         received = await self.db_session.scalar(
@@ -1538,27 +1646,7 @@ class BillingService:  # noqa: PLR0904
             academy_id, {c.student_id for c in [*overdue, *due_soon]}
         )
 
-        by_student: dict[int, list[ChargeRead]] = {}
-        for charge in overdue:
-            by_student.setdefault(charge.student_id, []).append(charge)
-
-        overdue_students = sorted(
-            (
-                OverdueStudentRead(
-                    student_id=contacts[student_id].public_id,
-                    name=contacts[student_id].name,
-                    modality=join_names(
-                        sorted({c.modality_name for c in student_charges})
-                    ),
-                    amount=sum((c.open_amount for c in student_charges), ZERO),
-                    days_late=(
-                        today - min(c.due_date for c in student_charges)
-                    ).days,
-                )
-                for student_id, student_charges in by_student.items()
-            ),
-            key=lambda item: (-item.days_late, item.name),
-        )
+        overdue_students = longest_overdue(overdue, contacts, today)
 
         return DashboardBilling(
             overdue=overdue_students[:DASHBOARD_LIMIT],
@@ -1572,7 +1660,7 @@ class BillingService:  # noqa: PLR0904
                 )
                 for c in due_soon[:DASHBOARD_LIMIT]
             ],
-            overdue_students=len(by_student),
+            overdue_students=len(overdue_students),
             due_soon_students=len({c.student_id for c in due_soon}),
             overdue_total=sum((c.open_amount for c in overdue), ZERO),
         )

@@ -828,7 +828,9 @@ async def test_whatsapp_goes_to_responsible_for_minor(
     assert text.startswith('Olá, Maria!')
 
     overview = await client.get(
-        '/api/v1/billing/overview', headers=ctx['headers']
+        '/api/v1/billing/overview',
+        headers=ctx['headers'],
+        params={'filter': 'overdue'},
     )
     (item,) = overview.json()['items']
     assert item['responsible_name'] == 'Maria Lima'
@@ -1078,7 +1080,9 @@ async def test_overview_counts_and_filters(
     assert paid.status_code == HTTPStatus.CREATED, paid.text
 
     url = '/api/v1/billing/overview'
-    overdue = (await client.get(url, headers=headers)).json()
+    overdue = (
+        await client.get(url, headers=headers, params={'filter': 'overdue'})
+    ).json()
 
     assert overdue['month_expected'] == '270.00'  # fev: 100 + 80 + 90
     assert overdue['month_received'] == '90.00'

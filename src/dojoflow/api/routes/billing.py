@@ -47,7 +47,7 @@ async def read_billing_overview(  # noqa: PLR0913, PLR0917
     month: str | None = Query(
         default=None, pattern=r'^\d{4}-(0[1-9]|1[0-2])$'
     ),
-    status_filter: OverviewFilter = Query(default='overdue', alias='filter'),
+    status_filter: OverviewFilter = Query(default='upcoming', alias='filter'),
     search: str | None = Query(default=None, max_length=120),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
