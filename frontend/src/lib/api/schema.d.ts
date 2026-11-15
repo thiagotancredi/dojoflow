@@ -877,6 +877,57 @@ export interface paths {
         patch: operations["update_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__patch"];
         trace?: never;
     };
+    "/api/v1/graduation-lists/{list_id}/entries/{entry_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Graduation Entry */
+        post: operations["approve_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/graduation-lists/{list_id}/entries/{entry_id}/fail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fail Graduation Entry */
+        post: operations["fail_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__fail_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/graduation-lists/{list_id}/entries/{entry_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Undo Graduation Result */
+        delete: operations["undo_graduation_result_api_v1_graduation_lists__list_id__entries__entry_id__result_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cep/{zip_code}": {
         parameters: {
             query?: never;
@@ -1815,6 +1866,12 @@ export interface components {
             /** Days To Due */
             days_to_due: number | null;
         };
+        /**
+         * ExamResult
+         * @description Resultado do aluno no exame da lista de graduação.
+         * @enum {string}
+         */
+        ExamResult: "pending" | "approved" | "failed";
         /** GraduationCandidateApiRead */
         GraduationCandidateApiRead: {
             /**
@@ -1859,6 +1916,14 @@ export interface components {
             /** Days Late */
             days_late: number;
         };
+        /** GraduationEntryApiApprove */
+        GraduationEntryApiApprove: {
+            /**
+             * Approved On
+             * Format: date
+             */
+            approved_on: string;
+        };
         /** GraduationEntryApiCreate */
         GraduationEntryApiCreate: {
             /**
@@ -1898,6 +1963,9 @@ export interface components {
             whatsapp_url: string | null;
             /** Responsible Name */
             responsible_name: string | null;
+            result: components["schemas"]["ExamResult"];
+            /** Result On */
+            result_on: string | null;
         };
         /** GraduationEntryApiUpdate */
         GraduationEntryApiUpdate: {
@@ -4603,6 +4671,100 @@ export interface operations {
                 "application/json": components["schemas"]["GraduationEntryApiUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_id: string;
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GraduationEntryApiApprove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fail_graduation_entry_api_v1_graduation_lists__list_id__entries__entry_id__fail_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_id: string;
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_graduation_result_api_v1_graduation_lists__list_id__entries__entry_id__result_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_id: string;
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             204: {

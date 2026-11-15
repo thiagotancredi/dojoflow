@@ -14,6 +14,8 @@ type ConfirmDialogProps = {
   title: string
   description?: string
   confirmLabel?: string
+  // "default" para ações que não apagam nada (ex.: isentar)
+  tone?: 'destructive' | 'default'
   onConfirm: () => void
   onOpenChange: (open: boolean) => void
 }
@@ -24,6 +26,7 @@ export function ConfirmDialog({
   title,
   description = 'Essa ação não pode ser desfeita.',
   confirmLabel = 'Remover',
+  tone = 'destructive',
   onConfirm,
   onOpenChange,
 }: ConfirmDialogProps) {
@@ -36,7 +39,7 @@ export function ConfirmDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={onConfirm}>
+          <AlertDialogAction variant={tone} onClick={onConfirm}>
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
