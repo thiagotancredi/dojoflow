@@ -1,60 +1,48 @@
-import { AlertCircle, CalendarClock, HandCoins, Search, Wallet } from 'lucide-react'
+import { AlertCircle, HandCoins, Search, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link } from 'react-router'
 
-import { MonthField } from '@/components/DatePicker'
-import { PageHeader } from '@/components/PageHeader'
+import { RealIcon } from '@/app/components/RealIcon'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { OVERVIEW_PAGE_SIZE } from '@/features/billing/api'
-import type {
-  BillingOverviewItem,
-  OverviewFilter,
-  OverviewFilters,
-} from '@/features/billing/api'
+import type { BillingOverviewItem, OverviewFilters } from '@/features/billing/api'
 import { BulkPaymentDialog } from '@/features/billing/components/BulkPaymentDialog'
+import { MoneyTile } from '@/features/billing/components/finance/MoneyTile'
+import { MonthBlocks } from '@/features/billing/components/finance/MonthBlocks'
+import {
+  DEFAULT_FILTER,
+  FILTERS,
+} from '@/features/billing/components/finance/useFinanceParams'
 import { PaymentDialog } from '@/features/billing/components/PaymentDialog'
 import { WhatsAppButton } from '@/features/billing/components/WhatsAppButton'
-import { useBillingOverview } from '@/features/billing/hooks'
-import { currentMonth } from '@/features/billing/labels'
+import type { useBillingOverview } from '@/features/billing/hooks'
+import { dueIn, formatDayMonth } from '@/features/billing/labels'
+import { StudentAvatar } from '@/features/students/components/StudentAvatar'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import { formatMoney } from '@/lib/money'
 import { cn } from '@/lib/utils'
 
-// Filtro na URL (em português) ↔ filtro da API
-const FILTERS: { param: string; value: OverviewFilter; label: string }[] = [
-  { param: 'atrasadas', value: 'overdue', label: 'Atrasadas' },
-  { param: 'a-vencer', value: 'upcoming', label: 'A vencer' },
-  { param: 'pagas', value: 'paid', label: 'Pagas' },
-  { param: 'todas', value: 'all', label: 'Todas' },
-]
+type OverviewState = ReturnType<typeof useBillingOverview>
 
-// ?mes=2026-10&filtro=a-vencer&busca=ana&pagina=2 → filtros da consulta
-function readFilters(params: URLSearchParams): OverviewFilters {
-  const month = params.get('mes') ?? ''
-  const filter = FILTERS.find((item) => item.param === params.get('filtro'))
-  const page = Number(params.get('pagina'))
-
-  return {
-    month: /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : currentMonth(),
-    filter: filter?.value ?? 'overdue',
-    search: params.get('busca') ?? '',
-    page: Number.isInteger(page) && page >= 1 ? page : 1,
-  }
-}
-
-// Página "Mensalidades": números do mês, quem deve, WhatsApp e baixa
-export function BillingPage() {
-  const [params, setParams] = useSearchParams()
-  const filters = readFilters(params)
-  const overview = useBillingOverview(filters)
+// Aba "Mensalidade" do Financeiro: números do mês, os 3 blocos, a lista
+// com WhatsApp, Dar baixa e baixa em lote
+export function MonthlyTab({
+  overview,
+  filters,
+  listKey,
+  updateParams,
+}: {
+  overview: OverviewState
+  filters: OverviewFilters
+  listKey: string
+  updateParams: (changes: Record<string, string | null>) => void
+}) {
   const [paying, setPaying] = useState<BillingOverviewItem | null>(null)
   // Seleção para a baixa em lote. Vale só para os filtros e a página em que
   // foi feita: mudou a lista, a seleção some (nunca dá baixa em quem saiu
   // da tela).
-  const listKey = params.toString()
   const [selection, setSelection] = useState<{
     key: string
     items: Map<string, BillingOverviewItem>
@@ -93,22 +81,6 @@ export function BillingPage() {
   const [searchText, setSearchText] = useState(filters.search)
   const debouncedSearch = useDebouncedValue(searchText)
 
-  // Muda um filtro na URL; qualquer filtro novo volta para a página 1
-  function updateParams(changes: Record<string, string | null>) {
-    setParams(
-      (current) => {
-        const next = new URLSearchParams(current)
-        for (const [name, value] of Object.entries(changes)) {
-          if (value) next.set(name, value)
-          else next.delete(name)
-        }
-        if (!('pagina' in changes)) next.delete('pagina')
-        return next
-      },
-      { replace: true },
-    )
-  }
-
   useEffect(() => {
     if (debouncedSearch.trim() !== filters.search.trim()) {
       updateParams({ busca: debouncedSearch.trim() || null })
@@ -117,6 +89,17 @@ export function BillingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch])
 
+  function setFilter(value: (typeof FILTERS)[number]) {
+    updateParams({ filtro: value.value === DEFAULT_FILTER ? null : value.param })
+  }
+
+  // "Ver todos" de quem deve há mais tempo: filtro Atrasadas e desce até a
+  // lista
+  function seeAllOverdue() {
+    setFilter(FILTERS.find((item) => item.value === 'overdue')!)
+    document.getElementById('lista-mensalidades')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
   const data = overview.data
   const totalPages = data
     ? Math.max(1, Math.ceil(data.total / OVERVIEW_PAGE_SIZE))
@@ -124,26 +107,12 @@ export function BillingPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Mensalidades"
-        actions={
-          <MonthField
-            aria-label="Mês"
-            value={filters.month}
-            onChange={(month) =>
-              updateParams({ mes: month === currentMonth() ? null : month })
-            }
-            className="w-auto gap-3 rounded-full px-4"
-          />
-        }
-      />
-
       {/* Números do mês */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MoneyTile
           label="Previsto no mês"
           value={data?.month_expected}
-          icon={<Wallet className="size-5" />}
+          icon={<RealIcon className="size-5" />}
         />
         <MoneyTile
           label="Recebido no mês"
@@ -151,33 +120,33 @@ export function BillingPage() {
           icon={<HandCoins className="size-5" />}
         />
         <MoneyTile
-          label="Em atraso (todos os meses)"
-          value={data?.overdue_total}
-          detail={data ? studentsCount(data.overdue_students) : undefined}
-          tone="critical"
+          label="Falta receber"
+          value={data?.month_open_total}
+          tone="warning"
           icon={<AlertCircle className="size-5" />}
         />
         <MoneyTile
-          label="Vencem em 7 dias"
-          value={data?.due_soon_total}
-          detail={data ? studentsCount(data.due_soon_students) : undefined}
-          tone="warning"
-          icon={<CalendarClock className="size-5" />}
+          label="Ainda não pagaram"
+          text={data ? studentsCount(data.unpaid_students) : '—'}
+          tone="critical"
+          valueClassName="text-status-critical"
+          icon={<Users className="size-5" />}
         />
       </div>
 
-      <section className="space-y-3 rounded-3xl bg-card p-4 md:p-5">
+      {data && <MonthBlocks data={data} onSeeAll={seeAllOverdue} />}
+
+      <section
+        id="lista-mensalidades"
+        className="scroll-mt-4 space-y-3 rounded-3xl bg-card p-4 md:p-5"
+      >
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap gap-1.5">
             {FILTERS.map((item) => (
               <button
                 key={item.value}
                 type="button"
-                onClick={() =>
-                  updateParams({
-                    filtro: item.value === 'overdue' ? null : item.param,
-                  })
-                }
+                onClick={() => setFilter(item)}
                 className={cn(
                   'shrink-0 rounded-full border px-3 py-1 text-xs',
                   filters.filter === item.value
@@ -186,6 +155,12 @@ export function BillingPage() {
                 )}
               >
                 {item.label}
+                {data && (
+                  <span className="ml-0.5 opacity-70">
+                    {' '}
+                    {data.filter_counts[item.value] ?? 0}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -218,7 +193,6 @@ export function BillingPage() {
           onToggle={toggle}
           onToggleAll={toggleAll}
         />
-
         {/* Barra da baixa em lote (aparece ao marcar alunos) */}
         {selected.size > 0 && (
           <div className="sticky bottom-24 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-3 text-sm text-primary-foreground shadow-lg md:bottom-4">
@@ -304,48 +278,6 @@ function studentsCount(count: number) {
   return `${count} ${count === 1 ? 'aluno' : 'alunos'}`
 }
 
-const toneClasses = {
-  default: 'bg-accent text-primary',
-  critical: 'bg-status-critical-soft text-status-critical',
-  warning: 'bg-status-warning-soft text-status-warning',
-}
-
-function MoneyTile({
-  label,
-  value,
-  detail,
-  icon,
-  tone = 'default',
-}: {
-  label: string
-  value: string | undefined
-  detail?: string
-  icon: ReactNode
-  tone?: keyof typeof toneClasses
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-3xl bg-card p-4">
-      <div
-        className={cn(
-          'hidden size-11 shrink-0 place-items-center rounded-2xl sm:grid',
-          toneClasses[tone],
-        )}
-      >
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="text-xl leading-none font-semibold">
-          {value === undefined ? '—' : formatMoney(value)}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {label}
-          {detail && ` · ${detail}`}
-        </p>
-      </div>
-    </div>
-  )
-}
-
 function OverviewList({
   state,
   filters,
@@ -355,7 +287,7 @@ function OverviewList({
   onToggle,
   onToggleAll,
 }: {
-  state: ReturnType<typeof useBillingOverview>
+  state: OverviewState
   filters: OverviewFilters
   onPay: (item: BillingOverviewItem) => void
   onRetry: () => void
@@ -421,9 +353,8 @@ function OverviewList({
                 )}
               </th>
               <th className="py-2 pr-3 font-medium">Aluno</th>
-              <th className="py-2 pr-3 font-medium">Modalidades</th>
               <th className="py-2 pr-3 font-medium">Em aberto</th>
-              <th className="py-2 pr-3 font-medium">Atraso</th>
+              <th className="py-2 pr-3 font-medium">Vencimento</th>
               <th />
             </tr>
           </thead>
@@ -434,14 +365,21 @@ function OverviewList({
                   <SelectBox item={item} selected={selected} onToggle={onToggle} />
                 </td>
                 <td className="py-2 pr-3">
-                  <StudentName item={item} />
+                  <div className="flex items-center gap-3">
+                    <StudentAvatar />
+                    <div className="min-w-0">
+                      <StudentName item={item} />
+                      <p className="text-xs text-muted-foreground">
+                        {item.modalities.join(' · ')}
+                      </p>
+                    </div>
+                  </div>
                 </td>
-                <td className="py-2 pr-3">{item.modalities.join(' · ')}</td>
-                <td className="py-2 pr-3 whitespace-nowrap">
+                <td className="py-2 pr-3 font-medium whitespace-nowrap">
                   {formatMoney(item.open_amount)}
                 </td>
                 <td className="py-2 pr-3 whitespace-nowrap">
-                  <DaysLate days={item.days_late} />
+                  <DueOrLate item={item} filter={filters.filter} />
                 </td>
                 <td className="py-2">
                   <RowActions item={item} onPay={onPay} />
@@ -481,7 +419,7 @@ function OverviewList({
                   {formatMoney(item.open_amount)}
                 </p>
                 <p className="text-xs">
-                  <DaysLate days={item.days_late} />
+                  <DueOrLate item={item} filter={filters.filter} />
                 </p>
               </div>
             </div>
@@ -523,13 +461,31 @@ function StudentName({ item }: { item: BillingOverviewItem }) {
   )
 }
 
-function DaysLate({ days }: { days: number | null }) {
-  if (days === null) return <span className="text-muted-foreground">—</span>
-
+// Atrasado: "N dias de atraso" em vermelho. Senão (e sempre no filtro
+// "A vencer"): "10/11 · em 5 dias"
+function DueOrLate({
+  item,
+  filter,
+}: {
+  item: BillingOverviewItem
+  filter: OverviewFilters['filter']
+}) {
+  const days = item.days_late
+  if (days !== null && filter !== 'upcoming') {
+    return (
+      <span className="text-status-critical">
+        {days} {days === 1 ? 'dia' : 'dias'} de atraso
+      </span>
+    )
+  }
+  if (!item.due_date || Number(item.open_amount) <= 0) {
+    return <span className="text-muted-foreground">—</span>
+  }
   return (
-    <span className="text-status-critical">
-      {days} {days === 1 ? 'dia' : 'dias'}
-    </span>
+    <>
+      {formatDayMonth(item.due_date)}{' '}
+      <span className="text-xs text-muted-foreground">· {dueIn(item.due_date)}</span>
+    </>
   )
 }
 

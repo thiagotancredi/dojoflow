@@ -8,7 +8,7 @@ import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage'
 import { SupportEntryPage } from '@/features/auth/pages/SupportEntryPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { BulkBeltsPage } from '@/features/belts/pages/BulkBeltsPage'
-import { BillingPage } from '@/features/billing/pages/BillingPage'
+import { FinancePage } from '@/features/billing/pages/FinancePage'
 import { ModalityBeltsPage } from '@/features/belts/pages/ModalityBeltsPage'
 import { StatisticsPage } from '@/features/dashboard/pages/StatisticsPage'
 import { GraduationListPage } from '@/features/graduations/pages/GraduationListPage'
@@ -73,7 +73,7 @@ export const router = createBrowserRouter([
         path: 'modalidades',
         element: <Navigate to="/app/configuracoes" replace />,
       },
-      { path: 'financeiro', element: <BillingPage /> },
+      { path: 'financeiro', element: <FinancePage /> },
       // Endereço antigo (favoritos, atalhos no celular)
       {
         path: 'mensalidades',
