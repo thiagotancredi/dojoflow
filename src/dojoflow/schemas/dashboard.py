@@ -67,6 +67,15 @@ class SexCountRead(BaseModel):
     count: int
 
 
+class IncompleteCountsRead(BaseModel):
+    """Alunos ativos com o cadastro incompleto, por motivo."""
+
+    no_phone: int
+    no_birth_date: int
+    no_email: int
+    minor_without_responsible: int
+
+
 class DashboardSummaryRead(BaseModel):
     active_students: int
     students_by_modality: list[ModalityCountRead]
@@ -77,3 +86,4 @@ class DashboardSummaryRead(BaseModel):
     new_students_by_month: list[MonthCountRead]
     by_belt: list[ModalityBeltsRead]
     by_sex: list[SexCountRead]
+    incomplete: IncompleteCountsRead

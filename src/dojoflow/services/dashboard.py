@@ -17,6 +17,7 @@ from dojoflow.schemas.dashboard import (
     BeltCountRead,
     BirthdayRead,
     DashboardSummaryRead,
+    IncompleteCountsRead,
     ModalityAgeGroupsRead,
     ModalityBeltsRead,
     ModalityCountRead,
@@ -24,6 +25,7 @@ from dojoflow.schemas.dashboard import (
     SexCountRead,
 )
 from dojoflow.services.belt_rules import ACADEMY_TIMEZONE, local_today
+from dojoflow.services.incomplete_records import incomplete_counts
 from dojoflow.shared.enums import EnrollmentStatus, StudentSex
 
 NEW_STUDENTS_MONTHS = 12
@@ -104,6 +106,9 @@ class DashboardService:
             new_students_by_month=await self._new_students(academy_id, today),
             by_belt=await self._by_belt(academy_id),
             by_sex=self._by_sex(active),
+            incomplete=IncompleteCountsRead(
+                **await incomplete_counts(self.db_session, academy_id, today)
+            ),
         )
 
     async def _active_rows(self, academy_id: int) -> list[dict[str, Any]]:

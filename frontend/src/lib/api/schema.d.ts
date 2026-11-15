@@ -1661,6 +1661,7 @@ export interface components {
             by_belt: components["schemas"]["ModalityBeltsRead"][];
             /** By Sex */
             by_sex: components["schemas"]["SexCountRead"][];
+            incomplete: components["schemas"]["IncompleteCountsRead"];
         };
         /**
          * DurationUnit
@@ -1984,6 +1985,20 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * IncompleteCountsRead
+         * @description Alunos ativos com o cadastro incompleto, por motivo.
+         */
+        IncompleteCountsRead: {
+            /** No Phone */
+            no_phone: number;
+            /** No Birth Date */
+            no_birth_date: number;
+            /** No Email */
+            no_email: number;
+            /** Minor Without Responsible */
+            minor_without_responsible: number;
         };
         /**
          * InfinitePayConnectApi
@@ -3268,6 +3283,7 @@ export interface operations {
                 modality_id?: string | null;
                 status?: components["schemas"]["EnrollmentStatus"] | null;
                 missing_email?: boolean;
+                incomplete?: ("no_phone" | "no_birth_date" | "no_email" | "minor_without_responsible") | null;
                 page?: number;
                 page_size?: number;
             };

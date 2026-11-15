@@ -102,6 +102,12 @@ async def test_dashboard_isolated_per_academy(
         'birthdays': [],
         'by_belt': [],
         'by_sex': [],
+        'incomplete': {
+            'no_phone': 0,
+            'no_birth_date': 0,
+            'no_email': 0,
+            'minor_without_responsible': 0,
+        },
     }
     body_a = response_a.json()
     assert body_a['active_students'] == 1
