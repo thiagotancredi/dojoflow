@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { INCOMPLETE_ITEMS } from '@/features/dashboard/incomplete'
 import { useAcademyModalities } from '@/features/modalities/hooks'
 import { PAGE_SIZE } from '@/features/students/api'
 import type { StudentFilters } from '@/features/students/api'
@@ -54,6 +55,9 @@ function readFilters(params: URLSearchParams): StudentFilters {
     status: params.get('status') === 'inativos' ? 'inactive' : 'active',
     modalityId: params.get('modalidade'),
     missingEmail: params.get('sem-email') === '1',
+    incomplete:
+      INCOMPLETE_ITEMS.find((item) => item.param === params.get('incompleto'))
+        ?.key ?? null,
     // "abc", "0" ou vazio viram a página 1
     page: Number.isInteger(page) && page >= 1 ? page : 1,
   }
@@ -107,19 +111,27 @@ export function StudentsPage() {
 
   function clearFilters() {
     setSearchText('')
-    updateParams({ busca: null, modalidade: null, 'sem-email': null })
+    updateParams({
+      busca: null,
+      modalidade: null,
+      'sem-email': null,
+      incompleto: null,
+    })
   }
 
   const page = students.data
   const totalPages = page ? Math.max(1, Math.ceil(page.total / PAGE_SIZE)) : 1
   const hasFilter = Boolean(
-    filters.search || filters.modalityId || filters.missingEmail,
+    filters.search ||
+      filters.modalityId ||
+      filters.missingEmail ||
+      filters.incomplete,
   )
 
   // Computador: sempre há uma ficha aberta. Abre o primeiro aluno quando
   // nenhum está aberto, ou quando a busca/filtro tira o aberto da lista.
   // Recarregar a lista (ex.: depois de salvar) ou trocar de página não troca.
-  const filterKey = `${filters.search}|${filters.status}|${filters.modalityId ?? ''}|${filters.missingEmail}`
+  const filterKey = `${filters.search}|${filters.status}|${filters.modalityId ?? ''}|${filters.missingEmail}|${filters.incomplete ?? ''}`
   const lastFilterKey = useRef(filterKey)
 
   useEffect(() => {
@@ -250,6 +262,18 @@ export function StudentsPage() {
               className="flex items-center gap-1 self-start rounded-full border border-chip-active-border bg-chip-active px-3 py-1 text-xs text-chip-active-foreground"
             >
               Sem e-mail <X className="size-3" aria-hidden />
+              <span className="sr-only">Tirar filtro</span>
+            </button>
+          )}
+
+          {filters.incomplete && (
+            <button
+              type="button"
+              onClick={() => updateParams({ incompleto: null })}
+              className="flex items-center gap-1 self-start rounded-full border border-chip-active-border bg-chip-active px-3 py-1 text-xs text-chip-active-foreground"
+            >
+              {INCOMPLETE_ITEMS.find((item) => item.key === filters.incomplete)?.label}{' '}
+              <X className="size-3" aria-hidden />
               <span className="sr-only">Tirar filtro</span>
             </button>
           )}

@@ -2,10 +2,11 @@ import type { DashboardSummary } from '@/features/dashboard/api'
 
 // Cadastro incompleto: o motivo na API, o filtro na URL de Alunos e o texto
 export type Incomplete = DashboardSummary['incomplete']
+type IncompleteKind = keyof Incomplete
 
 // Linha do cartão → filtro da tela Alunos (?incompleto=...)
 export const INCOMPLETE_ITEMS: {
-  key: keyof Incomplete
+  key: IncompleteKind
   param: string
   label: string
 }[] = [
