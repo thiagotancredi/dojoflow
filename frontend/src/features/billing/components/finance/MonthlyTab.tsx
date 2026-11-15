@@ -1,4 +1,4 @@
-import { AlertCircle, HandCoins, Search, Users } from 'lucide-react'
+import { AlertCircle, ChevronRight, HandCoins, Pointer, Search, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
@@ -12,11 +12,18 @@ import { BulkPaymentDialog } from '@/features/billing/components/BulkPaymentDial
 import { MoneyTile } from '@/features/billing/components/finance/MoneyTile'
 import { MonthBlocks } from '@/features/billing/components/finance/MonthBlocks'
 import {
+  MonthSummarySheet,
+  MonthlySheet,
+} from '@/features/billing/components/finance/MonthlySheet'
+import {
   DEFAULT_FILTER,
   FILTERS,
 } from '@/features/billing/components/finance/useFinanceParams'
 import { PaymentDialog } from '@/features/billing/components/PaymentDialog'
-import { WhatsAppButton } from '@/features/billing/components/WhatsAppButton'
+import {
+  WhatsAppButton,
+  WhatsAppDialog,
+} from '@/features/billing/components/WhatsAppButton'
 import type { useBillingOverview } from '@/features/billing/hooks'
 import { dueIn, formatDayMonth } from '@/features/billing/labels'
 import { StudentAvatar } from '@/features/students/components/StudentAvatar'
@@ -40,6 +47,10 @@ export function MonthlyTab({
   updateParams: (changes: Record<string, string | null>) => void
 }) {
   const [paying, setPaying] = useState<BillingOverviewItem | null>(null)
+  // Celular: painel do aluno, painel do resumo e a janela do WhatsApp
+  const [detail, setDetail] = useState<BillingOverviewItem | null>(null)
+  const [whatsAppFor, setWhatsAppFor] = useState<BillingOverviewItem | null>(null)
+  const [summaryOpen, setSummaryOpen] = useState(false)
   // Seleção para a baixa em lote. Vale só para os filtros e a página em que
   // foi feita: mudou a lista, a seleção some (nunca dá baixa em quem saiu
   // da tela).
@@ -96,6 +107,7 @@ export function MonthlyTab({
   // "Ver todos" de quem deve há mais tempo: filtro Atrasadas e desce até a
   // lista
   function seeAllOverdue() {
+    setSummaryOpen(false)
     setFilter(FILTERS.find((item) => item.value === 'overdue')!)
     document.getElementById('lista-mensalidades')?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -107,8 +119,34 @@ export function MonthlyTab({
 
   return (
     <div className="space-y-4">
-      {/* Números do mês */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* Celular: os números numa lista de valores + "Ver resumo do mês" */}
+      <section className="rounded-3xl bg-card p-4 md:hidden">
+        <div className="flex flex-col divide-y">
+          <SummaryRow label="Previsto no mês" value={data && formatMoney(data.month_expected)} />
+          <SummaryRow label="Recebido" value={data && formatMoney(data.month_received)} />
+          <SummaryRow
+            label="Falta receber"
+            value={data && formatMoney(data.month_open_total)}
+            className="text-status-pending"
+          />
+          <SummaryRow
+            label="Ainda não pagaram"
+            value={data && studentsCount(data.unpaid_students)}
+            className="text-status-critical"
+          />
+        </div>
+        <button
+          type="button"
+          disabled={!data}
+          onClick={() => setSummaryOpen(true)}
+          className="flex w-full items-center justify-between pt-2 text-sm font-medium text-sidebar-primary"
+        >
+          Ver resumo do mês <ChevronRight className="size-4" />
+        </button>
+      </section>
+
+      {/* Computador: números do mês */}
+      <div className="hidden grid-cols-2 gap-3 md:grid lg:grid-cols-4">
         <MoneyTile
           label="Previsto no mês"
           value={data?.month_expected}
@@ -134,14 +172,16 @@ export function MonthlyTab({
         />
       </div>
 
-      {data && <MonthBlocks data={data} onSeeAll={seeAllOverdue} />}
+      {data && (
+        <MonthBlocks data={data} onSeeAll={seeAllOverdue} className="hidden md:grid" />
+      )}
 
       <section
         id="lista-mensalidades"
         className="scroll-mt-4 space-y-3 rounded-3xl bg-card p-4 md:p-5"
       >
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="-mx-1 flex max-w-full gap-1.5 overflow-x-auto px-1 md:flex-wrap">
             {FILTERS.map((item) => (
               <button
                 key={item.value}
@@ -178,16 +218,20 @@ export function MonthlyTab({
             />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="hidden text-xs text-muted-foreground md:block">
           {filters.filter === 'overdue'
             ? 'Atrasadas mostra todos os meses, não só o escolhido.'
             : 'Cobranças do mês escolhido.'}
+        </p>
+        <p className="flex items-center gap-1.5 border-b pb-2 text-xs text-muted-foreground md:hidden">
+          <Pointer className="size-3.5" /> Toque no aluno para cobrar ou dar baixa.
         </p>
 
         <OverviewList
           state={overview}
           filters={filters}
           onPay={setPaying}
+          onOpen={setDetail}
           onRetry={overview.refetch}
           selected={selected}
           onToggle={toggle}
@@ -195,7 +239,7 @@ export function MonthlyTab({
         />
         {/* Barra da baixa em lote (aparece ao marcar alunos) */}
         {selected.size > 0 && (
-          <div className="sticky bottom-24 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-3 text-sm text-primary-foreground shadow-lg md:bottom-4">
+          <div className="sticky bottom-24 z-10 hidden flex-wrap items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-3 text-sm text-primary-foreground shadow-lg md:bottom-4">
             <span>
               <span className="font-semibold">
                 {selected.size} {selected.size === 1 ? 'aluno' : 'alunos'}
@@ -255,6 +299,36 @@ export function MonthlyTab({
         )}
       </section>
 
+      {detail && (
+        <MonthlySheet
+          item={detail}
+          onClose={() => setDetail(null)}
+          onWhatsApp={() => {
+            setDetail(null)
+            setWhatsAppFor(detail)
+          }}
+          onPay={() => {
+            setDetail(null)
+            setPaying(detail)
+          }}
+        />
+      )}
+      {summaryOpen && data && (
+        <MonthSummarySheet
+          data={data}
+          onClose={() => setSummaryOpen(false)}
+          onSeeAll={seeAllOverdue}
+        />
+      )}
+      {whatsAppFor?.whatsapp_url && (
+        <WhatsAppDialog
+          url={whatsAppFor.whatsapp_url}
+          studentName={whatsAppFor.name}
+          responsibleName={whatsAppFor.responsible_name}
+          open
+          onOpenChange={(open) => !open && setWhatsAppFor(null)}
+        />
+      )}
       <BulkPaymentDialog
         items={bulkPaying}
         onClose={() => setBulkPaying([])}
@@ -274,6 +348,24 @@ export function MonthlyTab({
   )
 }
 
+// Linha da lista de valores do celular ("Recebido ...... R$ 2.130,00")
+function SummaryRow({
+  label,
+  value,
+  className,
+}: {
+  label: string
+  value: string | undefined | null | false
+  className?: string
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-2 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn('font-semibold', className)}>{value || '—'}</span>
+    </div>
+  )
+}
+
 function studentsCount(count: number) {
   return `${count} ${count === 1 ? 'aluno' : 'alunos'}`
 }
@@ -282,6 +374,7 @@ function OverviewList({
   state,
   filters,
   onPay,
+  onOpen,
   onRetry,
   selected,
   onToggle,
@@ -290,6 +383,7 @@ function OverviewList({
   state: OverviewState
   filters: OverviewFilters
   onPay: (item: BillingOverviewItem) => void
+  onOpen: (item: BillingOverviewItem) => void
   onRetry: () => void
   selected: Map<string, BillingOverviewItem>
   onToggle: (item: BillingOverviewItem) => void
@@ -390,40 +484,38 @@ function OverviewList({
         </table>
       </div>
 
-      {/* Celular: "Marcar todos" faz o papel da caixinha do topo da tabela.
-          O <label> em volta deixa o texto inteiro clicável */}
-      {payable.length > 0 && (
-        <label className="flex w-fit items-center gap-2 px-3 py-1 text-sm font-medium md:hidden">
-          <Checkbox
-            checked={headerState}
-            onCheckedChange={() => onToggleAll(items)}
-          />
-          Marcar todos ({payable.length})
-        </label>
-      )}
-
-      {/* Celular: um cartão por aluno */}
-      <ul className="space-y-2 md:hidden">
+      {/* Celular: linha enxuta por aluno; tocar abre o painel (cobrar,
+          dar baixa). A baixa em lote fica só no computador */}
+      <ul className="md:hidden">
         {items.map((item) => (
-          <li key={item.student_id} className="space-y-2 rounded-2xl border p-3">
-            <div className="flex items-start justify-between gap-2">
-              <SelectBox item={item} selected={selected} onToggle={onToggle} />
-              <div className="min-w-0 flex-1">
-                <StudentName item={item} />
-                <p className="text-xs text-muted-foreground">
+          <li key={item.student_id} className="border-b last:border-0">
+            <button
+              type="button"
+              onClick={() => onOpen(item)}
+              className="flex w-full items-center gap-3 py-3 text-left"
+            >
+              <StudentAvatar />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{item.name}</span>
+                <span className="block truncate text-xs text-muted-foreground">
                   {item.modalities.join(' · ')}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold whitespace-nowrap">
+                  {item.due_date &&
+                    Number(item.open_amount) > 0 &&
+                    ` · vence ${formatDayMonth(item.due_date)}`}
+                </span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block font-semibold">
                   {formatMoney(item.open_amount)}
-                </p>
-                <p className="text-xs">
-                  <DueOrLate item={item} filter={filters.filter} />
-                </p>
-              </div>
-            </div>
-            <RowActions item={item} onPay={onPay} />
+                </span>
+                {item.days_late !== null && filters.filter !== 'upcoming' && (
+                  <span className="block text-xs text-status-critical">
+                    {item.days_late} {item.days_late === 1 ? 'dia' : 'dias'} de atraso
+                  </span>
+                )}
+              </span>
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+            </button>
           </li>
         ))}
       </ul>

@@ -17,6 +17,7 @@ import type { ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
+import { BottomSheet, SheetBlock, SheetRow } from '@/components/BottomSheet'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { DateField } from '@/components/DatePicker'
 import { InfoTip } from '@/components/InfoTip'
@@ -738,27 +739,24 @@ function EntrySheet({
   const owes = openAmount(entry) > 0
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent showCloseButton={false}>
-        <DialogHeader className="flex-row items-start justify-between gap-3 text-left">
-          <div className="min-w-0">
-            <DialogTitle className="leading-snug">{entry.student_name}</DialogTitle>
-            {charging && (
-              <p className="text-xs text-muted-foreground">
-                {entry.responsible_name
-                  ? `Cobrança vai para ${entry.responsible_name} (responsável)`
-                  : 'Cobrança vai para o próprio aluno'}
-              </p>
-            )}
-          </div>
-          <Link
-            to={`/app/alunos/${entry.student_id}`}
-            className="shrink-0 text-xs font-semibold whitespace-nowrap underline"
-          >
-            Ver ficha ›
-          </Link>
-        </DialogHeader>
-
+    <BottomSheet
+      title={entry.student_name}
+      subtitle={
+        charging &&
+        (entry.responsible_name
+          ? `Cobrança vai para ${entry.responsible_name} (responsável)`
+          : 'Cobrança vai para o próprio aluno')
+      }
+      action={
+        <Link
+          to={`/app/alunos/${entry.student_id}`}
+          className="shrink-0 text-xs font-semibold whitespace-nowrap underline"
+        >
+          Ver ficha ›
+        </Link>
+      }
+      onClose={onClose}
+    >
         {charging && (
           <SheetBlock title="Cobrança">
             {!charge ? (
@@ -840,28 +838,7 @@ function EntrySheet({
             <Trash2 /> Remover da lista
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function SheetBlock({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="rounded-2xl border bg-card p-3">
-      <p className="mb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-        {title}
-      </p>
-      {children}
-    </section>
-  )
-}
-
-function SheetRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 py-1 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right">{children}</span>
-    </div>
+    </BottomSheet>
   )
 }
 
