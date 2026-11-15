@@ -124,6 +124,8 @@ class GraduationEntryApiRead(BaseModel):
     whatsapp_url: str | None
     # Quem recebe a cobrança, quando é um responsável
     responsible_name: str | None
+    current_belt: BeltApiRead | None
+    current_graduated_on: date | None
     result: ExamResult
     result_on: date | None
 
@@ -158,6 +160,10 @@ class GraduationEntryApiRead(BaseModel):
             snapshot_graduated_on=entry.snapshot_graduated_on,
             eligibility=entry.eligibility,
             target_belt=BeltApiRead.from_internal(entry.target_belt),
+            current_belt=BeltApiRead.from_internal(entry.current_belt)
+            if entry.current_belt
+            else None,
+            current_graduated_on=entry.current_graduated_on,
             result=entry.result,
             result_on=entry.result_on,
         )

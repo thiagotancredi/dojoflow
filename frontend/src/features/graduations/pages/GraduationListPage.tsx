@@ -173,9 +173,10 @@ export function GraduationListPage() {
     )
   }
 
-  // Faixas puladas entre a da foto e a alvo ("pula 1 faixa")
+  // Faixas puladas entre a ATUAL e a alvo ("pula 1 faixa"): a aprovação
+  // parte da faixa atual do histórico, que pode ter mudado depois da foto
   function skippedFor(entry: GraduationEntry) {
-    return beltsBetween(data!.belts, entry.snapshot_belt, entry.target_belt)
+    return beltsBetween(data!.belts, entry.current_belt, entry.target_belt)
   }
 
   function confirmAction() {
@@ -1289,14 +1290,11 @@ function confirmText({ kind, entry }: Confirming) {
     }
   }
   if (kind === 'undo') {
-    const back = entry.snapshot_belt?.name
     return {
       title: `Desfazer o resultado de ${name}?`,
       description:
         entry.result === 'approved'
-          ? back
-            ? `A ficha volta para a faixa ${back}.`
-            : 'A faixa gravada pela aprovação sai da ficha.'
+          ? 'As faixas gravadas por esta aprovação saem da ficha do aluno.'
           : 'O aluno volta para aguardando resultado.',
       confirmLabel: 'Desfazer',
     }

@@ -1963,6 +1963,9 @@ export interface components {
             whatsapp_url: string | null;
             /** Responsible Name */
             responsible_name: string | null;
+            current_belt: components["schemas"]["BeltApiRead"] | null;
+            /** Current Graduated On */
+            current_graduated_on: string | null;
             result: components["schemas"]["ExamResult"];
             /** Result On */
             result_on: string | null;

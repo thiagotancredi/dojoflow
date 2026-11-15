@@ -385,11 +385,15 @@ class GraduationListService:
         billing = await BillingService(self.db_session).graduation_billing(
             academy_id, [row['id'] for row in rows]
         )
+        current_belts = await self.enrollment_belt_service.current_belts(
+            academy_id, [row['enrollment_id'] for row in rows]
+        )
 
         entries = []
 
         for row in rows:
             snapshot = belts_by_id.get(row['snapshot_belt_id'])
+            current = current_belts.get(row['enrollment_id'])
             entries.append(
                 GraduationEntry(
                     id=row['id'],
@@ -408,6 +412,10 @@ class GraduationListService:
                     target_belt=belts_by_id[row['target_belt_id']],
                     student_public_id=row['student_public_id'],
                     billing=billing.get(row['id']),
+                    current_belt=current.belt if current else None,
+                    current_graduated_on=current.graduated_on
+                    if current
+                    else None,
                     result=row['result'],
                     result_on=row['result_on'],
                 )

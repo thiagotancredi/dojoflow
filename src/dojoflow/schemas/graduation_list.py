@@ -75,6 +75,10 @@ class GraduationEntry(BaseModel):
     student_public_id: UUID
     # Cobrança da graduação (None: lista sem data limite ou faixa sem preço)
     billing: GraduationEntryBilling | None = None
+    # Faixa atual do histórico (pode ter mudado depois da foto): é dela que
+    # a aprovação parte
+    current_belt: BeltRead | None = None
+    current_graduated_on: date | None = None
     # Resultado do exame e data da aprovação
     result: ExamResult = ExamResult.PENDING
     result_on: date | None = None

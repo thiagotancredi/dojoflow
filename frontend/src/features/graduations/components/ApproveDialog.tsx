@@ -12,6 +12,7 @@ import {
 import type { Belt, GraduationEntry } from '@/features/belts/api'
 import { BeltDrawing } from '@/features/belts/components/BeltDrawing'
 import { beltNames } from '@/features/graduations/results'
+import { toIsoDate } from '@/lib/dates'
 
 // Pop-up "Aprovar Fulano?": caminho das faixas (de → puladas → alvo) e a
 // data da aprovação, que já vem com o dia do exame
@@ -30,7 +31,10 @@ export function ApproveDialog({
   onOpenChange: (open: boolean) => void
   onConfirm: (approvedOn: string) => void
 }) {
-  const [approvedOn, setApprovedOn] = useState(examDate)
+  // Já vem com o dia do exame; se o exame ainda não aconteceu, hoje (a
+  // aprovação não pode ter data futura)
+  const today = toIsoDate(new Date())
+  const [approvedOn, setApprovedOn] = useState(examDate <= today ? examDate : today)
   const path = [...skipped, entry.target_belt]
 
   return (
@@ -41,7 +45,7 @@ export function ApproveDialog({
         </DialogHeader>
 
         <div className="flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-muted px-3 py-4">
-          <BeltStep belt={entry.snapshot_belt} />
+          <BeltStep belt={entry.current_belt} />
           {path.map((belt) => (
             <Fragment key={belt.id}>
               <ArrowRight className="size-4 shrink-0 text-muted-foreground" />

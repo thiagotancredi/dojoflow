@@ -483,3 +483,28 @@ async def test_entry_from_other_list_not_found(
         assert response.status_code == HTTPStatus.NOT_FOUND, response.text
 
     assert (await _entry(client, ctx, 'Ana Lima'))['result'] == 'pending'
+
+
+@pytest.mark.asyncio
+async def test_detail_shows_current_belt(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """O pop-up parte da faixa ATUAL (a que a aprovação usa), não da foto."""
+    ctx = await _setup(client, db_session)
+    await _add(client, ctx, 'Ana Lima', 'Verde')
+    await _add(client, ctx, 'Bruno Costa', 'Laranja')
+    await add_belt_record(
+        db_session,
+        ctx['students']['Ana Lima'],
+        ctx['belts']['Laranja'],
+        '2026-10-01',
+    )
+
+    ana = await _entry(client, ctx, 'Ana Lima')
+    bruno = await _entry(client, ctx, 'Bruno Costa')
+
+    assert ana['snapshot_belt']['name'] == 'Amarela'
+    assert ana['current_belt']['name'] == 'Laranja'
+    assert ana['current_graduated_on'] == '2026-10-01'
+    assert bruno['current_belt'] is None
+    assert bruno['current_graduated_on'] is None
