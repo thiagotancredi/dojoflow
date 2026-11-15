@@ -239,7 +239,7 @@ export function MonthlyTab({
         />
         {/* Barra da baixa em lote (aparece ao marcar alunos) */}
         {selected.size > 0 && (
-          <div className="sticky bottom-24 z-10 hidden flex-wrap items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-3 text-sm text-primary-foreground shadow-lg md:bottom-4">
+          <div className="sticky bottom-24 z-10 hidden flex-wrap md:flex items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-3 text-sm text-primary-foreground shadow-lg md:bottom-4">
             <span>
               <span className="font-semibold">
                 {selected.size} {selected.size === 1 ? 'aluno' : 'alunos'}
