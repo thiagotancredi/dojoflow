@@ -1,26 +1,30 @@
-import {
-  LayoutGrid,
-  Medal,
-  SlidersHorizontal,
-  Users,
-  Wallet,
-} from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { ChartLine, GraduationCap, SlidersHorizontal, Users } from 'lucide-react'
+import type { ComponentType } from 'react'
+
+import { RealIcon } from '@/app/components/RealIcon'
+
+// Ícone do menu: os do lucide e o "R$" desenhado à mão aceitam as mesmas
+// props (className e strokeWidth)
+export type NavIcon = ComponentType<{
+  className?: string
+  strokeWidth?: number
+}>
 
 export type NavItem = {
   to: string
   label: string
-  icon: LucideIcon
-  // "end": só fica ativo na URL exata (senão "/app" ficaria ativo em todas)
+  icon: NavIcon
+  // "end": só fica ativo na URL exata
   end?: boolean
 }
 
 // Uma única lista alimenta a sidebar (desktop) e a barra inferior (celular).
+// O app abre no Financeiro, mesmo ele não sendo o primeiro da lista.
 export const mainNavItems: NavItem[] = [
-  { to: '/app', label: 'Dashboard', icon: LayoutGrid, end: true },
+  { to: '/app/estatisticas', label: 'Estatísticas', icon: ChartLine },
   { to: '/app/alunos', label: 'Alunos', icon: Users },
-  { to: '/app/mensalidades', label: 'Mensalidades', icon: Wallet },
-  { to: '/app/graduacoes', label: 'Graduações', icon: Medal },
+  { to: '/app/financeiro', label: 'Financeiro', icon: RealIcon },
+  { to: '/app/graduacoes', label: 'Graduações', icon: GraduationCap },
 ]
 
 export const settingsNavItem: NavItem = {

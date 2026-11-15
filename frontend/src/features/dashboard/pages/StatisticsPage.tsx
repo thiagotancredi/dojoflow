@@ -2,7 +2,6 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { PageHeader } from '@/components/PageHeader'
-import { useAuth } from '@/features/auth/useAuth'
 import { useDashboardSummary } from '@/features/dashboard/api'
 import type { DashboardSummary } from '@/features/dashboard/api'
 import { DashboardCard } from '@/features/dashboard/components/DashboardCard'
@@ -21,12 +20,8 @@ const AGE_LABELS: Record<AgeGroup['group'], string> = {
   unknown: 'Sem data de nascimento',
 }
 
-// Dashboard em dois blocos: Alunos e Crescimento (o dinheiro foi para o
-// Financeiro).
-export function DashboardPage() {
-  const { master } = useAuth()
-  // Primeiro nome do mestre logado (ex.: "Mestre Teste" → "Mestre")
-  const firstName = master?.name.split(' ')[0]
+// Estatísticas dos alunos (o dinheiro fica no Financeiro).
+export function StatisticsPage() {
   const summary = useDashboardSummary()
   const data = summary.data
   // Estado comum dos cartões enquanto o resumo não chega
@@ -37,7 +32,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title={firstName ? `Olá, ${firstName}` : 'Dashboard'} />
+      <PageHeader title="Estatísticas" />
 
       <SectionTitle>Alunos</SectionTitle>
       <div className="grid gap-4 lg:grid-cols-3">
