@@ -32,6 +32,7 @@ from dojoflow.schemas.billing_api import (
     UpdateChargeApiPayload,
 )
 from dojoflow.schemas.billing_settings_api import BillingSettingsApi
+from dojoflow.schemas.graduation_overview import GraduationOverviewRead
 
 router = APIRouter(prefix='/students/{student_id}/billing', tags=['Billing'])
 overview_router = APIRouter(prefix='/billing', tags=['Billing'])
@@ -59,6 +60,22 @@ async def read_billing_overview(  # noqa: PLR0913, PLR0917
         search=search,
         page=page,
         page_size=page_size,
+    )
+
+
+@overview_router.get(
+    path='/graduation-overview', status_code=status.HTTP_200_OK
+)
+async def read_graduation_overview(
+    current_master: CurrentMasterDep,
+    billing_service_dep: BillingServiceDep,
+    month: str | None = Query(
+        default=None, pattern=r'^\d{4}-(0[1-9]|1[0-2])$'
+    ),
+) -> GraduationOverviewRead:
+    return await billing_service_dep.graduation_overview(
+        current_master.academy_id,
+        date.fromisoformat(f'{month}-01') if month else None,
     )
 
 

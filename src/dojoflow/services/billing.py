@@ -16,6 +16,7 @@ from dojoflow.database.transaction import transactional
 from dojoflow.models.academy import Academy
 from dojoflow.models.academy_billing_settings import AcademyBillingSettings
 from dojoflow.models.enrollment import Enrollment
+from dojoflow.models.graduation_list import GraduationList, GraduationListEntry
 from dojoflow.models.infinitepay_checkout import InfinitePayCheckout
 from dojoflow.models.master import Master
 from dojoflow.models.modality import Modality
@@ -42,6 +43,10 @@ from dojoflow.schemas.billing import (
 )
 from dojoflow.schemas.billing_settings_api import BillingSettingsApi
 from dojoflow.schemas.dashboard import DueSoonChargeRead
+from dojoflow.schemas.graduation_overview import (
+    ExamBillingRead,
+    GraduationOverviewRead,
+)
 from dojoflow.schemas.public_pay import (
     PublicPaymentItemRead,
     PublicPaymentRead,
@@ -1591,6 +1596,118 @@ class BillingService:  # noqa: PLR0904
             page_size=page_size,
         )
 
+    async def graduation_overview(
+        self, academy_id: int, month: date | None
+    ) -> GraduationOverviewRead:
+        """Aba Graduação do Financeiro: números do mês e os exames que
+        cobram nele (ou que ainda têm alguém devendo)."""
+        today = local_today()
+        month = month or today.replace(day=1)
+        next_month = first_monthly_month(month)
+        charges = await self._charges(
+            academy_id,
+            today,
+            Payment.due_date < next_month,
+            group=ChargeGroup.GRADUATION,
+        )
+        in_month = [c for c in charges if c.due_date >= month]
+        month_open = [
+            c
+            for c in charges
+            if c.status not in CLOSED_STATUSES
+            and (c.due_date >= month or c.status == 'overdue')
+        ]
+
+        return GraduationOverviewRead(
+            expected=sum(
+                (c.amount for c in in_month if c.status != 'waived'), ZERO
+            ),
+            received=await self._received_in(
+                academy_id, month, ChargeGroup.GRADUATION
+            ),
+            open_total=sum((c.open_amount for c in month_open), ZERO),
+            unpaid_students=len({c.student_id for c in month_open}),
+            exams=await self._exams(academy_id, month, next_month, today),
+        )
+
+    async def _exams(
+        self, academy_id: int, month: date, next_month: date, today: date
+    ) -> list[ExamBillingRead]:
+        rows = (
+            await self.db_session.execute(
+                select(GraduationList, Modality.name)
+                .join(Modality, Modality.id == GraduationList.modality_id)
+                .where(
+                    GraduationList.academy_id == academy_id,
+                    GraduationList.payment_due_date < next_month,
+                )
+                .order_by(GraduationList.payment_due_date, GraduationList.id)
+            )
+        ).all()
+        if not rows:
+            return []
+
+        entry_lists = dict(
+            (
+                await self.db_session.execute(
+                    select(
+                        GraduationListEntry.id,
+                        GraduationListEntry.graduation_list_id,
+                    ).where(
+                        GraduationListEntry.graduation_list_id.in_([
+                            listing.id for listing, _ in rows
+                        ])
+                    )
+                )
+            ).all()
+        )
+        by_list: dict[int, list[ChargeRead]] = {}
+        for charge in await self._charges(
+            academy_id,
+            today,
+            Payment.graduation_entry_id.in_(list(entry_lists)),
+            group=ChargeGroup.GRADUATION,
+        ):
+            list_id = entry_lists[charge.graduation_entry_id]
+            by_list.setdefault(list_id, []).append(charge)
+
+        exams = []
+        for listing, modality_name in rows:
+            list_charges = by_list.get(listing.id, [])
+            owing = [
+                c for c in list_charges if c.status not in CLOSED_STATUSES
+            ]
+            due = listing.payment_due_date
+            if due < month and not owing:
+                continue
+            exams.append(
+                ExamBillingRead(
+                    list_id=listing.public_id,
+                    name=listing.name,
+                    modality_name=modality_name,
+                    exam_date=listing.exam_date,
+                    payment_due_date=due,
+                    total=sum(
+                        (
+                            c.amount
+                            for c in list_charges
+                            if c.status != 'waived'
+                        ),
+                        ZERO,
+                    ),
+                    received=sum((c.paid for c in list_charges), ZERO),
+                    owing=len({c.student_id for c in owing}),
+                    days_late=(
+                        (today - due).days if owing and due < today else None
+                    ),
+                    days_to_due=(
+                        (due - today).days if owing and due >= today else None
+                    ),
+                )
+            )
+
+        return exams
+
     async def _received_by_method(
         self, academy_id: int, month: date
     ) -> list[MethodTotalRead]:
@@ -1615,11 +1732,16 @@ class BillingService:  # noqa: PLR0904
             if amount > 0
         ]
 
-    async def _received_in(self, academy_id: int, month: date) -> Decimal:
+    async def _received_in(
+        self,
+        academy_id: int,
+        month: date,
+        group: ChargeGroup = ChargeGroup.MONTHLY,
+    ) -> Decimal:
         received = await self.db_session.scalar(
             select(func.sum(PaymentTransaction.gross_amount)).where(
                 PaymentTransaction.academy_id == academy_id,
-                PaymentTransaction.charge_group == ChargeGroup.MONTHLY,
+                PaymentTransaction.charge_group == group,
                 PaymentTransaction.received_at >= month,
                 PaymentTransaction.received_at < first_monthly_month(month),
             )
