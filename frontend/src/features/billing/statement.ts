@@ -1,5 +1,5 @@
 import type { Charge, Payment } from '@/features/billing/api'
-import { formatMonth } from '@/features/billing/labels'
+import { chargeLabel, formatMonth } from '@/features/billing/labels'
 
 // Um pagamento visto de dentro de uma mensalidade: quanto dele foi para ela
 export type ChargePayment = { payment: Payment; amount: string }
@@ -9,7 +9,9 @@ export function chargeTitle(charge: Charge) {
     return `Graduação · ${charge.description ?? ''} · ${charge.modality_name}`
   }
   const what =
-    charge.kind === 'enrollment_fee' ? 'Taxa de matrícula' : charge.modality_name
+    charge.kind === 'enrollment_fee' || charge.kind === 'extra'
+      ? chargeLabel(charge)
+      : charge.modality_name
   return `${formatMonth(charge.reference_month)} · ${what}`
 }
 

@@ -46,8 +46,9 @@ export const ERROR_MESSAGES: Record<string, string> = {
   ENROLLMENT_BILLING_INCOMPLETE:
     'Matrícula ativa precisa de mensalidade e dia de vencimento, ou ser marcada como isenta.',
   CHARGE_ALREADY_EXISTS: 'Esse mês já tem cobrança nesta matrícula.',
-  CHARGE_NOT_PAST:
-    'Só dá para lançar meses anteriores ao início da cobrança automática.',
+  CHARGE_MONTH_IN_FUTURE: 'Meses futuros entram pelo Adiantamento.',
+  ADVANCE_NOT_AVAILABLE: 'Esta matrícula não tem mensalidade para adiantar.',
+  PAY_LINK_EXCEEDS_OPEN: 'O valor passa do total em aberto. Lance a cobrança antes.',
   CHARGE_HAS_PAYMENTS:
     'Essa cobrança já tem pagamento. Exclua a baixa antes de mudar.',
   CHARGE_NOT_FOUND: 'Cobrança não encontrada.',
@@ -82,7 +83,11 @@ const GENERIC_MESSAGE = 'Não foi possível falar com o servidor. Tente de novo.
 
 // Códigos cujo "detail" já vem em português e diz mais que o texto fixo
 // (ex.: "O máximo é R$ 200,00.")
-const DETAIL_IS_MESSAGE = new Set(['PAYMENT_EXCEEDS_OPEN', 'NOTHING_TO_PAY'])
+const DETAIL_IS_MESSAGE = new Set([
+  'PAYMENT_EXCEEDS_OPEN',
+  'NOTHING_TO_PAY',
+  'PAY_LINK_EXCEEDS_OPEN',
+])
 
 // Erro de validação do FastAPI (422): uma lista de problemas por campo
 type ValidationIssue = { loc: (string | number)[]; msg: string; type: string }

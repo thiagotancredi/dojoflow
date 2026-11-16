@@ -1,3 +1,4 @@
+import type { Charge, ChargeCategory } from '@/features/billing/api'
 import type { Schemas } from '@/lib/api/client'
 
 // Textos e formatos das telas de mensalidade
@@ -75,4 +76,44 @@ export function formatMoneyShort(value: string | number) {
     currency: 'BRL',
     maximumFractionDigits: 0,
   })
+}
+
+// Categorias das cobranças avulsas (lista fixa, igual em toda academia)
+export const CATEGORY_LABELS: Record<ChargeCategory, string> = {
+  uniform: 'Uniforme',
+  equipment: 'Equipamento',
+  championship: 'Campeonato',
+  event: 'Evento',
+  federation: 'Federação',
+  private_class: 'Aula particular',
+  products: 'Produtos',
+  other: 'Outros',
+}
+
+// "O que cobrar" no Lançar cobrança, nesta ordem
+export type LaunchOption = 'monthly' | 'advance' | 'enrollment_fee' | ChargeCategory
+
+export const LAUNCH_OPTIONS: { value: LaunchOption; label: string }[] = [
+  { value: 'monthly', label: 'Mensalidade' },
+  { value: 'advance', label: 'Adiantamento de mensalidade' },
+  { value: 'enrollment_fee', label: 'Matrícula' },
+  ...(Object.entries(CATEGORY_LABELS) as [ChargeCategory, string][]).map(
+    ([value, label]) => ({ value, label }),
+  ),
+]
+
+// "Mensalidade de novembro", "Taxa de matrícula", "Uniforme" ou, em
+// "Outros", o que o mestre escreveu
+export function chargeLabel(charge: Charge) {
+  if (charge.kind === 'enrollment_fee') return 'Taxa de matrícula'
+  if (charge.kind === 'graduation') return `Graduação · ${charge.description ?? ''}`
+  if (charge.kind === 'extra') {
+    if (charge.category === 'other' && charge.description) return charge.description
+    return charge.category ? CATEGORY_LABELS[charge.category] : 'Outros'
+  }
+  const month = new Date(`${charge.reference_month}T12:00:00`).toLocaleDateString(
+    'pt-BR',
+    { month: 'long' },
+  )
+  return `Mensalidade de ${month}`
 }

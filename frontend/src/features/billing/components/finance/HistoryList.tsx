@@ -8,6 +8,7 @@ import { AutomaticInfo, ChargeMenu } from '@/features/billing/components/ChargeM
 import type { ChargeHandlers } from '@/features/billing/history'
 import { ChargeStatusChip } from '@/features/billing/components/ChargeStatusChip'
 import { chargeDetail } from '@/features/billing/history'
+import { chargeLabel } from '@/features/billing/labels'
 import type { ChargePayment } from '@/features/billing/statement'
 import { formatMoney } from '@/lib/money'
 
@@ -119,7 +120,9 @@ export function Title({ charge, short }: { charge: Charge; short?: boolean }): R
       </span>
     )
   }
-  if (charge.kind === 'enrollment_fee') return 'Taxa de matrícula'
+  if (charge.kind === 'enrollment_fee' || charge.kind === 'extra') {
+    return chargeLabel(charge)
+  }
   const month = new Date(`${charge.reference_month}T12:00:00`).toLocaleDateString(
     'pt-BR',
     { month: 'long' },

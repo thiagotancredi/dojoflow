@@ -19,12 +19,13 @@ import { CheckoutReviews } from '@/features/billing/components/InfinitePayBits'
 import { PaymentDialog } from '@/features/billing/components/PaymentDialog'
 import { WhatsAppButton } from '@/features/billing/components/WhatsAppButton'
 import {
-  useRenewPayLink,
+  useCreatePayLink,
   useResolveReview,
   useStudentBilling,
 } from '@/features/billing/hooks'
 import {
   PAYMENT_METHOD_LABELS,
+  chargeLabel,
   currentMonth,
   formatDayMonth,
 } from '@/features/billing/labels'
@@ -43,7 +44,7 @@ const LABEL =
 export function StudentFinanceTab({ student: detail }: { student: StudentDetail }) {
   const studentId = detail.student.id
   const { data, isLoading, error, refetch } = useStudentBilling(studentId)
-  const renewLink = useRenewPayLink(studentId)
+  const renewLink = useCreatePayLink(studentId)
   const resolveReview = useResolveReview(studentId)
   const [paying, setPaying] = useState<{ group: 'monthly' | 'graduation'; chargeId: string | null } | null>(null)
   const [renewing, setRenewing] = useState(false)
@@ -73,7 +74,7 @@ export function StudentFinanceTab({ student: detail }: { student: StudentDetail 
 
   async function confirmRenew() {
     try {
-      await renewLink.mutate()
+      await renewLink.mutate(data!.open_total)
       toast.success('Link novo gerado')
       refetch()
     } catch (caught) {
@@ -374,15 +375,8 @@ function Actions({
   )
 }
 
-// "Mensalidade de novembro" (ou "Taxa de matrícula")
-function monthlyTitle(charge: Charge) {
-  if (charge.kind === 'enrollment_fee') return 'Taxa de matrícula'
-  const month = new Date(`${charge.reference_month}T12:00:00`).toLocaleDateString(
-    'pt-BR',
-    { month: 'long' },
-  )
-  return `Mensalidade de ${month}`
-}
+// "Mensalidade de novembro", "Taxa de matrícula" ou a categoria
+const monthlyTitle = chargeLabel
 
 // A mensagem vai para um responsável? (o número do link é o dele)
 function responsibleReceiving(detail: StudentDetail, url: string | null | undefined) {

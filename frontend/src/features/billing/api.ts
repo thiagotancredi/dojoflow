@@ -17,6 +17,10 @@ export type GraduationOverview = Schemas['GraduationOverviewRead']
 export type ExamBilling = Schemas['ExamBillingRead']
 
 export type LaunchChargePayload = Schemas['LaunchChargeApiPayload']
+export type AdvancePayload = Schemas['AdvanceChargesApiPayload']
+// Categorias fixas das cobranças avulsas (uniforme, campeonato...)
+export type ChargeCategory = Schemas['ChargeCategory']
+export type PayLink = Schemas['PayLinkApiRead']
 export type UpdateChargePayload = Schemas['UpdateChargeApiPayload']
 export type CreatePaymentPayload = Schemas['CreatePaymentApiPayload']
 export type BulkPaymentPayload = Schemas['BulkPaymentApiPayload']
@@ -44,12 +48,20 @@ export function getStudentBilling(studentId: string, signal?: AbortSignal) {
   )
 }
 
-export function launchPastCharge(
-  studentId: string,
-  payload: LaunchChargePayload,
-) {
+// Lançar cobrança: mensalidade (até o mês atual), matrícula ou avulsa
+export function launchCharge(studentId: string, payload: LaunchChargePayload) {
   return unwrap(
     api.POST('/api/v1/students/{student_id}/billing/charges', {
+      params: { path: { student_id: studentId } },
+      body: payload,
+    }),
+  )
+}
+
+// Adiantamento: os próximos meses da matrícula, de uma vez
+export function launchAdvance(studentId: string, payload: AdvancePayload) {
+  return unwrap(
+    api.POST('/api/v1/students/{student_id}/billing/charges/advance', {
       params: { path: { student_id: studentId } },
       body: payload,
     }),
@@ -135,11 +147,12 @@ export function resolveReview(studentId: string, reviewId: string) {
   )
 }
 
-// Troca o link de pagamento do aluno (o antigo para de funcionar)
-export function renewPayLink(studentId: string) {
+// "Cobrar": link novo com o valor digitado (o anterior para de funcionar)
+export function createPayLink(studentId: string, amount: string) {
   return unwrap(
     api.POST('/api/v1/students/{student_id}/billing/pay-link', {
       params: { path: { student_id: studentId } },
+      body: { amount },
     }),
   )
 }

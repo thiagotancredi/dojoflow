@@ -525,8 +525,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Launch Past Charge */
-        post: operations["launch_past_charge_api_v1_students__student_id__billing_charges_post"];
+        /** Launch Charge */
+        post: operations["launch_charge_api_v1_students__student_id__billing_charges_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/students/{student_id}/billing/charges/advance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Launch Advance */
+        post: operations["launch_advance_api_v1_students__student_id__billing_charges_advance_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -628,8 +645,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Renew Pay Link */
-        post: operations["renew_pay_link_api_v1_students__student_id__billing_pay_link_post"];
+        /** Create Pay Link */
+        post: operations["create_pay_link_api_v1_students__student_id__billing_pay_link_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1237,6 +1254,19 @@ export interface components {
         AdminStatusUpdate: {
             status: components["schemas"]["AcademyStatus"];
         };
+        /**
+         * AdvanceChargesApiPayload
+         * @description Adiantamento: os próximos meses da matrícula, de uma vez.
+         */
+        AdvanceChargesApiPayload: {
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /** Months */
+            months: number;
+        };
         /** AgeGroupCountRead */
         AgeGroupCountRead: {
             /**
@@ -1628,8 +1658,15 @@ export interface components {
             status: "paid" | "partial" | "overdue" | "upcoming" | "waived";
             /** Description */
             description: string | null;
+            category?: components["schemas"]["ChargeCategory"] | null;
             graduation?: components["schemas"]["ChargeGraduationApiRead"] | null;
         };
+        /**
+         * ChargeCategory
+         * @description Categorias fixas das cobranças avulsas (iguais em toda academia).
+         * @enum {string}
+         */
+        ChargeCategory: "uniform" | "equipment" | "championship" | "event" | "federation" | "private_class" | "products" | "other";
         /**
          * ChargeGraduationApiRead
          * @description Cobrança de graduação: o exame, a faixa-alvo e como cobrar.
@@ -2109,7 +2146,11 @@ export interface components {
             /** Receipt Url */
             receipt_url?: string | null;
         };
-        /** LaunchChargeApiPayload */
+        /**
+         * LaunchChargeApiPayload
+         * @description Lançar cobrança: mensalidade (com o mês), taxa de matrícula ou
+         *     avulsa de uma categoria ("Outros" pede a descrição).
+         */
         LaunchChargeApiPayload: {
             /**
              * Enrollment Id
@@ -2117,10 +2158,15 @@ export interface components {
              */
             enrollment_id: string;
             /**
-             * Reference Month
-             * Format: date
+             * Kind
+             * @enum {string}
              */
-            reference_month: string;
+            kind: "monthly" | "enrollment_fee" | "extra";
+            category?: components["schemas"]["ChargeCategory"] | null;
+            /** Description */
+            description?: string | null;
+            /** Reference Month */
+            reference_month?: string | null;
             /** Amount */
             amount: number | string;
             /**
@@ -2327,10 +2373,22 @@ export interface components {
              */
             status: "processing";
         };
+        /**
+         * PayLinkApiPayload
+         * @description "Cobrar": quanto o link vai cobrar (até o total em aberto).
+         */
+        PayLinkApiPayload: {
+            /** Amount */
+            amount: number | string;
+        };
         /** PayLinkApiRead */
         PayLinkApiRead: {
             /** Pay Url */
             pay_url: string;
+            /** Whatsapp Url */
+            whatsapp_url?: string | null;
+            /** Amount */
+            amount?: string | null;
         };
         /** PaymentApiRead */
         PaymentApiRead: {
@@ -2359,7 +2417,7 @@ export interface components {
          * PaymentKind
          * @enum {string}
          */
-        PaymentKind: "monthly" | "enrollment_fee" | "graduation";
+        PaymentKind: "monthly" | "enrollment_fee" | "graduation" | "extra";
         /**
          * PaymentMethod
          * @enum {string}
@@ -3836,7 +3894,7 @@ export interface operations {
             };
         };
     };
-    launch_past_charge_api_v1_students__student_id__billing_charges_post: {
+    launch_charge_api_v1_students__student_id__billing_charges_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3858,6 +3916,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChargeApiRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    launch_advance_api_v1_students__student_id__billing_charges_advance_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvanceChargesApiPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeApiRead"][];
                 };
             };
             /** @description Validation Error */
@@ -4071,7 +4164,7 @@ export interface operations {
             };
         };
     };
-    renew_pay_link_api_v1_students__student_id__billing_pay_link_post: {
+    create_pay_link_api_v1_students__student_id__billing_pay_link_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4080,7 +4173,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayLinkApiPayload"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -5,8 +5,9 @@ import {
   getBillingSettings,
   getGraduationOverview,
   getStudentBilling,
-  launchPastCharge,
-  renewPayLink,
+  createPayLink,
+  launchAdvance,
+  launchCharge,
   resolveReview,
   saveBillingSettings,
   unwaiveCharge,
@@ -15,6 +16,7 @@ import {
 } from '@/features/billing/api'
 import type {
   BillingSettings,
+  AdvancePayload,
   CreatePaymentPayload,
   LaunchChargePayload,
   OverviewFilters,
@@ -53,13 +55,19 @@ export function useBillingSettings() {
 }
 
 // ---------- Escrita ----------
-export function useRenewPayLink(studentId: string) {
-  return useMutation(() => renewPayLink(studentId))
+export function useCreatePayLink(studentId: string) {
+  return useMutation((amount: string) => createPayLink(studentId, amount))
 }
 
-export function useLaunchPastCharge(studentId: string) {
+export function useLaunchCharge(studentId: string) {
   return useMutation((payload: LaunchChargePayload) =>
-    launchPastCharge(studentId, payload),
+    launchCharge(studentId, payload),
+  )
+}
+
+export function useLaunchAdvance(studentId: string) {
+  return useMutation((payload: AdvancePayload) =>
+    launchAdvance(studentId, payload),
   )
 }
 

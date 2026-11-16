@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useLaunchPastCharge } from '@/features/billing/hooks'
+import { useLaunchCharge } from '@/features/billing/hooks'
 import { currentMonth, formatMonth } from '@/features/billing/labels'
 import type { Enrollment } from '@/features/students/api'
 import { applyFieldErrors, showApiError } from '@/lib/api/errors'
@@ -121,7 +121,7 @@ function LaunchForm({
   onCancel: () => void
   onSaved: () => void
 }) {
-  const { mutate, isPending } = useLaunchPastCharge(studentId)
+  const { mutate, isPending } = useLaunchCharge(studentId)
   const first = enrollments[0]
   const month = lastLaunchableMonth(first)
   const form = useForm<LaunchValues>({
@@ -169,6 +169,7 @@ function LaunchForm({
     try {
       await mutate({
         enrollment_id: values.enrollment_id,
+        kind: 'monthly',
         reference_month: `${values.month}-01`,
         amount: parseMoney(values.amount) as string,
         due_date: values.due_date,
