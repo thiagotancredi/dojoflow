@@ -81,7 +81,12 @@ async def _scenario(session: AsyncSession, monthly_fee: str = '110') -> dict:
         )
     )
     await session.commit()
-    return {'student_id': student.id, 'token': student.pay_token}
+    return {
+        'student_id': student.id,
+        'token': student.pay_token,
+        # A graduação tem o link próprio
+        'graduation_token': student.graduation_pay_token,
+    }
 
 
 async def _pix(session: AsyncSession) -> None:
@@ -103,8 +108,11 @@ async def test_public_graduation_page_lists_only_graduation(
     ctx = await _scenario(db_session)
     await _pix(db_session)
     url = f'/api/v1/public/pay/{ctx["token"]}'
+    graduation_url = f'/api/v1/public/pay/{ctx["graduation_token"]}'
 
-    graduation = await client.get(url, params={'group': 'graduation'})
+    graduation = await client.get(
+        graduation_url, params={'group': 'graduation'}
+    )
     monthly = await client.get(url)
 
     assert graduation.status_code == HTTPStatus.OK, graduation.text
@@ -184,14 +192,16 @@ async def test_checkout_reuse_respects_group(
 
     with fake_infinitepay(link_created(NEW_LINK)) as fake:
         response = await client.post(
-            f'/api/v1/public/pay/{ctx["token"]}/checkout',
+            f'/api/v1/public/pay/{ctx["graduation_token"]}/checkout',
             params={'group': 'graduation'},
         )
 
     assert response.status_code == HTTPStatus.OK, response.text
     assert response.json()['url'] == NEW_LINK
     [body] = fake.bodies('/links')
-    assert body['redirect_url'].endswith(f'/pagar/{ctx["token"]}/graduacao')
+    assert body['redirect_url'].endswith(
+        f'/pagar/{ctx["graduation_token"]}/graduacao'
+    )
     assert [item['description'] for item in body['items']] == [
         'Graduação · Verde'
     ]

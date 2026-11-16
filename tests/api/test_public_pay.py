@@ -162,7 +162,7 @@ async def test_public_pay_overdue_plus_current_month(
 
 
 @pytest.mark.asyncio
-async def test_public_pay_excludes_next_month_charge(
+async def test_public_pay_includes_advanced_month(
     client: AsyncClient,
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -174,15 +174,16 @@ async def test_public_pay_excludes_next_month_charge(
         start='2027-11-01',
         today=date(2027, 11, 1),
     )
-    # A cobrança de dezembro já existe, mas ainda não é do mês
+    # Dezembro já existe (adiantado): o total em aberto inclui ele
     await generate_charges(db_session, date(2027, 12, 1))
 
     body = (await client.get(_pay_url(ctx['token']))).json()
 
     assert body['items'] == [
-        {'label': 'Mensalidade · novembro', 'amount': '100.00'}
+        {'label': 'Mensalidade · novembro', 'amount': '100.00'},
+        {'label': 'Mensalidade · dezembro', 'amount': '100.00'},
     ]
-    assert body['total'] == '100.00'
+    assert body['total'] == '200.00'
 
 
 @pytest.mark.asyncio
@@ -386,6 +387,7 @@ async def test_renew_pay_link_invalidates_old(
     response = await client.post(
         f'/api/v1/students/{ctx["student_id"]}/billing/pay-link',
         headers=ctx['headers'],
+        json={'amount': '200'},
     )
 
     assert response.status_code == HTTPStatus.OK, response.text

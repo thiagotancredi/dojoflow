@@ -25,6 +25,7 @@ from dojoflow.schemas.billing_api import (
     ChargeApiRead,
     CreatePaymentApiPayload,
     LaunchChargeApiPayload,
+    PayLinkApiPayload,
     PayLinkApiRead,
     PaymentApiRead,
     PaymentPreviewApiPayload,
@@ -296,16 +297,21 @@ async def create_bulk_payments(
 
 
 @router.post(path='/pay-link', status_code=status.HTTP_200_OK)
-async def renew_pay_link(
+async def create_pay_link(
     student_id: StudentIdDep,
+    data: PayLinkApiPayload,
     current_master: CurrentMasterDep,
     billing_service_dep: BillingServiceDep,
 ) -> PayLinkApiRead:
-    pay_url = await billing_service_dep.renew_pay_token(
-        current_master.academy_id, student_id
+    link = await billing_service_dep.create_pay_link(
+        current_master.academy_id, student_id, data.amount
     )
 
-    return PayLinkApiRead(pay_url=pay_url)
+    return PayLinkApiRead(
+        pay_url=link.pay_url,
+        whatsapp_url=link.whatsapp_url,
+        amount=link.amount,
+    )
 
 
 @router.post(

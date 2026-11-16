@@ -202,7 +202,7 @@ class InfinitePayService:
         menos de 24 h); senão cria um novo na InfinitePay.
         """
         billing = BillingService(self.db_session)
-        owner = await billing.pay_token_owner(token)
+        owner = await billing.pay_token_owner(token, group)
         if owner is None:
             raise NotFoundError(
                 'Payment link not found.', code='PAY_LINK_INVALID'
@@ -389,11 +389,12 @@ class InfinitePayService:
             ),
             Decimal(0),
         )
-        # Link cancelado (baixa manual no meio do caminho) ou valor que já
-        # não é o devido: nada é lançado sozinho, o mestre confere
+        # Link cancelado (baixa manual no meio do caminho) ou valor maior
+        # que o devido: nada é lançado sozinho, o mestre confere. Menor que
+        # o devido é o link com valor: a baixa vai do mais antigo ao novo
         if (
             checkout.status is not CheckoutStatus.OPEN
-            or owed != checkout.amount
+            or checkout.amount > owed
         ):
             checkout.status = CheckoutStatus.REVIEW
             await self.db_session.flush()

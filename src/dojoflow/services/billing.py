@@ -1,4 +1,3 @@
-import calendar
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -41,6 +40,7 @@ from dojoflow.schemas.billing import (
     ModalityTotalRead,
     OverdueStudentRead,
     OverviewFilter,
+    PayLinkRead,
     PaymentRead,
     StudentBillingRead,
 )
@@ -130,6 +130,15 @@ def pay_url(token: str, group: ChargeGroup = ChargeGroup.MONTHLY) -> str:
     return f'{app_settings.WEB_APP_URL}/pagar/{token}{suffix}'
 
 
+def _token_column(group: ChargeGroup):
+    """Coluna do código do link de cada grupo."""
+    return (
+        Student.graduation_pay_token
+        if group is ChargeGroup.GRADUATION
+        else Student.pay_token
+    )
+
+
 def _months_from(start: date, end: date) -> list[date]:
     """Meses (dia 1) de start até end, inclusive."""
     months = []
@@ -184,30 +193,43 @@ def payable_charges(
     today: date,
     group: ChargeGroup = ChargeGroup.MONTHLY,
 ) -> list[ChargeRead]:
-    """O que dá para pagar hoje, do mais antigo ao mais novo, só do grupo.
+    """O que dá para pagar, do mais antigo ao mais novo, só do grupo: tudo
+    em aberto (vencido, do mês, adiantado e avulsas).
 
-    Mensalidade: tudo em aberto que vence até o fim do mês de hoje (o
-    vencido mais a do mês). Graduação: tudo em aberto, porque a data limite
-    pode cair no mês seguinte.
-
-    É o total da /pagar, do checkout e do {valor} do WhatsApp.
+    É a base da /pagar, do checkout e do {valor} do WhatsApp; o link com
+    valor (``link_items``) cobra só uma parte disso.
     """
-    month_end = date(
-        today.year,
-        today.month,
-        calendar.monthrange(today.year, today.month)[1],
-    )
+    del today  # mantido na assinatura: as chamadas já passam o dia
     kinds = kinds_of(group)
     return sorted(
         (
             c
             for c in charges
-            if c.kind in kinds
-            and c.status not in CLOSED_STATUSES
-            and (group is ChargeGroup.GRADUATION or c.due_date <= month_end)
+            if c.kind in kinds and c.status not in CLOSED_STATUSES
         ),
-        key=lambda c: (c.reference_month, c.kind is PaymentKind.MONTHLY),
+        key=lambda c: (c.due_date, c.created_at),
     )
+
+
+def link_items(
+    payable: list[ChargeRead], pay_amount: Decimal | None
+) -> list[tuple[ChargeRead, Decimal]]:
+    """O que o link cobra de cada item: o valor que o mestre digitou (ou o
+    total, sem valor) distribuído do mais antigo para o mais novo. Nunca
+    passa do que está em aberto agora."""
+    total = sum((c.open_amount for c in payable), ZERO)
+    amount = total if pay_amount is None else min(pay_amount, total)
+    if amount <= 0:
+        return []
+    by_id = {c.id: c for c in payable}
+    plan = allocate_oldest_first(
+        [
+            OpenCharge(c.id, c.due_date, c.created_at, c.open_amount)
+            for c in payable
+        ],
+        amount,
+    )
+    return [(by_id[charge_id], part) for charge_id, part in plan if part > 0]
 
 
 ADULT_AGE = 18
@@ -231,6 +253,9 @@ class StudentContact:
     responsibles: tuple[Contact, ...]
     pay_token: str
     email: str | None = None
+    # Valor do link atual (None = total) e o link próprio da graduação
+    pay_amount: Decimal | None = None
+    graduation_pay_token: str = ''
 
 
 def choose_recipient(
@@ -307,14 +332,13 @@ def whatsapp_url(  # noqa: PLR0913, PLR0917
     telefone.
 
     ``charges``: as cobranças do aluno já carregadas (com todas as em
-    aberto). O mestre pode cobrar antes do vencimento; o que já tem baixa
-    não entra. O {valor} e os {meses} são o mesmo total da /pagar (vencido
-    mais a do mês).
+    aberto). O {valor} e os {meses} são o que o link cobra: o valor que o
+    mestre gerou no "Cobrar" (ou tudo em aberto), do mais antigo ao novo.
     """
     recipient = choose_recipient(student, today)
-    payable = payable_charges(charges, today)
+    items = link_items(payable_charges(charges, today), student.pay_amount)
 
-    if recipient is None or not payable:
+    if recipient is None or not items:
         return None
 
     contact, _ = recipient
@@ -322,8 +346,8 @@ def whatsapp_url(  # noqa: PLR0913, PLR0917
         '{nome}': contact.name.split()[0],
         '{mestre}': sender.master,
         '{academia}': sender.academy,
-        '{valor}': format_brl(sum((c.open_amount for c in payable), ZERO)),
-        '{meses}': open_label(payable, today.year),
+        '{valor}': format_brl(sum((part for _, part in items), ZERO)),
+        '{meses}': open_label([c for c, _ in items], today.year),
         '{pix}': settings.pix_key or '',
         '{recebedor}': settings.recipient_name or sender.academy,
         '{link}': pay_url(student.pay_token),
@@ -361,7 +385,9 @@ def graduation_whatsapp_url(
         '{modalidade}': charge.modality_name,
         '{valor}': format_brl(charge.open_amount),
         '{data}': charge.due_date.strftime('%d/%m'),
-        '{link}': pay_url(student.pay_token, ChargeGroup.GRADUATION),
+        '{link}': pay_url(
+            student.graduation_pay_token, ChargeGroup.GRADUATION
+        ),
         '{mestre}': sender.master,
         '{academia}': sender.academy,
     }
@@ -742,7 +768,7 @@ class BillingService:  # noqa: PLR0904
         }
         contact = (await self.contacts(academy_id, {student_id}))[student_id]
         sender = await self._sender(academy_id)
-        link = pay_url(contact.pay_token, ChargeGroup.GRADUATION)
+        link = pay_url(contact.graduation_pay_token, ChargeGroup.GRADUATION)
 
         result = []
         for charge in charges:
@@ -1292,6 +1318,8 @@ class BillingService:  # noqa: PLR0904
                     Student.birth_date,
                     Student.pay_token,
                     Student.email,
+                    Student.pay_amount,
+                    Student.graduation_pay_token,
                 ).where(
                     Student.academy_id == academy_id,
                     Student.id.in_(student_ids),
@@ -1333,6 +1361,8 @@ class BillingService:  # noqa: PLR0904
                 responsibles=tuple(responsibles.get(row.id, [])),
                 pay_token=row.pay_token,
                 email=row.email,
+                pay_amount=row.pay_amount,
+                graduation_pay_token=row.graduation_pay_token,
             )
             for row in students
         }
@@ -1373,13 +1403,40 @@ class BillingService:  # noqa: PLR0904
         )
 
     @transactional
-    async def renew_pay_token(self, academy_id: int, student_id: int) -> str:
-        """Troca o código do link de pagamento; o antigo para de valer."""
+    @transactional
+    async def create_pay_link(
+        self,
+        academy_id: int,
+        student_id: int,
+        amount: Decimal,
+        today: date | None = None,
+    ) -> PayLinkRead:
+        """ "Cobrar": um link novo com o valor que o mestre digitou. O link
+        anterior para de valer (um link por aluno); a graduação não muda."""
+        today = today or local_today()
+        await self.lock_student_charges(academy_id, student_id)
+        payable = await self.payable_for_student(academy_id, student_id, today)
+        open_total = sum((c.open_amount for c in payable), ZERO)
+        if open_total <= 0:
+            raise ConflictError(
+                'Este aluno não tem nada em aberto.', code='NOTHING_TO_PAY'
+            )
+        if amount > open_total:
+            raise ConflictError(
+                'O valor passa do total em aberto '
+                f'({format_brl(open_total)}). Lance a cobrança antes.',
+                code='PAY_LINK_EXCEEDS_OPEN',
+            )
+
         token = new_pay_token()
         updated = await self.db_session.scalar(
             update(Student)
             .where(Student.academy_id == academy_id, Student.id == student_id)
-            .values(pay_token=token)
+            .values(
+                pay_token=token,
+                pay_amount=amount,
+                pay_link_month=today.replace(day=1),
+            )
             .returning(Student.id)
         )
         if updated is None:
@@ -1387,8 +1444,19 @@ class BillingService:  # noqa: PLR0904
 
         # O checkout aberto volta para o link antigo depois de pago (e cairia
         # em "Link inválido"): o próximo "Pagar" cria outro
-        await self._cancel_open_checkouts(academy_id, student_id, None)
-        return pay_url(token)
+        await self._cancel_open_checkouts(
+            academy_id, student_id, ChargeGroup.MONTHLY
+        )
+        charges = await self._charges(
+            academy_id, today, Enrollment.student_id == student_id
+        )
+        return PayLinkRead(
+            pay_url=pay_url(token),
+            whatsapp_url=await self._whatsapp_url_for(
+                academy_id, student_id, charges, today
+            ),
+            amount=amount,
+        )
 
     async def _cancel_open_checkouts(
         self, academy_id: int, student_id: int, group: ChargeGroup | None
@@ -1411,7 +1479,7 @@ class BillingService:  # noqa: PLR0904
             .values(status=CheckoutStatus.CANCELED)
         )
 
-    async def public_payment(
+    async def public_payment(  # noqa: PLR0914
         self,
         token: str,
         today: date | None = None,
@@ -1425,10 +1493,15 @@ class BillingService:  # noqa: PLR0904
         """
         row = (
             await self.db_session.execute(
-                select(Student.id, Student.academy_id, Academy.name)
+                select(
+                    Student.id,
+                    Student.academy_id,
+                    Academy.name,
+                    Student.pay_amount,
+                )
                 .join(Academy, Academy.id == Student.academy_id)
                 .where(
-                    Student.pay_token == token,
+                    _token_column(group) == token,
                     Academy.status == AcademyStatus.ACTIVE,
                 )
             )
@@ -1436,17 +1509,23 @@ class BillingService:  # noqa: PLR0904
         if row is None:
             return None
 
-        student_id, academy_id, academy_name = row
+        student_id, academy_id, academy_name, pay_amount = row
         today = today or local_today()
         payable = await self.payable_for_student(
             academy_id, student_id, today, group=group
         )
+        # Mensalidade: o link cobra o valor que o mestre gerou (do mais
+        # antigo para o mais novo); graduação: tudo
+        items = link_items(
+            payable, pay_amount if group is ChargeGroup.MONTHLY else None
+        )
+        payable = [charge for charge, _ in items]
         contact = (await self.contacts(academy_id, {student_id}))[student_id]
         recipient = choose_recipient(contact, today)
         to_responsible = recipient is not None and recipient[1]
         greeting = recipient[0].name if recipient else contact.name
         settings = await self.get_settings(academy_id)
-        total = sum((c.open_amount for c in payable), ZERO)
+        total = sum((part for _, part in items), ZERO)
 
         checkout_enabled = await self.checkout_enabled(academy_id)
 
@@ -1471,10 +1550,11 @@ class BillingService:  # noqa: PLR0904
                         today.year,
                         contact.name.split()[0] if to_responsible else None,
                         len({c.modality_name for c in payable}) > 1,
-                    ),
-                    amount=charge.open_amount,
+                    )
+                    + (' · parte' if part < charge.open_amount else ''),
+                    amount=part,
                 )
-                for charge in payable
+                for charge, part in items
             ],
             total=total.quantize(CENTS),
             recipient_name=settings.recipient_name or academy_name,
@@ -1483,17 +1563,25 @@ class BillingService:  # noqa: PLR0904
             group=group,
         )
 
-    async def pay_token_owner(self, token: str) -> tuple[int, int] | None:
+    async def pay_token_owner(
+        self, token: str, group: ChargeGroup | None = None
+    ) -> tuple[int, int] | None:
         """(academy_id, student_id) do dono do link /pagar; None quando o
-        código não existe ou a academia está bloqueada."""
+        código não existe ou a academia está bloqueada. Sem grupo, vale o
+        link da mensalidade ou o da graduação."""
+        match = (
+            or_(
+                Student.pay_token == token,
+                Student.graduation_pay_token == token,
+            )
+            if group is None
+            else _token_column(group) == token
+        )
         row = (
             await self.db_session.execute(
                 select(Student.academy_id, Student.id)
                 .join(Academy, Academy.id == Student.academy_id)
-                .where(
-                    Student.pay_token == token,
-                    Academy.status == AcademyStatus.ACTIVE,
-                )
+                .where(match, Academy.status == AcademyStatus.ACTIVE)
             )
         ).one_or_none()
         return (row.academy_id, row.id) if row else None
@@ -1553,9 +1641,8 @@ class BillingService:  # noqa: PLR0904
         *,
         group: ChargeGroup = ChargeGroup.MONTHLY,
     ) -> list[ChargeRead]:
-        """O que o aluno pode pagar hoje, do mais antigo ao mais novo: o
-        vencido mais a cobrança em aberto que vence até o fim do mês de hoje.
-        É o que a página /pagar mostra e o que o checkout cobra e confere."""
+        """Tudo o que o aluno tem em aberto no grupo, do mais antigo ao mais
+        novo. A /pagar, o checkout e a conferência partem daqui."""
         return payable_charges(
             await self._charges(
                 academy_id,

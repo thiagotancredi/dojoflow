@@ -11,9 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dojoflow.api.dependencies.rate_limit import public_pay_limiter
 from dojoflow.core.settings import settings
 from dojoflow.models.infinitepay_checkout import InfinitePayCheckout
+from dojoflow.models.payment import Payment
 from dojoflow.models.student import Student
 from dojoflow.services import billing as billing_module
-from dojoflow.shared.enums import CheckoutStatus
+from dojoflow.shared.enums import CheckoutStatus, PaymentStatus
 from tests.helpers.auth import SEED, auth_headers
 from tests.helpers.infinitepay import (
     API_KEY,
@@ -218,6 +219,7 @@ async def test_renew_pay_link_cancels_open_checkout(
     renewed = await client.post(
         f'/api/v1/students/{ctx["student_id"]}/billing/pay-link',
         headers=await auth_headers(client),
+        json={'amount': '200'},
     )
     new_token = renewed.json()['pay_url'].rsplit('/', 1)[1]
     with fake_infinitepay(link_created('https://novo')) as fake:
@@ -356,10 +358,13 @@ async def test_checkout_nothing_payable_409(
 ):
     ctx = await _student(db_session, monkeypatch)
     await enable_infinitepay(db_session)
-    # Em dezembro, janeiro ainda é mês futuro: nada a pagar
-    monkeypatch.setattr(
-        billing_module, 'local_today', lambda: date(2026, 12, 15)
+    # Tudo pago: nada a pagar
+    await db_session.execute(
+        update(Payment).values(
+            amount_paid=Payment.amount_due, status=PaymentStatus.PAID
+        )
     )
+    await db_session.commit()
 
     with fake_infinitepay() as fake:
         response = await client.post(_checkout_url(ctx['token']))

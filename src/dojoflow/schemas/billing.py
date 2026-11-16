@@ -111,6 +111,14 @@ class CheckoutReviewRead(BaseModel):
     receipt_url: str | None
 
 
+class PayLinkRead(BaseModel):
+    """Link novo do "Cobrar": o endereço, a mensagem e o valor."""
+
+    pay_url: str
+    whatsapp_url: str | None
+    amount: Decimal
+
+
 class StudentBillingRead(BaseModel):
     open_total: Decimal
     open_months: str

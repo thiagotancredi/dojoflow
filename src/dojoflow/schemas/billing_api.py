@@ -288,5 +288,13 @@ class BulkPaymentApiRead(BaseModel):
     total: Decimal
 
 
+class PayLinkApiPayload(BaseModel):
+    """ "Cobrar": quanto o link vai cobrar (até o total em aberto)."""
+
+    amount: Money
+
+
 class PayLinkApiRead(BaseModel):
     pay_url: str
+    whatsapp_url: str | None = None
+    amount: Decimal | None = None
