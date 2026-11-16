@@ -1458,6 +1458,34 @@ class BillingService:  # noqa: PLR0904
             amount=amount,
         )
 
+    @transactional
+    async def reset_pay_links(self, today: date) -> int:
+        """Virada do mês: quem ainda está com o link de um mês anterior
+        ganha um link novo, do total em aberto. Uma vez por mês: rodar de
+        novo no mesmo mês (ou reiniciar o worker) não muda nada."""
+        this_month = today.replace(day=1)
+        rows = (
+            await self.db_session.execute(
+                select(Student.id, Student.academy_id)
+                .where(Student.pay_link_month < this_month)
+                .with_for_update()
+            )
+        ).all()
+        for student_id, academy_id in rows:
+            await self.db_session.execute(
+                update(Student)
+                .where(Student.id == student_id)
+                .values(
+                    pay_token=new_pay_token(),
+                    pay_amount=None,
+                    pay_link_month=this_month,
+                )
+            )
+            await self._cancel_open_checkouts(
+                academy_id, student_id, ChargeGroup.MONTHLY
+            )
+        return len(rows)
+
     async def _cancel_open_checkouts(
         self, academy_id: int, student_id: int, group: ChargeGroup | None
     ) -> None:

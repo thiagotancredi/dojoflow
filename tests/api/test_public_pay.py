@@ -174,10 +174,14 @@ async def test_public_pay_includes_advanced_month(
         start='2027-11-01',
         today=date(2027, 11, 1),
     )
-    # Dezembro já existe (adiantado): o total em aberto inclui ele
+    # Dezembro já existe (adiantado): o total em aberto inclui ele. A
+    # geração de dezembro também troca o link (virada do mês)
     await generate_charges(db_session, date(2027, 12, 1))
+    db_session.expire_all()
 
-    body = (await client.get(_pay_url(ctx['token']))).json()
+    body = (
+        await client.get(_pay_url(await _token(db_session, ctx['student_id'])))
+    ).json()
 
     assert body['items'] == [
         {'label': 'Mensalidade · novembro', 'amount': '100.00'},

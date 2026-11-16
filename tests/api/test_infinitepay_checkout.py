@@ -270,9 +270,15 @@ async def test_checkout_new_link_when_amount_changed(
     march = date(2027, 3, 20)
     monkeypatch.setattr(billing_module, 'local_today', lambda: march)
     await generate_charges(db_session, march)
+    # Virada do mês: o aluno ganhou um link novo, do total
+    token = await db_session.scalar(
+        select(Student.pay_token).where(
+            Student.public_id == uuid.UUID(ctx['student_id'])
+        )
+    )
 
     with fake_infinitepay(link_created('https://novo')) as fake:
-        response = await client.post(_checkout_url(ctx['token']))
+        response = await client.post(_checkout_url(token))
 
     assert response.json() == {'url': 'https://novo'}
     assert len(fake.bodies('/links')[0]['items']) == 3  # noqa: PLR2004

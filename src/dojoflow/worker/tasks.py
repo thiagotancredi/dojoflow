@@ -33,8 +33,11 @@ logger = logging.getLogger(__name__)
 async def generate_monthly_charges_job(
     session: AsyncSession, today: date
 ) -> int:
-    """Cria as mensalidades que faltam, de todas as academias."""
-    return await BillingService(session).ensure_monthly_charges(None, today)
+    """Virada do mês: cada aluno volta a ter um link só, do total em
+    aberto; depois cria as mensalidades que faltam, de todas as academias."""
+    billing = BillingService(session)
+    await billing.reset_pay_links(today)
+    return await billing.ensure_monthly_charges(None, today)
 
 
 @celery_app.task(name='dojoflow.generate_monthly_charges')
