@@ -21,7 +21,9 @@ export function DashboardCard({
   children,
 }: DashboardCardProps) {
   return (
-    <section className={cn('space-y-4 rounded-3xl bg-card p-5', className)}>
+    // min-w-0: dentro de uma grade, o cartão pode ficar mais estreito que um
+    // nome comprido (o nome corta com "…" em vez de esticar a tela)
+    <section className={cn('min-w-0 space-y-4 rounded-3xl bg-card p-5', className)}>
       {/* flex-wrap + shrink-0: o título nunca quebra; se as ações (ex.:
           filtros) não couberem ao lado, descem para a linha de baixo */}
       <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">

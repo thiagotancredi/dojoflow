@@ -111,7 +111,7 @@ export function StatisticsPage() {
       {data ? (
         <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
           <BeltCountsCard data={data.by_belt} />
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <SexCard data={data.by_sex} />
             <IncompleteCard data={data.incomplete} />
           </div>

@@ -179,7 +179,7 @@ export function StudentsPage() {
         actions={
           <Button asChild className="rounded-full">
             <Link to="/app/alunos/novo">
-              <Plus /> <span className="hidden sm:inline">Novo aluno</span>
+              <Plus /> Novo aluno
             </Link>
           </Button>
         }
