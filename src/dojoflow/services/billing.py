@@ -877,38 +877,48 @@ class BillingService:  # noqa: PLR0904
             )
 
     @transactional
-    async def launch_past_charge(  # noqa: PLR0913, PLR0917
+    async def launch_charge(  # noqa: PLR0913
         self,
         academy_id: int,
         enrollment_id: int,
-        reference_month: date,
+        *,
+        kind: PaymentKind,
         amount: Decimal,
         due_date: date,
+        reference_month: date | None = None,
+        category: ChargeCategory | None = None,
+        description: str | None = None,
         today: date | None = None,
     ) -> ChargeRead:
-        """Lança à mão uma mensalidade de antes da cobrança automática."""
+        """Lança à mão: mensalidade de qualquer mês até o atual, taxa de
+        matrícula ou avulsa de uma categoria. Meses futuros só entram pelo
+        adiantamento (senão a geração automática pularia um mês)."""
         today = today or local_today()
-        enrollment = await self.db_session.get_one(Enrollment, enrollment_id)
-        # Sem cobrança automática, qualquer mês até o atual
-        limit = enrollment.billing_start_month or first_monthly_month(today)
+        this_month = today.replace(day=1)
 
-        if reference_month >= limit:
-            raise ConflictError(
-                'Only months before the automatic billing can be launched.',
-                code='CHARGE_NOT_PAST',
-            )
+        if kind is PaymentKind.MONTHLY:
+            if reference_month is None or reference_month > this_month:
+                raise ConflictError(
+                    'Meses futuros entram pelo Adiantamento.',
+                    code='CHARGE_MONTH_IN_FUTURE',
+                )
+            month = reference_month
+        else:
+            month = due_date.replace(day=1)
 
         created = await self.db_session.scalar(
             insert(Payment)
             .values(
                 academy_id=academy_id,
                 enrollment_id=enrollment_id,
-                kind=PaymentKind.MONTHLY,
-                reference_month=reference_month,
+                kind=kind,
+                reference_month=month,
                 due_date=due_date,
                 status=PaymentStatus.PENDING,
                 amount_due=amount,
                 amount_paid=Decimal(0),
+                category=category,
+                description=description,
             )
             .on_conflict_do_nothing(
                 index_elements=MONTHLY_UNIQUE_COLUMNS,
@@ -924,6 +934,68 @@ class BillingService:  # noqa: PLR0904
             )
 
         return await self._charge(academy_id, created, today)
+
+    @transactional
+    async def launch_advance(
+        self,
+        academy_id: int,
+        enrollment_id: int,
+        months: int,
+        today: date | None = None,
+    ) -> list[ChargeRead]:
+        """Adiantamento: os próximos meses da matrícula, em sequência, logo
+        depois da última mensalidade (ou a partir do mês atual), com o
+        valor e o vencimento normais. O dia 1º não cria de novo."""
+        today = today or local_today()
+        enrollment = await self.db_session.get_one(Enrollment, enrollment_id)
+        if (
+            enrollment.status is not EnrollmentStatus.ACTIVE
+            or enrollment.is_exempt
+            or not enrollment.monthly_fee
+            or enrollment.monthly_fee <= 0
+            or enrollment.due_day is None
+        ):
+            raise ConflictError(
+                'Esta matrícula não tem mensalidade para adiantar.',
+                code='ADVANCE_NOT_AVAILABLE',
+            )
+
+        last = await self.db_session.scalar(
+            select(func.max(Payment.reference_month)).where(
+                Payment.enrollment_id == enrollment_id,
+                Payment.kind == PaymentKind.MONTHLY,
+            )
+        )
+        this_month = today.replace(day=1)
+        start = this_month if last is None else first_monthly_month(last)
+        start = max(start, this_month)
+
+        chosen = [start]
+        while len(chosen) < months:
+            chosen.append(first_monthly_month(chosen[-1]))
+
+        created = await self.db_session.scalars(
+            insert(Payment)
+            .values([
+                {
+                    'academy_id': academy_id,
+                    'enrollment_id': enrollment_id,
+                    'kind': PaymentKind.MONTHLY,
+                    'reference_month': month,
+                    'due_date': due_date_for(month, enrollment.due_day),
+                    'status': PaymentStatus.PENDING,
+                    'amount_due': enrollment.monthly_fee,
+                    'amount_paid': Decimal(0),
+                }
+                for month in chosen
+            ])
+            .returning(Payment.id)
+        )
+        ids = list(created.all())
+        charges = await self._charges(
+            academy_id, today, Payment.id.in_(ids), group=None
+        )
+        return sorted(charges, key=lambda c: c.reference_month)
 
     @transactional
     async def update_charge(

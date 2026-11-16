@@ -18,6 +18,7 @@ from dojoflow.api.dependencies.public_ids import (
 from dojoflow.models.student import Student
 from dojoflow.schemas.billing import BillingOverviewRead, OverviewFilter
 from dojoflow.schemas.billing_api import (
+    AdvanceChargesApiPayload,
     AllocationPreviewApiRead,
     BulkPaymentApiPayload,
     BulkPaymentApiRead,
@@ -33,6 +34,7 @@ from dojoflow.schemas.billing_api import (
 )
 from dojoflow.schemas.billing_settings_api import BillingSettingsApi
 from dojoflow.schemas.graduation_overview import GraduationOverviewRead
+from dojoflow.shared.enums import PaymentKind
 
 router = APIRouter(prefix='/students/{student_id}/billing', tags=['Billing'])
 overview_router = APIRouter(prefix='/billing', tags=['Billing'])
@@ -112,7 +114,7 @@ async def read_student_billing(
 
 
 @router.post(path='/charges', status_code=status.HTTP_201_CREATED)
-async def launch_past_charge(
+async def launch_charge(
     student_id: StudentIdDep,
     data: LaunchChargeApiPayload,
     current_master: CurrentMasterDep,
@@ -122,15 +124,36 @@ async def launch_past_charge(
     enrollment_id = await resolve_student_enrollment_id(
         db_session_dep, data.enrollment_id, student_id
     )
-    charge = await billing_service_dep.launch_past_charge(
+    charge = await billing_service_dep.launch_charge(
         current_master.academy_id,
         enrollment_id,
-        data.reference_month,
-        data.amount,
-        data.due_date,
+        kind=PaymentKind(data.kind),
+        amount=data.amount,
+        due_date=data.due_date,
+        reference_month=data.reference_month,
+        category=data.category,
+        description=data.description,
     )
 
     return ChargeApiRead.from_internal(charge)
+
+
+@router.post(path='/charges/advance', status_code=status.HTTP_201_CREATED)
+async def launch_advance(
+    student_id: StudentIdDep,
+    data: AdvanceChargesApiPayload,
+    current_master: CurrentMasterDep,
+    billing_service_dep: BillingServiceDep,
+    db_session_dep: DbSessionDep,
+) -> list[ChargeApiRead]:
+    enrollment_id = await resolve_student_enrollment_id(
+        db_session_dep, data.enrollment_id, student_id
+    )
+    charges = await billing_service_dep.launch_advance(
+        current_master.academy_id, enrollment_id, data.months
+    )
+
+    return [ChargeApiRead.from_internal(c) for c in charges]
 
 
 @router.patch(path='/charges/{charge_id}', status_code=status.HTTP_200_OK)

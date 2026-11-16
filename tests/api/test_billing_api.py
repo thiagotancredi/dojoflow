@@ -242,6 +242,7 @@ async def _launch(client: AsyncClient, ctx: dict, month: str, **extra):
         headers=ctx['headers'],
         json={
             'enrollment_id': ctx['enrollment_id'],
+            'kind': 'monthly',
             'reference_month': month,
             'amount': '90',
             'due_date': month[:8] + '15',
@@ -322,7 +323,7 @@ async def test_launch_existing_month_conflicts(
 
 
 @pytest.mark.asyncio
-async def test_launch_month_not_before_billing_start_conflicts(
+async def test_launch_future_month_conflicts(
     client: AsyncClient,
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -332,7 +333,7 @@ async def test_launch_month_not_before_billing_start_conflicts(
     response = await _launch(client, ctx, '2027-04-01')
 
     assert response.status_code == HTTPStatus.CONFLICT
-    assert response.json()['code'] == 'CHARGE_NOT_PAST'
+    assert response.json()['code'] == 'CHARGE_MONTH_IN_FUTURE'
 
 
 @pytest.mark.asyncio

@@ -1,9 +1,15 @@
 from datetime import date
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, Field, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from dojoflow.schemas.billing import (
     AllocationPreview,
@@ -162,17 +168,49 @@ ChargeDate = Annotated[
 
 
 class LaunchChargeApiPayload(BaseModel):
+    """Lançar cobrança: mensalidade (com o mês), taxa de matrícula ou
+    avulsa de uma categoria ("Outros" pede a descrição)."""
+
     enrollment_id: UUID
-    reference_month: ChargeDate
+    kind: Literal['monthly', 'enrollment_fee', 'extra']
+    category: ChargeCategory | None = None
+    description: str | None = Field(default=None, max_length=120)
+    # Só na mensalidade; nas outras, o mês vem do vencimento
+    reference_month: ChargeDate | None = None
     amount: Money
     due_date: ChargeDate
 
     @field_validator('reference_month')
     @classmethod
-    def _first_day(cls, value: date) -> date:
-        if value.day != 1:
+    def _first_day(cls, value: date | None) -> date | None:
+        if value is not None and value.day != 1:
             raise ValueError('reference_month must be the first day.')
         return value
+
+    @field_validator('description')
+    @classmethod
+    def _strip(cls, value: str | None) -> str | None:
+        value = value.strip() if value else None
+        return value or None
+
+    @model_validator(mode='after')
+    def _by_kind(self) -> 'LaunchChargeApiPayload':
+        if self.kind == 'monthly' and self.reference_month is None:
+            raise ValueError('reference_month is required for monthly.')
+        if self.kind == 'extra' and self.category is None:
+            raise ValueError('category is required for extra.')
+        if self.kind != 'extra' and self.category is not None:
+            raise ValueError('category is only for extra.')
+        if self.category is ChargeCategory.OTHER and not self.description:
+            raise ValueError('description is required for other.')
+        return self
+
+
+class AdvanceChargesApiPayload(BaseModel):
+    """Adiantamento: os próximos meses da matrícula, de uma vez."""
+
+    enrollment_id: UUID
+    months: int = Field(ge=1, le=12)
 
 
 class UpdateChargeApiPayload(BaseModel):
