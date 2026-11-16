@@ -149,7 +149,11 @@ def age_on(birth_date: date, today: date) -> int:
 
 
 _GROUP_KINDS = {
-    ChargeGroup.MONTHLY: (PaymentKind.MONTHLY, PaymentKind.ENROLLMENT_FEE),
+    ChargeGroup.MONTHLY: (
+        PaymentKind.MONTHLY,
+        PaymentKind.ENROLLMENT_FEE,
+        PaymentKind.EXTRA,
+    ),
     ChargeGroup.GRADUATION: (PaymentKind.GRADUATION,),
 }
 

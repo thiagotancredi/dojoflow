@@ -51,13 +51,29 @@ class PaymentKind(str, enum.Enum):
     MONTHLY = 'monthly'
     ENROLLMENT_FEE = 'enrollment_fee'
     GRADUATION = 'graduation'
+    # Cobrança avulsa de uma categoria (uniforme, campeonato...)
+    EXTRA = 'extra'
+
+
+class ChargeCategory(str, enum.Enum):
+    """Categorias fixas das cobranças avulsas (iguais em toda academia)."""
+
+    UNIFORM = 'uniform'
+    EQUIPMENT = 'equipment'
+    CHAMPIONSHIP = 'championship'
+    EVENT = 'event'
+    FEDERATION = 'federation'
+    PRIVATE_CLASS = 'private_class'
+    PRODUCTS = 'products'
+    # Única com descrição obrigatória
+    OTHER = 'other'
 
 
 class ChargeGroup(str, enum.Enum):
     """Cobranças que nunca se misturam: cada grupo tem o seu link, a sua
     baixa e os seus números."""
 
-    MONTHLY = 'monthly'  # mensalidade e taxa de matrícula
+    MONTHLY = 'monthly'  # mensalidade, taxa de matrícula e avulsas
     GRADUATION = 'graduation'
 
 

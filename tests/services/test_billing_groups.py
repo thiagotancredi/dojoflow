@@ -13,6 +13,7 @@ from dojoflow.models.payment import Payment
 from dojoflow.models.student import Student
 from dojoflow.services import billing as billing_module
 from dojoflow.services.billing import BillingService
+from dojoflow.services.billing_rules import group_of
 from dojoflow.shared.enums import (
     ChargeGroup,
     CheckoutStatus,
@@ -289,3 +290,7 @@ async def test_student_billing_lists_graduation_but_totals_monthly(
     assert graduation.description == 'Verde'
     assert billing.open_total == Decimal('110.00')
     assert billing.open_months == 'novembro'
+
+
+def test_extra_is_in_monthly_group():
+    assert group_of(PaymentKind.EXTRA) is ChargeGroup.MONTHLY

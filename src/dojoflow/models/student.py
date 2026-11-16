@@ -1,7 +1,8 @@
 import secrets
 from datetime import date
+from decimal import Decimal
 
-from sqlalchemy import String
+from sqlalchemy import String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dojoflow.database.helper_mapped_columns import (
@@ -9,6 +10,7 @@ from dojoflow.database.helper_mapped_columns import (
     date_column,
     enum_column,
     int_fk,
+    money_column,
     str_column,
 )
 from dojoflow.models.base_model import BaseModel
@@ -44,6 +46,24 @@ class Student(BaseModel):
     )
 
     pay_token: Mapped[str] = mapped_column(
+        String(32),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=new_pay_token,
+    )
+    # Valor do link de pagamento que o mestre gerou ("Cobrar"); NULL = o
+    # total em aberto. Volta a NULL na virada do mês
+    pay_amount: Mapped[Decimal | None] = money_column(nullable=True)
+    # Mês (dia 1) a que o link atual pertence: na virada, quem ainda está
+    # com o link do mês anterior ganha um novo (uma vez por mês)
+    pay_link_month: Mapped[date] = mapped_column(
+        nullable=False,
+        server_default=text("date_trunc('month', current_date)::date"),
+    )
+    # Link da graduação: próprio, para não cair quando o "Cobrar" da
+    # mensalidade troca o pay_token
+    graduation_pay_token: Mapped[str] = mapped_column(
         String(32),
         unique=True,
         index=True,

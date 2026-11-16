@@ -90,6 +90,11 @@ MONTHLY_UNIQUE_COLUMNS = [
     Payment.kind,
     Payment.reference_month,
 ]
+# Mesmo WHERE do índice único: só mensalidade e taxa são uma por mês
+MONTHLY_UNIQUE_WHERE = Payment.kind.in_((
+    PaymentKind.MONTHLY,
+    PaymentKind.ENROLLMENT_FEE,
+))
 ZERO = Decimal('0.00')
 # Sem "da/do {academia}" (o artigo depende do nome) e sem "sua mensalidade"
 # (no aluno menor, quem lê é o responsável); assinada pelo mestre, com o
@@ -531,7 +536,7 @@ class BillingService:  # noqa: PLR0904
             .values(values)
             .on_conflict_do_nothing(
                 index_elements=MONTHLY_UNIQUE_COLUMNS,
-                index_where=Payment.kind != PaymentKind.GRADUATION,
+                index_where=MONTHLY_UNIQUE_WHERE,
             )
             .returning(Payment.id)
         )
@@ -886,7 +891,7 @@ class BillingService:  # noqa: PLR0904
             )
             .on_conflict_do_nothing(
                 index_elements=MONTHLY_UNIQUE_COLUMNS,
-                index_where=Payment.kind != PaymentKind.GRADUATION,
+                index_where=MONTHLY_UNIQUE_WHERE,
             )
             .returning(Payment.id)
         )

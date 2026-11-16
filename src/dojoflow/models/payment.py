@@ -12,15 +12,15 @@ from dojoflow.database.helper_mapped_columns import (
     str_column,
 )
 from dojoflow.models.base_model import BaseModel
-from dojoflow.shared.enums import PaymentKind, PaymentStatus
+from dojoflow.shared.enums import ChargeCategory, PaymentKind, PaymentStatus
 
 
 class Payment(BaseModel):
     __tablename__ = 'payment'
 
     __table_args__ = (
-        # Uma mensalidade (ou taxa) por matrícula e mês. A graduação fica
-        # de fora: o mesmo aluno pode estar em duas listas no mesmo mês
+        # Uma mensalidade (ou taxa) por matrícula e mês. Graduação e
+        # avulsas ficam de fora: duas avulsas iguais no mesmo mês podem existir
         Index(
             'uq_payment_enrollment_kind_month',
             'academy_id',
@@ -28,7 +28,7 @@ class Payment(BaseModel):
             'kind',
             'reference_month',
             unique=True,
-            postgresql_where=text("kind <> 'graduation'"),
+            postgresql_where=text("kind IN ('monthly', 'enrollment_fee')"),
         ),
     )
 
@@ -60,5 +60,10 @@ class Payment(BaseModel):
         nullable=True,
         unique=True,
     )
-    # Graduação: o nome da faixa-alvo (ex.: "Verde"), guardado na cobrança
+    # Avulsa: a categoria (uniforme, campeonato...)
+    category: Mapped[ChargeCategory | None] = enum_column(
+        ChargeCategory, nullable=True
+    )
+    # Graduação: o nome da faixa-alvo (ex.: "Verde"); avulsa "Outros": o
+    # que está sendo cobrado
     description: Mapped[str | None] = str_column(length=120, nullable=True)

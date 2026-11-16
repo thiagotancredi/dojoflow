@@ -167,6 +167,7 @@ def test_kinds_of_groups() -> None:
     assert kinds_of(ChargeGroup.MONTHLY) == (
         PaymentKind.MONTHLY,
         PaymentKind.ENROLLMENT_FEE,
+        PaymentKind.EXTRA,
     )
     assert kinds_of(ChargeGroup.GRADUATION) == (PaymentKind.GRADUATION,)
     assert group_of(PaymentKind.GRADUATION) is ChargeGroup.GRADUATION
