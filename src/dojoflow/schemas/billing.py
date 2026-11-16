@@ -5,7 +5,12 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from dojoflow.shared.enums import PaymentKind, PaymentMethod, PaymentSource
+from dojoflow.shared.enums import (
+    ChargeCategory,
+    PaymentKind,
+    PaymentMethod,
+    PaymentSource,
+)
 
 ChargeStatus = Literal['paid', 'partial', 'overdue', 'upcoming', 'waived']
 
@@ -47,8 +52,11 @@ class ChargeRead(BaseModel):
     paid: Decimal
     status: ChargeStatus
     created_at: datetime
-    # Graduação: o nome da faixa-alvo (ex.: "Verde")
+    # Graduação: o nome da faixa-alvo (ex.: "Verde"); avulsa "Outros": o
+    # que está sendo cobrado
     description: str | None = None
+    # Avulsa: a categoria (uniforme, campeonato...)
+    category: ChargeCategory | None = None
     graduation_entry_id: int | None = None
     paid_at: date | None = None
     # Só na ficha do aluno, em cobranças de graduação ligadas a uma lista

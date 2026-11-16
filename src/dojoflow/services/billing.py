@@ -60,6 +60,7 @@ from dojoflow.services.billing_rules import (
     allocate_oldest_first,
     billing_status,
     due_date_for,
+    extra_label,
     first_monthly_month,
     format_brl,
     join_names,
@@ -71,6 +72,7 @@ from dojoflow.services.pix import pix_copy_paste
 from dojoflow.shared.email import is_deliverable_email
 from dojoflow.shared.enums import (
     AcademyStatus,
+    ChargeCategory,
     ChargeGroup,
     CheckoutStatus,
     EnrollmentStatus,
@@ -138,27 +140,43 @@ def _months_from(start: date, end: date) -> list[date]:
     return months
 
 
-def _charge_label(
+def charge_label(
     kind: PaymentKind,
     reference_month: date,
     year: int,
     description: str | None = None,
+    *,
+    category: ChargeCategory | None = None,
 ) -> str:
     if kind is PaymentKind.ENROLLMENT_FEE:
         return ENROLLMENT_FEE_LABEL
     if kind is PaymentKind.GRADUATION:
         return f'{GRADUATION_LABEL} · {description or ""}'.rstrip(' ·')
+    if kind is PaymentKind.EXTRA:
+        return extra_label(category, description)
     return month_name(reference_month, year)
 
 
 def open_label(charges: list[ChargeRead], current_year: int) -> str:
-    """Ex.: "taxa de matrícula, janeiro e fevereiro"."""
+    """Ex.: "taxa de matrícula, janeiro, fevereiro e uniforme"."""
     has_fee = any(c.kind is PaymentKind.ENROLLMENT_FEE for c in charges)
     months = sorted({
         c.reference_month for c in charges if c.kind is PaymentKind.MONTHLY
     })
     names = [month_name(month, current_year) for month in months]
-    return join_names([ENROLLMENT_FEE_LABEL, *names] if has_fee else names)
+    # Avulsas depois dos meses, por vencimento; "Outros" leva o texto como
+    # o mestre escreveu, as categorias vão em minúsculas
+    extras = [
+        c.description
+        if c.category is ChargeCategory.OTHER and c.description
+        else extra_label(c.category, None).lower()
+        for c in sorted(
+            (c for c in charges if c.kind is PaymentKind.EXTRA),
+            key=lambda c: (c.due_date, c.created_at),
+        )
+    ]
+    fee = [ENROLLMENT_FEE_LABEL] if has_fee else []
+    return join_names([*fee, *names, *extras])
 
 
 def payable_charges(
@@ -354,7 +372,7 @@ def graduation_whatsapp_url(
     return f'https://wa.me/{whatsapp_phone(contact.phone)}?text={quote(text)}'
 
 
-def _public_label(
+def public_label(
     charge: ChargeRead,
     year: int,
     student_first_name: str | None,
@@ -366,6 +384,8 @@ def _public_label(
         label = f'Taxa de matrícula{of_student}'
     elif charge.kind is PaymentKind.GRADUATION:
         label = f'{GRADUATION_LABEL}{of_student} · {charge.description}'
+    elif charge.kind is PaymentKind.EXTRA:
+        label = extra_label(charge.category, charge.description)
     else:
         month = month_name(charge.reference_month, year)
         label = f'Mensalidade{of_student} · {month}'
@@ -821,6 +841,7 @@ class BillingService:  # noqa: PLR0904
                     amount=amount,
                     paid=payment.amount_paid,
                     description=payment.description,
+                    category=payment.category,
                     graduation_entry_id=payment.graduation_entry_id,
                     paid_at=payment.paid_at,
                     status=billing_status(
@@ -1030,11 +1051,12 @@ class BillingService:  # noqa: PLR0904
         return [
             AllocationPreview(
                 charge_public_id=charge.public_id,
-                label=_charge_label(
+                label=charge_label(
                     charge.kind,
                     charge.reference_month,
                     today.year,
                     charge.description,
+                    category=charge.category,
                 ),
                 amount=part.quantize(CENTS),
                 settles=part == charge.open_amount,
@@ -1372,7 +1394,7 @@ class BillingService:  # noqa: PLR0904
             status='open' if payable else 'clear',
             items=[
                 PublicPaymentItemRead(
-                    label=_public_label(
+                    label=public_label(
                         charge,
                         today.year,
                         contact.name.split()[0] if to_responsible else None,
@@ -1843,6 +1865,7 @@ class BillingService:  # noqa: PLR0904
                     Payment.kind,
                     Payment.reference_month,
                     Payment.description,
+                    Payment.category,
                 )
                 .join(Payment, Payment.id == PaymentAllocation.payment_id)
                 .where(
@@ -1874,11 +1897,12 @@ class BillingService:  # noqa: PLR0904
             allocations.setdefault(row.payment_transaction_id, []).append(
                 AllocationRead(
                     charge_public_id=row.public_id,
-                    label=_charge_label(
+                    label=charge_label(
                         row.kind,
                         row.reference_month,
                         today.year,
                         row.description,
+                        category=row.category,
                     ),
                     amount=row.allocated_amount,
                 )

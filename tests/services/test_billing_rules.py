@@ -3,12 +3,15 @@ from decimal import Decimal
 
 import pytest
 
+from dojoflow.services.billing import charge_label, open_label, public_label
 from dojoflow.services.billing_rules import (
+    CATEGORY_LABELS,
     OpenCharge,
     age_on,
     allocate_oldest_first,
     billing_status,
     due_date_for,
+    extra_label,
     first_monthly_month,
     format_brl,
     group_of,
@@ -16,7 +19,7 @@ from dojoflow.services.billing_rules import (
     months_label,
     whatsapp_phone,
 )
-from dojoflow.shared.enums import ChargeGroup, PaymentKind
+from dojoflow.shared.enums import ChargeCategory, ChargeGroup, PaymentKind
 
 T0 = datetime(2026, 10, 1, tzinfo=UTC)
 T1 = datetime(2026, 10, 2, tzinfo=UTC)
@@ -172,3 +175,79 @@ def test_kinds_of_groups() -> None:
     assert kinds_of(ChargeGroup.GRADUATION) == (PaymentKind.GRADUATION,)
     assert group_of(PaymentKind.GRADUATION) is ChargeGroup.GRADUATION
     assert group_of(PaymentKind.ENROLLMENT_FEE) is ChargeGroup.MONTHLY
+
+
+def _charge_read(
+    kind: PaymentKind,
+    month: date,
+    *,
+    category: ChargeCategory | None = None,
+    description: str | None = None,
+):
+    from uuid import uuid4  # noqa: PLC0415
+
+    from dojoflow.schemas.billing import ChargeRead  # noqa: PLC0415
+
+    return ChargeRead(
+        id=1,
+        public_id=uuid4(),
+        kind=kind,
+        student_id=1,
+        enrollment_public_id=uuid4(),
+        modality_name='Karatê',
+        reference_month=month,
+        due_date=month.replace(day=10),
+        amount=Decimal('100.00'),
+        paid=Decimal('0.00'),
+        status='overdue',
+        created_at=datetime(2026, 11, 1, tzinfo=UTC),
+        category=category,
+        description=description,
+    )
+
+
+def test_open_label_with_extras() -> None:
+    charges = [
+        _charge_read(PaymentKind.MONTHLY, date(2026, 10, 1)),
+        _charge_read(PaymentKind.MONTHLY, date(2026, 11, 1)),
+        _charge_read(
+            PaymentKind.EXTRA,
+            date(2026, 11, 1),
+            category=ChargeCategory.UNIFORM,
+        ),
+    ]
+    assert open_label(charges, 2026) == 'outubro, novembro e uniforme'
+
+
+def test_open_label_other_uses_description() -> None:
+    charges = [
+        _charge_read(
+            PaymentKind.EXTRA,
+            date(2026, 11, 1),
+            category=ChargeCategory.OTHER,
+            description='Kimono emprestado',
+        )
+    ]
+    assert open_label(charges, 2026) == 'Kimono emprestado'
+
+
+def test_public_label_extra() -> None:
+    charge = _charge_read(
+        PaymentKind.EXTRA, date(2026, 11, 1), category=ChargeCategory.UNIFORM
+    )
+    assert public_label(charge, 2026, None, False) == 'Uniforme'
+    assert public_label(charge, 2026, None, True) == 'Uniforme · Karatê'
+
+
+def test_charge_label_extra() -> None:
+    assert (
+        charge_label(
+            PaymentKind.EXTRA,
+            date(2026, 11, 1),
+            2026,
+            category=ChargeCategory.CHAMPIONSHIP,
+        )
+        == 'Campeonato'
+    )
+    assert extra_label(ChargeCategory.OTHER, 'Kimono') == 'Kimono'
+    assert CATEGORY_LABELS[ChargeCategory.PRIVATE_CLASS] == 'Aula particular'

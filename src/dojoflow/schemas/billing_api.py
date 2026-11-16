@@ -16,6 +16,7 @@ from dojoflow.schemas.billing import (
     StudentBillingRead,
 )
 from dojoflow.shared.enums import (
+    ChargeCategory,
     ChargeGroup,
     PaymentKind,
     PaymentMethod,
@@ -35,6 +36,8 @@ class ChargeApiRead(BaseModel):
     status: ChargeStatus
     # Graduação: o nome da faixa-alvo (ex.: "Verde")
     description: str | None
+    # Avulsa: a categoria (uniforme, campeonato...)
+    category: ChargeCategory | None = None
     # Graduação: exame, faixa e como cobrar (None nas outras cobranças)
     graduation: ChargeGraduationApiRead | None = None
 
@@ -51,6 +54,7 @@ class ChargeApiRead(BaseModel):
             paid=charge.paid,
             status=charge.status,
             description=charge.description,
+            category=charge.category,
             graduation=charge.graduation,
         )
 

@@ -4,9 +4,31 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from dojoflow.services.belt_rules import local_today
-from dojoflow.shared.enums import ChargeGroup, PaymentKind
+from dojoflow.shared.enums import ChargeCategory, ChargeGroup, PaymentKind
 
 DECEMBER = 12
+
+# Nomes das categorias das cobranças avulsas (lista fixa)
+CATEGORY_LABELS = {
+    ChargeCategory.UNIFORM: 'Uniforme',
+    ChargeCategory.EQUIPMENT: 'Equipamento',
+    ChargeCategory.CHAMPIONSHIP: 'Campeonato',
+    ChargeCategory.EVENT: 'Evento',
+    ChargeCategory.FEDERATION: 'Federação',
+    ChargeCategory.PRIVATE_CLASS: 'Aula particular',
+    ChargeCategory.PRODUCTS: 'Produtos',
+    ChargeCategory.OTHER: 'Outros',
+}
+
+
+def extra_label(
+    category: ChargeCategory | None, description: str | None
+) -> str:
+    """Nome de uma avulsa: em "Outros", o que o mestre escreveu."""
+    if category is ChargeCategory.OTHER and description:
+        return description
+    return CATEGORY_LABELS.get(category, 'Outros') if category else 'Outros'
+
 
 MONTH_NAMES = (
     'janeiro',
