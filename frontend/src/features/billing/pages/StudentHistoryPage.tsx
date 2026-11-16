@@ -14,7 +14,7 @@ import { AutomaticInfo } from '@/features/billing/components/ChargeMenu'
 import { chargeActions, chargeDetail } from '@/features/billing/history'
 import type { ChargeHandlers } from '@/features/billing/history'
 import { MoneyTile } from '@/features/billing/components/finance/MoneyTile'
-import { LaunchPastChargeDialog } from '@/features/billing/components/LaunchPastChargeDialog'
+import { LaunchChargeDialog } from '@/features/billing/components/LaunchChargeDialog'
 import {
   useDeletePayment,
   useSetChargeWaived,
@@ -40,7 +40,7 @@ const SCOPES: { value: Scope; label: string }[] = [
 const isOpen = (charge: Charge) => charge.status !== 'paid' && charge.status !== 'waived'
 
 // Financeiro → histórico de um aluno: todas as mensalidades e graduações,
-// com editar, isentar, excluir pagamento e lançar mês anterior
+// com editar, isentar, excluir pagamento e lançar cobrança
 export function StudentHistoryPage() {
   const { studentId = '' } = useParams()
   const student = useStudent(studentId)
@@ -246,7 +246,7 @@ export function StudentHistoryPage() {
 
         {detailData.enrollments.length > 0 && scope !== 'graduation' && (
           <AddCard
-            label="Lançar mês anterior"
+            label="Lançar cobrança"
             onClick={() => setLaunching(true)}
             className="h-14"
           />
@@ -261,9 +261,10 @@ export function StudentHistoryPage() {
           onClose={() => setDetail(null)}
         />
       )}
-      <LaunchPastChargeDialog
+      <LaunchChargeDialog
         studentId={studentId}
         enrollments={detailData.enrollments}
+        charges={data?.charges ?? []}
         open={launching}
         onOpenChange={setLaunching}
         onDone={billing.refetch}

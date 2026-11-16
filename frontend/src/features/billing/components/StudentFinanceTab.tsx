@@ -15,6 +15,7 @@ import { BeltDrawing } from '@/features/belts/components/BeltDrawing'
 import type { Charge, CheckoutReview, StudentBilling } from '@/features/billing/api'
 import { ChargeDialog } from '@/features/billing/components/ChargeDialog'
 import { ChargeStatusChip } from '@/features/billing/components/ChargeStatusChip'
+import { LaunchChargeDialog } from '@/features/billing/components/LaunchChargeDialog'
 import { CheckoutReviews } from '@/features/billing/components/InfinitePayBits'
 import { PaymentDialog } from '@/features/billing/components/PaymentDialog'
 import { WhatsAppButton } from '@/features/billing/components/WhatsAppButton'
@@ -31,6 +32,7 @@ import {
 import { paymentsByCharge } from '@/features/billing/statement'
 import { parseWhatsAppUrl } from '@/features/billing/whatsapp'
 import type { StudentDetail } from '@/features/students/api'
+import { AddCard } from '@/features/students/components/tabs/TabParts'
 import { showApiError } from '@/lib/api/errors'
 import { formatMoney } from '@/lib/money'
 
@@ -46,6 +48,7 @@ export function StudentFinanceTab({ student: detail }: { student: StudentDetail 
   const resolveReview = useResolveReview(studentId)
   const [paying, setPaying] = useState<{ group: 'monthly' | 'graduation'; chargeId: string | null } | null>(null)
   const [charging, setCharging] = useState(false)
+  const [launching, setLaunching] = useState(false)
 
   if (isLoading && !data) {
     return (
@@ -89,11 +92,22 @@ export function StudentFinanceTab({ student: detail }: { student: StudentDetail 
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <MonthlyCard
-          data={data}
-          onPay={() => setPaying({ group: 'monthly', chargeId: null })}
-          onCharge={() => setCharging(true)}
-        />
+        {/* "Lançar cobrança" logo abaixo do cartão, sempre (até sem nada
+            em aberto): cria algo novo; o cartão cuida do que já existe */}
+        <div className="space-y-2">
+          <MonthlyCard
+            data={data}
+            onPay={() => setPaying({ group: 'monthly', chargeId: null })}
+            onCharge={() => setCharging(true)}
+          />
+          {detail.enrollments.length > 0 && (
+            <AddCard
+              label="Lançar cobrança"
+              onClick={() => setLaunching(true)}
+              className="h-14 flex-row"
+            />
+          )}
+        </div>
         {graduations.map((charge) => (
           <GraduationCard
             key={charge.id}
@@ -130,6 +144,14 @@ export function StudentFinanceTab({ student: detail }: { student: StudentDetail 
         onDone={refetch}
         group={paying?.group ?? 'monthly'}
         chargeId={paying?.chargeId ?? null}
+      />
+      <LaunchChargeDialog
+        studentId={studentId}
+        enrollments={detail.enrollments}
+        charges={data.charges}
+        open={launching}
+        onOpenChange={setLaunching}
+        onDone={refetch}
       />
       <ChargeDialog
         studentId={studentId}
