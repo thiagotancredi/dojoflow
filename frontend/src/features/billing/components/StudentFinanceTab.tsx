@@ -1,10 +1,9 @@
-import { ChevronRight, Copy, Ellipsis, History, RefreshCw } from 'lucide-react'
+import { ChevronRight, Copy, Ellipsis, History, MessageCircle, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
 
-import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -14,12 +13,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { BeltDrawing } from '@/features/belts/components/BeltDrawing'
 import type { Charge, CheckoutReview, StudentBilling } from '@/features/billing/api'
+import { ChargeDialog } from '@/features/billing/components/ChargeDialog'
 import { ChargeStatusChip } from '@/features/billing/components/ChargeStatusChip'
 import { CheckoutReviews } from '@/features/billing/components/InfinitePayBits'
 import { PaymentDialog } from '@/features/billing/components/PaymentDialog'
 import { WhatsAppButton } from '@/features/billing/components/WhatsAppButton'
 import {
-  useCreatePayLink,
   useResolveReview,
   useStudentBilling,
 } from '@/features/billing/hooks'
@@ -44,10 +43,9 @@ const LABEL =
 export function StudentFinanceTab({ student: detail }: { student: StudentDetail }) {
   const studentId = detail.student.id
   const { data, isLoading, error, refetch } = useStudentBilling(studentId)
-  const renewLink = useCreatePayLink(studentId)
   const resolveReview = useResolveReview(studentId)
   const [paying, setPaying] = useState<{ group: 'monthly' | 'graduation'; chargeId: string | null } | null>(null)
-  const [renewing, setRenewing] = useState(false)
+  const [charging, setCharging] = useState(false)
 
   if (isLoading && !data) {
     return (
@@ -72,18 +70,6 @@ export function StudentFinanceTab({ student: detail }: { student: StudentDetail 
     (charge) => charge.kind === 'graduation' && OPEN(charge),
   )
 
-  async function confirmRenew() {
-    try {
-      await renewLink.mutate(data!.open_total)
-      toast.success('Link novo gerado')
-      refetch()
-    } catch (caught) {
-      showApiError(caught)
-    } finally {
-      setRenewing(false)
-    }
-  }
-
   async function markResolved(review: CheckoutReview) {
     try {
       await resolveReview.mutate(review.id)
@@ -105,9 +91,8 @@ export function StudentFinanceTab({ student: detail }: { student: StudentDetail 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <MonthlyCard
           data={data}
-          detail={detail}
           onPay={() => setPaying({ group: 'monthly', chargeId: null })}
-          onRenew={() => setRenewing(true)}
+          onCharge={() => setCharging(true)}
         />
         {graduations.map((charge) => (
           <GraduationCard
@@ -146,103 +131,80 @@ export function StudentFinanceTab({ student: detail }: { student: StudentDetail 
         group={paying?.group ?? 'monthly'}
         chargeId={paying?.chargeId ?? null}
       />
-      <ConfirmDialog
-        open={renewing}
-        onOpenChange={setRenewing}
-        title="Gerar um link de pagamento novo?"
-        description="O link antigo para de funcionar. Quem já recebeu precisa receber o novo."
-        confirmLabel="Gerar link novo"
-        onConfirm={() => void confirmRenew()}
+      <ChargeDialog
+        studentId={studentId}
+        studentName={detail.student.name}
+        responsibleName={responsibleReceiving(detail, data.whatsapp_url)}
+        charges={data.charges}
+        openTotal={data.open_total}
+        open={charging}
+        onOpenChange={setCharging}
+        onDone={refetch}
       />
     </div>
   )
 }
 
-// Mensalidade: o que está em aberto (um ou mais meses) ou, com tudo pago,
-// a do mês atual com "✓ Paga em …"
+// "Em aberto": mensalidades, taxa e avulsas (um ou mais itens) com Cobrar e
+// Dar baixa; sem nada em aberto, R$ 0,00 (e a baixa do mês, se teve)
 function MonthlyCard({
   data,
-  detail,
   onPay,
-  onRenew,
+  onCharge,
 }: {
   data: StudentBilling
-  detail: StudentDetail
   onPay: () => void
-  onRenew: () => void
+  onCharge: () => void
 }) {
   const monthly = data.charges.filter((charge) => charge.kind !== 'graduation')
   // Do mais antigo ao mais novo
   const open = monthly.filter(OPEN).sort((a, b) => a.due_date.localeCompare(b.due_date))
-  // Mensalidades do mês atual (uma por modalidade)
-  const current = monthly.filter(
-    (charge) =>
-      charge.kind === 'monthly' && charge.reference_month.slice(0, 7) === currentMonth(),
-  )
 
   if (open.length === 0) {
+    // Mensalidades do mês atual (uma por modalidade): a baixa mais recente
+    const current = monthly.filter(
+      (charge) =>
+        charge.kind === 'monthly' && charge.reference_month.slice(0, 7) === currentMonth(),
+    )
     const paid = current.filter((charge) => charge.status === 'paid')
-    // A baixa mais recente entre as mensalidades do mês
     const payment = paid
       .flatMap((charge) => paymentsByCharge(data.payments).get(charge.id) ?? [])
       .map((item) => item.payment)
       .sort((a, b) => b.paid_on.localeCompare(a.paid_on))[0]
-    const total = current.reduce((sum, charge) => sum + Number(charge.amount), 0)
-    const allWaived =
-      current.length > 0 && current.every((charge) => charge.status === 'waived')
 
     return (
-      <ChargeCard
-        title={current[0] ? monthlyTitle(current[0]) : 'Mensalidade'}
-        status={paid.length > 0 ? 'paid' : allWaived ? 'waived' : undefined}
-        value={current.length > 0 ? formatMoney(total.toFixed(2)) : undefined}
-        detail={[...new Set(current.map((charge) => charge.modality_name))].join(' · ')}
-      >
+      <ChargeCard title="Em aberto" value={formatMoney('0')} detail="Nada em aberto">
         {paid.length > 0 && (
           <p className="text-sm font-semibold text-sidebar-primary">
-            ✓ Paga
+            ✓ {monthlyTitle(paid[0])} paga
             {payment && ` em ${formatDayMonth(payment.paid_on)}`}
             {payment?.method && ` · ${PAYMENT_METHOD_LABELS[payment.method]}`}
           </p>
-        )}
-        {allWaived && <p className="text-sm text-muted-foreground">Isenta neste mês</p>}
-        {current.length === 0 && (
-          <p className="text-sm text-muted-foreground">Nada em aberto 🎉</p>
         )}
       </ChargeCard>
     )
   }
 
-  const oldest = open[0]
   const status = open.some((charge) => charge.status === 'overdue')
     ? 'overdue'
-    : oldest.status
+    : open[0].status
   const modalities = [...new Set(open.map((charge) => charge.modality_name))].join(' · ')
 
   return (
     <ChargeCard
-      title={open.length === 1 ? monthlyTitle(oldest) : 'Mensalidade'}
+      title="Em aberto"
       status={status}
       value={formatMoney(data.open_total)}
-      detail={
-        open.length === 1
-          ? `${modalities} · vence ${formatDayMonth(oldest.due_date)}`
-          : `${data.open_months} · ${modalities}`
-      }
+      detail={`${data.open_months} · ${modalities}`}
     >
-      <Actions
-        whatsapp={
-          <WhatsAppButton
-            url={data.whatsapp_url}
-            studentName={detail.student.name}
-            responsibleName={responsibleReceiving(detail, data.whatsapp_url)}
-            size="sm"
-          />
-        }
-        onPay={onPay}
-        payUrl={data.pay_url}
-        onRenew={onRenew}
-      />
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="outline" className="h-10 rounded-full" onClick={onCharge}>
+          <MessageCircle /> Cobrar
+        </Button>
+        <Button className="h-10 rounded-full" onClick={onPay}>
+          Dar baixa
+        </Button>
+      </div>
     </ChargeCard>
   )
 }
