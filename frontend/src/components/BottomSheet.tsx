@@ -34,13 +34,25 @@ export function BottomSheet({
   )
 }
 
-// Quadro com título pequeno em maiúsculas (ex.: "Cobrança", "Faixa")
-export function SheetBlock({ title, children }: { title: string; children: ReactNode }) {
+// Quadro com título pequeno em maiúsculas (ex.: "Cobrança", "Faixa") e,
+// opcional, um botão no canto do título (ex.: "Trocar faixa")
+export function SheetBlock({
+  title,
+  action,
+  children,
+}: {
+  title: string
+  action?: ReactNode
+  children: ReactNode
+}) {
   return (
     <section className="rounded-2xl border bg-card p-3">
-      <p className="mb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-        {title}
-      </p>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+          {title}
+        </p>
+        {action}
+      </div>
       {children}
     </section>
   )

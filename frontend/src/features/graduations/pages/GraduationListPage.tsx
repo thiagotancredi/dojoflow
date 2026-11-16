@@ -107,8 +107,10 @@ export function GraduationListPage() {
   const busy = saving || isLoading
   // Cobrança da graduação: baixa de um aluno por vez
   const [paying, setPaying] = useState<GraduationEntry | null>(null)
-  // Celular: painel do aluno tocado e o WhatsApp aberto a partir dele
-  const [detail, setDetail] = useState<GraduationEntry | null>(null)
+  // Celular: qual aluno está com o painel aberto (o id; os dados vêm da
+  // lista, então o painel mostra a faixa/pagamento já atualizados) e o
+  // WhatsApp aberto a partir dele
+  const [detailId, setDetailId] = useState<GraduationEntry['id'] | null>(null)
   const [whatsAppFor, setWhatsAppFor] = useState<GraduationEntry | null>(null)
   // "Adicionar alunos" abre numa janela por cima da lista
   const [adding, setAdding] = useState(false)
@@ -190,6 +192,12 @@ export function GraduationListPage() {
     if (kind === 'waive') void run(() => waiveCharge(entry.student_id, chargeId))
     if (kind === 'unwaive') void run(() => unwaiveCharge(entry.student_id, chargeId))
   }
+
+  // O painel some enquanto uma janela aberta a partir dele está na tela
+  // (trocar faixa, aprovar, dar baixa…) e volta sozinho quando ela fecha.
+  // Só "Remover da lista" e "Voltar para a lista" fecham o painel de vez
+  const detail = data.entries.find((entry) => entry.id === detailId) ?? null
+  const dialogOpen = Boolean(retargeting || paying || whatsAppFor || approving || confirming)
 
   // Sem data limite a lista não cobra: as colunas de cobrança somem
   const deadline = summary.payment_due_date
@@ -319,7 +327,7 @@ export function GraduationListPage() {
                   <li key={entry.id} className="border-b last:border-0">
                     <button
                       type="button"
-                      onClick={() => setDetail(entry)}
+                      onClick={() => setDetailId(entry.id)}
                       className="flex w-full items-center gap-3 py-3 text-left"
                     >
                       {/* Faixa de hoje em cima, próxima embaixo */}
@@ -433,37 +441,22 @@ export function GraduationListPage() {
         </DialogContent>
       </Dialog>
 
-      {detail && (
+      {detail && !dialogOpen && (
         <EntrySheet
           entry={detail}
           examDate={examDate}
           charging={charging}
-          onClose={() => setDetail(null)}
-          onWhatsApp={() => {
-            setDetail(null)
-            setWhatsAppFor(detail)
-          }}
-          onPay={() => {
-            setDetail(null)
-            setPaying(detail)
-          }}
-          onTarget={() => {
-            setDetail(null)
-            setRetargeting(detail)
-          }}
+          onClose={() => setDetailId(null)}
+          onWhatsApp={() => setWhatsAppFor(detail)}
+          onPay={() => setPaying(detail)}
+          onTarget={() => setRetargeting(detail)}
           onRemove={() => {
-            setDetail(null)
+            setDetailId(null)
             void run(() => removeGraduationEntry(id, detail.id))
           }}
           busy={busy}
-          onApprove={() => {
-            setDetail(null)
-            setApproving(detail)
-          }}
-          onConfirm={(kind) => {
-            setDetail(null)
-            setConfirming({ kind, entry: detail })
-          }}
+          onApprove={() => setApproving(detail)}
+          onConfirm={(kind) => setConfirming({ kind, entry: detail })}
         />
       )}
       {whatsAppFor?.whatsapp_url && (
@@ -917,7 +910,22 @@ function EntrySheet({
           </SheetBlock>
         )}
 
-        <SheetBlock title="Faixa">
+        {/* "Trocar faixa" no canto do quadro que ele muda */}
+        <SheetBlock
+          title="Faixa"
+          action={
+            !approved && (
+              <Button
+                variant="outline"
+                className="h-8 rounded-full px-3 text-xs"
+                disabled={busy}
+                onClick={onTarget}
+              >
+                <Pencil className="size-3.5" /> Trocar faixa
+              </Button>
+            )
+          }
+        >
           <div className="flex items-start gap-3">
             <BeltWithName belt={entry.snapshot_belt} />
             <ArrowRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -954,38 +962,41 @@ function EntrySheet({
             </Button>
           </div>
         )}
-        <div className="flex flex-wrap justify-around gap-2">
-          {canWaive(entry) && (
-            <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onConfirm('waive')}>
-              <BadgePercent /> Isentar graduação
-            </Button>
-          )}
-          {canUnwaive(entry) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="rounded-full"
-              onClick={() => onConfirm('unwaive')}
-            >
-              <RotateCcw /> Desfazer isenção
-            </Button>
-          )}
-          {!approved && (
-            <>
-              <Button variant="ghost" size="sm" className="rounded-full" onClick={onTarget}>
-                <Pencil /> Trocar próxima faixa
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-full text-destructive hover:text-destructive"
-                onClick={onRemove}
-              >
-                <Trash2 /> Remover da lista
-              </Button>
-            </>
-          )}
-        </div>
+        {canWaive(entry) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-self-center rounded-full"
+            onClick={() => onConfirm('waive')}
+          >
+            <BadgePercent /> Isentar graduação
+          </Button>
+        )}
+        {canUnwaive(entry) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-self-center rounded-full"
+            onClick={() => onConfirm('unwaive')}
+          >
+            <RotateCcw /> Desfazer isenção
+          </Button>
+        )}
+        {/* Aprovado já gravou a faixa na ficha: remover só depois de desfazer */}
+        {!approved && (
+          <Button
+            variant="outline"
+            className="h-11 w-full rounded-full text-destructive hover:text-destructive"
+            disabled={busy}
+            onClick={onRemove}
+          >
+            <Trash2 /> Remover da lista
+          </Button>
+        )}
+        {/* Depois de cada ação o painel continua aberto: daqui volta à lista */}
+        <Button variant="secondary" className="h-12 w-full rounded-full font-semibold" onClick={onClose}>
+          <ArrowLeft /> Voltar para a lista
+        </Button>
     </BottomSheet>
   )
 }
