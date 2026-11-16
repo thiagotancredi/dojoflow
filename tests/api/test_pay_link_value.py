@@ -183,18 +183,33 @@ async def test_pay_link_whatsapp_uses_link_value(
 
 
 @pytest.mark.asyncio
-async def test_manual_payment_after_value_link_caps_page(
+async def test_manual_payment_uses_up_value_link(
     client: AsyncClient, db_session: AsyncSession, monkeypatch
 ):
     ctx = await _student(client, db_session, monkeypatch)
     token = _token((await _pay_link(client, ctx, '250')).json()['pay_url'])
 
-    await _manual_payment(client, ctx, '300')
+    # Baixa à mão de R$ 100: o link passa a cobrar só o que falta dele
+    await _manual_payment(client, ctx, '100')
+    assert (await _page(client, token)).json()['total'] == '150.00'
 
-    body = (await _page(client, token)).json()
-    assert body['total'] == '50.00'
-    await _manual_payment(client, ctx, '50')
+    # Pagou o resto do link: nada a pagar por ele (o uniforme continua
+    # em aberto na ficha, para um próximo Cobrar)
+    await _manual_payment(client, ctx, '150')
     assert (await _page(client, token)).json()['status'] == 'clear'
+
+
+@pytest.mark.asyncio
+async def test_total_link_is_not_used_up(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch
+):
+    ctx = await _student(client, db_session, monkeypatch)
+    token = (await _student_row(db_session, ctx)).pay_token
+
+    await _manual_payment(client, ctx, '100')
+
+    # Link do total (sem valor): mostra o que ainda está em aberto
+    assert (await _page(client, token)).json()['total'] == '250.00'
 
 
 async def _open_checkout(
@@ -234,6 +249,9 @@ async def test_settle_value_link_after_new_charge(
     status = await _settle(db_session, 20000)
 
     assert status is CheckoutStatus.PAID
+    # O link foi pago: a página dele não pede mais nada (e mostra "pago")
+    token = (await _student_row(db_session, ctx)).pay_token
+    assert (await _page(client, token)).json()['status'] == 'clear'
     db_session.expire_all()
     paid = (
         await db_session.execute(

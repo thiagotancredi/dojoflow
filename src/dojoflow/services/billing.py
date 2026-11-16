@@ -1255,6 +1255,21 @@ class BillingService:  # noqa: PLR0904
         (payment,) = await self._payments(
             academy_id, today, PaymentTransaction.id == transaction.id
         )
+        # Link com valor: o pagamento usa o valor dele (pelo link, Pix com
+        # baixa à mão ou baixa em lote). Pago tudo, a página diz "nada a
+        # pagar" em vez de pedir o próximo item. O link do total não muda
+        if group is ChargeGroup.MONTHLY:
+            await self.db_session.execute(
+                update(Student)
+                .where(
+                    Student.academy_id == academy_id,
+                    Student.id == student_id,
+                    Student.pay_amount.is_not(None),
+                )
+                .values(
+                    pay_amount=func.greatest(Student.pay_amount - amount, 0)
+                )
+            )
         return payment
 
     @transactional
